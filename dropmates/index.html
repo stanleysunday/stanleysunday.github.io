@@ -682,9 +682,15 @@ function draw() {
 // ── RESIZE ───────────────────────────────────────────────────────────────────
 function sizeAll() {
   const vw=window.innerWidth, vh=window.innerHeight;
-  // Usar toda la pantalla disponible
-  WW=Math.round(vw); WH=Math.round(vh);
+  WH=Math.round(vh);
+
+  // En escritorio limitar ancho y centrar
+  const MAX_W = 480;
+  WW = Math.min(Math.round(vw), MAX_W);
+  const offsetX = Math.round((vw - WW) / 2);
+
   wrap.style.width=WW+'px'; wrap.style.height=WH+'px';
+  wrap.style.left=offsetX+'px'; wrap.style.position='absolute';
   canvas.width=WW; canvas.height=WH;
 
   hL = Math.round(WW*0.04);
