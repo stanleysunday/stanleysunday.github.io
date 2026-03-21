@@ -49,7 +49,7 @@ h1 {
 
 /* ── Section label ── */
 .section-label {
-  font-size: clamp(10px, 1.2vw, 12px);
+  font-size: clamp(11px, 1.2vw, 12px);
   letter-spacing: .2em;
   text-transform: uppercase;
   opacity: .35;
@@ -66,28 +66,25 @@ ul.filmlist {
 
 ul.filmlist li {
   border-bottom: 1px solid rgba(0,0,0,.1);
-  transition: background .1s;
 }
-ul.filmlist li:hover { background: rgba(0,0,0,.025); }
 
 ul.filmlist a {
   display: flex;
   align-items: baseline;
   gap: clamp(12px, 3vw, 40px);
-  padding: clamp(11px, 1.8vh, 16px) 0;
+  padding: clamp(12px, 1.8vh, 18px) 0;
   color: inherit;
   text-decoration: none;
 }
-ul.filmlist a.locked { opacity: .6; }
+ul.filmlist a.locked { opacity: .55; }
 
 /* year */
 .yr {
   flex-shrink: 0;
   width: 3.6em;
-  font-size: clamp(11px, 1.3vw, 13px);
+  font-size: clamp(12px, 1.3vw, 13px);
   font-variant-numeric: tabular-nums;
-  opacity: .5;
-  letter-spacing: .03em;
+  opacity: .45;
 }
 
 /* right side */
@@ -98,29 +95,16 @@ ul.filmlist a.locked { opacity: .6; }
 
 .title {
   font-style: italic;
-  font-size: clamp(14px, 1.8vw, 17px);
-  line-height: 1.3;
-  border-bottom: 1px solid transparent;
-  transition: border-color .15s;
-}
-a:not(.locked) .title { border-bottom-color: rgba(0,0,0,.2); }
-a.locked .title        { border-bottom: 1px dashed rgba(0,0,0,.25); }
-ul.filmlist a:hover .title { border-bottom-color: #111 !important; }
-
-.title::after {
-  content: ' ↗';
-  font-style: normal;
-  font-size: .72em;
-  opacity: .35;
+  font-size: clamp(15px, 1.8vw, 17px);
+  line-height: 1.35;
 }
 
 .meta {
   display: block;
   font-style: normal;
-  font-size: clamp(11px, 1.2vw, 12px);
-  opacity: .4;
-  margin-top: 3px;
-  letter-spacing: .01em;
+  font-size: clamp(13px, 1.3vw, 14px);
+  color: #111;
+  margin-top: 2px;
 }
 
 /* ── Footer ── */
@@ -250,127 +234,123 @@ footer a:hover { opacity: 1; }
 <ul class="filmlist">
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2011</span>
-    <span class="info"><span class="title">Imagine</span><span class="meta">Afrika Pseudobruitismus · Digital · 3'11"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — Imagine</span><span class="meta">Digital · 3'11"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2011</span>
-    <span class="info"><span class="title">Deutsche Grammophon</span><span class="meta">Afrika Pseudobruitismus · Digital · 3'32"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — Deutsche Grammophon</span><span class="meta">Digital · 3'32"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2011</span>
-    <span class="info"><span class="title">Aerodisney</span><span class="meta">Afrika Pseudobruitismus · Digital · 4'27"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — Aerodisney</span><span class="meta">Digital · 4'27"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2012</span>
-    <span class="info"><span class="title">Christopher</span><span class="meta">Hidrogenesse · Digital · 2'33"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
-    <span class="yr">2012</span>
-    <span class="info"><span class="title">Mamma Mia</span><span class="meta">Afrika Pseudobruitismus · Digital · 2'38"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — Mamma Mia</span><span class="meta">Digital · 2'38"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2013</span>
-    <span class="info"><span class="title">Cardinal Perplexogram</span><span class="meta">[Physics] · Digital · 3'28"</span></span>
+    <span class="info"><span class="title">[Physics] — Cardinal Perplexogram</span><span class="meta">Digital · 3'28"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2013</span>
-    <span class="info"><span class="title">Luna nueva</span><span class="meta">La Bien Querida · Digital · 3'58"</span></span>
+    <span class="info"><span class="title">La Bien Querida — Luna nueva</span><span class="meta">Digital · 3'58"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2013</span>
-    <span class="info"><span class="title">Vamo a ve</span><span class="meta">Meneo · Digital · 4'15"</span></span>
+    <span class="info"><span class="title">Meneo — Vamo a ve</span><span class="meta">Digital · 4'15"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2013</span>
-    <span class="info"><span class="title">Igual o mayor que</span><span class="meta">Doble Pletina · 16mm · 2'03"</span></span>
+    <span class="info"><span class="title">Doble Pletina — Igual o mayor que</span><span class="meta">16mm · 2'03"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2014</span>
-    <span class="info"><span class="title">7Up Heaven's Gate</span><span class="meta">Afrika Pseudobruitismus · 16mm · 3'04"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — 7Up Heaven's Gate</span><span class="meta">16mm · 3'04"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2014</span>
-    <span class="info"><span class="title">S.XIX</span><span class="meta">Hidrogenesse · Digital · 3'53"</span></span>
+    <span class="info"><span class="title">Hidrogenesse — S.XIX</span><span class="meta">Digital · 3'53"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2015</span>
-    <span class="info"><span class="title">Pianissimo</span><span class="meta">Afrika Pseudobruitismus · Digital · 2'35"</span></span>
+    <span class="info"><span class="title">Afrika Pseudobruitismus — Pianissimo</span><span class="meta">Digital · 2'35"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2015</span>
-    <span class="info"><span class="title">Que me tome la noche</span><span class="meta">Javiera Mena · Digital · 3'28"</span></span>
+    <span class="info"><span class="title">Javiera Mena — Que me tome la noche</span><span class="meta">Digital · 3'28"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Atravesado por el rayo</span><span class="meta">Espanto · Digital · 2'33"</span></span>
+    <span class="info"><span class="title">Espanto — Atravesado por el rayo</span><span class="meta">Digital · 2'33"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Dreamboat</span><span class="meta">Evripidis and His Tragedies · 16mm · 3'28"</span></span>
+    <span class="info"><span class="title">Evripidis and His Tragedies — Dreamboat</span><span class="meta">16mm · 3'28"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Geometría polisentmental</span><span class="meta">Fangoria · Digital · 4'14"</span></span>
+    <span class="info"><span class="title">Fangoria — Geometría polisentmental</span><span class="meta">Digital · 4'14"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Fiesta en el infierno</span><span class="meta">Fangoria · 16mm · 4'52"</span></span>
+    <span class="info"><span class="title">Fangoria — Fiesta en el infierno</span><span class="meta">16mm · 4'52"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Electrobolero</span><span class="meta">Doble Pletina · Digital · 4'52"</span></span>
+    <span class="info"><span class="title">Doble Pletina — Electrobolero</span><span class="meta">Digital · 4'52"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2016</span>
-    <span class="info"><span class="title">Lágrimas de cocodrilo</span><span class="meta">Papa Topo · Digital · 3'23"</span></span>
+    <span class="info"><span class="title">Papa Topo — Lágrimas de cocodrilo</span><span class="meta">Digital · 3'23"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2017</span>
-    <span class="info"><span class="title">El túnel</span><span class="meta">Lidia Damunt · Digital · 3'13"</span></span>
+    <span class="info"><span class="title">Lidia Damunt — El túnel</span><span class="meta">Digital · 3'13"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2017</span>
-    <span class="info"><span class="title">Flash</span><span class="meta">Templeton · Digital · 2'57"</span></span>
+    <span class="info"><span class="title">Templeton — Flash</span><span class="meta">Digital · 2'57"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2018</span>
-    <span class="info"><span class="title">Goin' Harder</span><span class="meta">Crystal Fighters · Digital · 3'49"</span></span>
+    <span class="info"><span class="title">Crystal Fighters — Goin' Harder</span><span class="meta">Digital · 3'49"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2018</span>
-    <span class="info"><span class="title">Espejo</span><span class="meta">Javiera Mena · Digital · 4'26"</span></span>
+    <span class="info"><span class="title">Javiera Mena — Espejo</span><span class="meta">Digital · 4'26"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2019</span>
-    <span class="info"><span class="title">Juramento Mantarraya</span><span class="meta">Aries · 16mm · 3'26"</span></span>
+    <span class="info"><span class="title">Aries — Juramento Mantarraya</span><span class="meta">16mm · 3'26"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2019</span>
-    <span class="info"><span class="title">Wild Ones</span><span class="meta">Crystal Fighters · Digital · 3'25"</span></span>
+    <span class="info"><span class="title">Crystal Fighters — Wild Ones</span><span class="meta">Digital · 3'25"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2019</span>
-    <span class="info"><span class="title">Felicidad</span><span class="meta">Lidia Damunt · 35mm · 3'40"</span></span>
+    <span class="info"><span class="title">Lidia Damunt — Felicidad</span><span class="meta">35mm · 3'40"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2019</span>
-    <span class="info"><span class="title">Carta exagerada</span><span class="meta">Hidrogenesse · 35mm · 3'41"</span></span>
+    <span class="info"><span class="title">Hidrogenesse — Carta exagerada</span><span class="meta">35mm · 3'41"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2020</span>
-    <span class="info"><span class="title">Boy Band</span><span class="meta">Manel · Digital · 3'42"</span></span>
+    <span class="info"><span class="title">Manel — Boy Band</span><span class="meta">Digital · 3'42"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2020</span>
-    <span class="info"><span class="title">El arquero</span><span class="meta">Masonería · Digital · 2'41"</span></span>
+    <span class="info"><span class="title">Masonería — El arquero</span><span class="meta">Digital · 2'41"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener" class="locked">
     <span class="yr">2021</span>
-    <span class="info"><span class="title">Después de medianoche</span><span class="meta">Cabiria · 35mm · 4'09"</span></span>
+    <span class="info"><span class="title">Cabiria — Después de medianoche</span><span class="meta">35mm · 4'09"</span></span>
   </a></li>
   <li><a href="https://vimeo.com/1010569896" target="_blank" rel="noopener">
     <span class="yr">2024</span>
-    <span class="info"><span class="title">Entropía (lyric video)</span><span class="meta">Javiera Mena · Digital · 3'10"</span></span>
+    <span class="info"><span class="title">Javiera Mena — Entropía (lyric video)</span><span class="meta">Digital · 3'10"</span></span>
   </a></li>
 </ul>
 
