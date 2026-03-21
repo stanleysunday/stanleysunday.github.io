@@ -105,7 +105,7 @@ function drawFrame(dt) {
 
   // Logos con crossfade
   const logoDrawW = hW;
-  const logoDrawH = Math.round(logoDrawW * LOGO_H / LOGO_W);
+  const logoDrawH = Math.min(Math.round(logoDrawW * LOGO_H / LOGO_W), Math.round(WH * 0.18));
   const logoY = Math.round((hT - logoDrawH) / 2);
   ctx.imageSmoothingEnabled = false;
 
@@ -695,7 +695,7 @@ function sizeAll() {
 
   hL = Math.round(WW*0.04);
   const hW = WW - hL*2;
-  const logoDrawH = Math.round(hW * LOGO_H / LOGO_W);
+  const logoDrawH = Math.min(Math.round(hW * LOGO_H / LOGO_W), Math.round(WH * 0.18));
   const vMargin = Math.round(WW*0.04);
   hT = logoDrawH + vMargin*2;
   hB = Math.round(WH*0.03);
