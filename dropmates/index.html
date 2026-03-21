@@ -105,7 +105,7 @@ function drawFrame(dt) {
 
   // Logos con crossfade
   const logoDrawW = hW;
-  const logoDrawH = Math.min(Math.round(logoDrawW * LOGO_H / LOGO_W), Math.round(WH * 0.18));
+  const logoDrawH = Math.round(logoDrawW * LOGO_H / LOGO_W);
   const logoY = Math.round((hT - logoDrawH) / 2);
   ctx.imageSmoothingEnabled = false;
 
@@ -682,20 +682,22 @@ function draw() {
 // ── RESIZE ───────────────────────────────────────────────────────────────────
 function sizeAll() {
   const vw=window.innerWidth, vh=window.innerHeight;
-  WH=Math.round(vh);
+  const DESKTOP = vw > 480;
+  const MAX_W = 480, FIXED_H = 854;
 
-  // En escritorio limitar ancho y centrar
-  const MAX_W = 480;
-  WW = Math.min(Math.round(vw), MAX_W);
+  WW = DESKTOP ? MAX_W : Math.round(vw);
+  WH = DESKTOP ? Math.min(FIXED_H, Math.round(vh)) : Math.round(vh);
+
   const offsetX = Math.round((vw - WW) / 2);
+  const offsetY = Math.round((vh - WH) / 2);
 
   wrap.style.width=WW+'px'; wrap.style.height=WH+'px';
-  wrap.style.left=offsetX+'px'; wrap.style.position='absolute';
+  wrap.style.left=offsetX+'px'; wrap.style.top=offsetY+'px'; wrap.style.position='absolute';
   canvas.width=WW; canvas.height=WH;
 
   hL = Math.round(WW*0.04);
   const hW = WW - hL*2;
-  const logoDrawH = Math.min(Math.round(hW * LOGO_H / LOGO_W), Math.round(WH * 0.18));
+  const logoDrawH = Math.round(hW * LOGO_H / LOGO_W);
   const vMargin = Math.round(WW*0.04);
   hT = logoDrawH + vMargin*2;
   hB = Math.round(WH*0.03);
