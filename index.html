@@ -102,7 +102,7 @@ window.addEventListener('resize', resize);
 img.onload = () => {
   resize();
 
-  s.w = Math.min(Math.round(W * 0.2), 280);
+  s.w = Math.min(Math.round(W * (W < 600 ? 0.32 : 0.2)), 280);
   s.h = Math.round(s.w * img.naturalHeight / img.naturalWidth);
 
   s.x = W * 0.68;
