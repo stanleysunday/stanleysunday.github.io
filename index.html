@@ -5,8 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Stanley Sunday</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; background: #fff; overflow: hidden; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
 
 canvas {
   position: fixed;
@@ -15,61 +21,42 @@ canvas {
   z-index: 0;
 }
 
-nav {
+#nav {
   position: fixed;
-  inset: 0;
+  top: 28px;
+  left: 28px;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(36px, 7vw, 100px);
-  pointer-events: none;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 2.2;
 }
 
-.site-title {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(52px, 10vw, 130px);
-  letter-spacing: -.02em;
-  line-height: 1;
+#nav .name {
+  display: block;
   color: #000;
-  margin-bottom: clamp(32px, 6vh, 72px);
-  user-select: none;
-}
-
-ul {
-  list-style: none;
-  pointer-events: all;
-}
-
-ul li {
-  margin-bottom: clamp(6px, 1.2vh, 16px);
-}
-
-ul li a {
   text-decoration: none;
-  color: #000;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(18px, 3vw, 38px);
-  letter-spacing: -.01em;
-  opacity: .35;
-  transition: opacity .15s;
+  font-size: 13px;
+  margin-bottom: 4px;
+  letter-spacing: 0;
 }
 
-ul li a:hover { opacity: 1; }
+#nav a {
+  display: block;
+  color: #000;
+  text-decoration: underline;
+}
 </style>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 
-<nav>
-  <p class="site-title">Stanley<br>Sunday</p>
-  <ul>
-    <li><a href="./filmografia/">Filmografía</a></li>
-    <li><a href="./dropmates/">Dropmates</a></li>
-    <li><a href="./lluvia/">CHOF</a></li>
-  </ul>
-</nav>
+<div id="nav">
+  <span class="name">Stanley Sunday</span>
+  <a href="./filmografia/">filmografia</a>
+  <a href="./dropmates/">dropmates</a>
+  <a href="./lluvia/">chof</a>
+</div>
 
 <script>
 const canvas = document.getElementById('c');
