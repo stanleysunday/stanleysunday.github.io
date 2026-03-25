@@ -2,358 +2,135 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Filmografía — Stanley Sunday</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Filmografia — Stanley Sunday</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-html {
-  background: #f9f6f1;
-  color: #111;
-  font-family: Georgia, 'Times New Roman', serif;
-}
-
 body {
-  min-height: 100vh;
-  padding: clamp(24px, 5vw, 72px) clamp(20px, 7vw, 100px);
-  max-width: 1100px;
-  margin: 0 auto;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+  color: #000;
+  padding: 28px;
+  max-width: 800px;
 }
 
-/* ── Header ── */
-header {
-  display: flex;
-  align-items: baseline;
-  gap: clamp(16px, 4vw, 60px);
-  margin-bottom: clamp(40px, 8vh, 90px);
-  flex-wrap: wrap;
-}
-
-.back-link {
-  font-size: clamp(12px, 1.5vw, 15px);
-  color: #111;
-  text-decoration: none;
-  letter-spacing: .05em;
-  opacity: .4;
-  transition: opacity .15s;
-  white-space: nowrap;
-}
-.back-link:hover { opacity: 1; }
+a { color: #000; }
+a:visited { color: #000; }
 
 h1 {
-  font-size: clamp(36px, 8vw, 96px);
+  font-size: 13px;
   font-weight: normal;
-  letter-spacing: -.02em;
-  line-height: 1;
+  margin: 0 0 24px 0;
 }
 
-/* ── Section label ── */
-.section-label {
-  font-size: clamp(11px, 1.2vw, 12px);
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  opacity: .35;
-  margin-bottom: clamp(12px, 2.5vh, 24px);
-  margin-top: clamp(40px, 7vh, 72px);
-}
-.section-label:first-of-type { margin-top: 0; }
-
-/* ── List ── */
-ul.filmlist {
-  list-style: none;
-  border-top: 1px solid rgba(0,0,0,.1);
+h2 {
+  font-size: 13px;
+  font-weight: normal;
+  margin: 32px 0 8px 0;
 }
 
-ul.filmlist li {
-  border-bottom: 1px solid rgba(0,0,0,.1);
+table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-ul.filmlist a {
-  display: flex;
-  align-items: baseline;
-  gap: clamp(12px, 3vw, 40px);
-  padding: clamp(12px, 1.8vh, 18px) 0;
-  color: inherit;
-  text-decoration: none;
-}
-ul.filmlist a.locked { opacity: .55; }
-
-/* year */
-.yr {
-  flex-shrink: 0;
-  width: 3.6em;
-  font-size: clamp(12px, 1.3vw, 13px);
-  font-variant-numeric: tabular-nums;
-  opacity: .45;
+tr {
+  border-bottom: 1px solid #ddd;
 }
 
-/* right side */
-.info {
-  flex: 1;
-  min-width: 0;
+td {
+  padding: 5px 16px 5px 0;
+  vertical-align: top;
 }
 
-.title {
-  font-style: italic;
-  font-size: clamp(15px, 1.8vw, 17px);
-  line-height: 1.35;
+td.yr {
+  white-space: nowrap;
+  color: #999;
+  width: 3em;
 }
 
-.meta {
+td.fmt {
+  white-space: nowrap;
+  color: #999;
+  text-align: right;
+  padding-right: 0;
+}
+
+.back {
   display: block;
-  font-style: normal;
-  font-size: clamp(13px, 1.3vw, 14px);
-  color: #111;
-  margin-top: 2px;
+  margin-bottom: 20px;
 }
-
-/* ── Footer ── */
-footer {
-  margin-top: clamp(48px, 10vh, 100px);
-  padding-top: 24px;
-  border-top: 1px solid rgba(0,0,0,.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-footer a {
-  font-size: 12px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: #111;
-  text-decoration: none;
-  opacity: .3;
-  transition: opacity .15s;
-}
-footer a:hover { opacity: 1; }
 </style>
 </head>
 <body>
 
-<header>
-  <a class="back-link" href="../">← Stanley Sunday</a>
-  <h1>Filmografía</h1>
-</header>
+<a class="back" href="../">← stanley sunday</a>
+<h1>filmografia</h1>
+<hr>
 
-<!-- ── CORTOMETRAJES ── -->
-<p class="section-label">Cortometrajes</p>
+<h2>-- cortometrajes</h2>
+<table>
+  <tr><td class="yr">1996</td><td><a href="https://vimeo.com/15566787" target="_blank">Super 8</a></td><td class="fmt">Súper 8 · 7'14"</td></tr>
+  <tr><td class="yr">1996</td><td><a href="https://vimeo.com/15567879" target="_blank">La tentación y la inocencia</a></td><td class="fmt">Súper 8 · 1'13"</td></tr>
+  <tr><td class="yr">1996</td><td><a href="https://vimeo.com/15568046" target="_blank">Eden of Love</a></td><td class="fmt">Súper 8 · 2'23"</td></tr>
+  <tr><td class="yr">1996</td><td><a href="https://vimeo.com/88343961" target="_blank">La mansión acelerada</a></td><td class="fmt">Súper 8 · 9'28"</td></tr>
+  <tr><td class="yr">1999</td><td><a href="https://vimeo.com/15568433" target="_blank">El monstruo me come</a></td><td class="fmt">Súper 8 · 5'40"</td></tr>
+  <tr><td class="yr">2000</td><td><a href="https://vimeo.com/7509698" target="_blank">Bea comunica</a></td><td class="fmt">Súper 8 · 3'49"</td></tr>
+  <tr><td class="yr">2001</td><td><a href="https://vimeo.com/15565580" target="_blank">La playa</a></td><td class="fmt">Súper 8 · 1'15"</td></tr>
+  <tr><td class="yr">2002</td><td><a href="https://vimeo.com/15569315" target="_blank">Desayunos y meriendas</a></td><td class="fmt">Súper 8 · 7'01"</td></tr>
+  <tr><td class="yr">2004</td><td><a href="https://vimeo.com/2453967" target="_blank">Rayos y centellas</a></td><td class="fmt">Súper 8 · 3'57"</td></tr>
+  <tr><td class="yr">2008</td><td><a href="https://vimeo.com/15566119" target="_blank">Rebeca</a></td><td class="fmt">16mm · 2'43"</td></tr>
+  <tr><td class="yr">2009</td><td><a href="https://vimeo.com/7478931" target="_blank">Disney Attraction Highlights Nº 1</a></td><td class="fmt">Súper 8 · 5'02"</td></tr>
+  <tr><td class="yr">2009</td><td><a href="https://vimeo.com/15981806" target="_blank">Película sudorosa I</a></td><td class="fmt">Súper 8 · 10'38"</td></tr>
+  <tr><td class="yr">2009</td><td><a href="https://vimeo.com/15731527" target="_blank">Película sudorosa II</a></td><td class="fmt">Súper 8 · 9'04"</td></tr>
+  <tr><td class="yr">2010</td><td><a href="https://vimeo.com/16627826" target="_blank">Helados derretidos</a></td><td class="fmt">Súper 8 · 3'25"</td></tr>
+  <tr><td class="yr">2010</td><td><a href="https://vimeo.com/46883856" target="_blank">Pegamento</a></td><td class="fmt">Súper 8 · 3'27"</td></tr>
+  <tr><td class="yr">2011</td><td><a href="https://vimeo.com/18978030" target="_blank">Manchas resecas (fragmento)</a></td><td class="fmt">16mm · 4'21"</td></tr>
+  <tr><td class="yr">2011</td><td><a href="https://vimeo.com/30320706" target="_blank">Sound of the Sun</a></td><td class="fmt">16mm · 3'02"</td></tr>
+  <tr><td class="yr">2015</td><td><a href="https://vimeo.com/128242021" target="_blank">Adrià Lester Screen Test</a></td><td class="fmt">16mm · 2'18"</td></tr>
+  <tr><td class="yr">2018</td><td><a href="https://vimeo.com/228677638" target="_blank">Jurassic Cruising Park</a></td><td class="fmt">16mm · 2'09"</td></tr>
+  <tr><td class="yr">2018</td><td><a href="https://vimeo.com/282866271" target="_blank">Sant Miquel y los tres mosqueteros</a></td><td class="fmt">16mm · 2'36"</td></tr>
+</table>
 
-<ul class="filmlist">
-  <li><a href="https://vimeo.com/15566787" target="_blank" rel="noopener">
-    <span class="yr">1996</span>
-    <span class="info"><span class="title">Super 8</span><span class="meta">Súper 8 · 7'14"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15567879" target="_blank" rel="noopener">
-    <span class="yr">1996</span>
-    <span class="info"><span class="title">La tentación y la inocencia</span><span class="meta">Súper 8 · 1'13"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15568046" target="_blank" rel="noopener">
-    <span class="yr">1996</span>
-    <span class="info"><span class="title">Eden of Love</span><span class="meta">Súper 8 · 2'23"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/88343961" target="_blank" rel="noopener">
-    <span class="yr">1996</span>
-    <span class="info"><span class="title">La mansión acelerada</span><span class="meta">Súper 8 · 9'28"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15568433" target="_blank" rel="noopener">
-    <span class="yr">1999</span>
-    <span class="info"><span class="title">El monstruo me come</span><span class="meta">Súper 8 · 5'40"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/7509698" target="_blank" rel="noopener">
-    <span class="yr">2000</span>
-    <span class="info"><span class="title">Bea comunica</span><span class="meta">Súper 8 · 3'49"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15565580" target="_blank" rel="noopener">
-    <span class="yr">2001</span>
-    <span class="info"><span class="title">La playa</span><span class="meta">Súper 8 · 1'15"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15569315" target="_blank" rel="noopener">
-    <span class="yr">2002</span>
-    <span class="info"><span class="title">Desayunos y meriendas</span><span class="meta">Súper 8 · 7'01"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/2453967" target="_blank" rel="noopener">
-    <span class="yr">2004</span>
-    <span class="info"><span class="title">Rayos y centellas</span><span class="meta">Súper 8 · 3'57"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15566119" target="_blank" rel="noopener">
-    <span class="yr">2008</span>
-    <span class="info"><span class="title">Rebeca</span><span class="meta">16mm · 2'43"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/7478931" target="_blank" rel="noopener">
-    <span class="yr">2009</span>
-    <span class="info"><span class="title">Disney Attraction Highlights Nº 1</span><span class="meta">Súper 8 · 5'02"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15981806" target="_blank" rel="noopener">
-    <span class="yr">2009</span>
-    <span class="info"><span class="title">Película sudorosa I</span><span class="meta">Súper 8 · 10'38"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/15731527" target="_blank" rel="noopener">
-    <span class="yr">2009</span>
-    <span class="info"><span class="title">Película sudorosa II</span><span class="meta">Súper 8 · 9'04"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/16627826" target="_blank" rel="noopener">
-    <span class="yr">2010</span>
-    <span class="info"><span class="title">Helados derretidos</span><span class="meta">Súper 8 · 3'25"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/46883856" target="_blank" rel="noopener">
-    <span class="yr">2010</span>
-    <span class="info"><span class="title">Pegamento</span><span class="meta">Súper 8 · 3'27"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/18978030" target="_blank" rel="noopener">
-    <span class="yr">2011</span>
-    <span class="info"><span class="title">Manchas resecas (fragmento)</span><span class="meta">16mm · 4'21"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/30320706" target="_blank" rel="noopener">
-    <span class="yr">2011</span>
-    <span class="info"><span class="title">Sound of the Sun</span><span class="meta">16mm · 3'02"</span></span>
-  </a></li>
-<li><a href="https://vimeo.com/128242021" target="_blank" rel="noopener">
-    <span class="yr">2015</span>
-    <span class="info"><span class="title">Adrià Lester Screen Test</span><span class="meta">16mm · 2'18"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/228677638" target="_blank" rel="noopener">
-    <span class="yr">2018</span>
-    <span class="info"><span class="title">Jurassic Cruising Park</span><span class="meta">16mm · 2'09"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/282866271" target="_blank" rel="noopener">
-    <span class="yr">2018</span>
-    <span class="info"><span class="title">Sant Miquel y los tres mosqueteros</span><span class="meta">16mm · 2'36"</span></span>
-  </a></li>
-</ul>
+<h2>-- videoclips</h2>
+<table>
+  <tr><td class="yr">2011</td><td><a href="https://vimeo.com/38683278" target="_blank">Afrika Pseudobruitismus — Imagine</a></td><td class="fmt">Digital · 3'11"</td></tr>
+  <tr><td class="yr">2011</td><td><a href="https://vimeo.com/40350336" target="_blank">Afrika Pseudobruitismus — Deutsche Grammophon</a></td><td class="fmt">Digital · 3'32"</td></tr>
+  <tr><td class="yr">2011</td><td><a href="https://vimeo.com/43943054" target="_blank">Afrika Pseudobruitismus — Aerodisney</a></td><td class="fmt">Digital · 4'27"</td></tr>
+  <tr><td class="yr">2012</td><td><a href="https://vimeo.com/54251088" target="_blank">Afrika Pseudobruitismus — Mamma Mia</a></td><td class="fmt">Digital · 2'38"</td></tr>
+  <tr><td class="yr">2013</td><td><a href="https://vimeo.com/63595514" target="_blank">[Physics] — Cardinal Perplexogram</a></td><td class="fmt">Digital · 3'28"</td></tr>
+  <tr><td class="yr">2013</td><td><a href="https://vimeo.com/74241854" target="_blank">La Bien Querida — Luna nueva</a></td><td class="fmt">Digital · 3'58"</td></tr>
+  <tr><td class="yr">2013</td><td><a href="https://vimeo.com/76961978" target="_blank">Meneo — Vamo a ve</a></td><td class="fmt">Digital · 4'15"</td></tr>
+  <tr><td class="yr">2013</td><td><a href="https://vimeo.com/79379019" target="_blank">Doble Pletina — Igual o mayor que</a></td><td class="fmt">16mm · 2'03"</td></tr>
+  <tr><td class="yr">2014</td><td><a href="https://vimeo.com/106798027" target="_blank">Afrika Pseudobruitismus — 7Up Heaven's Gate</a></td><td class="fmt">16mm · 3'04"</td></tr>
+  <tr><td class="yr">2014</td><td><a href="https://vimeo.com/139844315" target="_blank">Hidrogenesse — S.XIX</a></td><td class="fmt">Digital · 3'53"</td></tr>
+  <tr><td class="yr">2015</td><td><a href="https://vimeo.com/122882641" target="_blank">Afrika Pseudobruitismus — Pianissimo</a></td><td class="fmt">Digital · 2'35"</td></tr>
+  <tr><td class="yr">2015</td><td><a href="https://vimeo.com/124938884" target="_blank">Javiera Mena — Que me tome la noche</a></td><td class="fmt">Digital · 3'28"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/194042467" target="_blank">Espanto — Atravesado por el rayo</a></td><td class="fmt">Digital · 2'33"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/224958871" target="_blank">Evripidis and His Tragedies — Dreamboat</a></td><td class="fmt">16mm · 3'28"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/151921767" target="_blank">Fangoria — Geometría polisentimental</a></td><td class="fmt">Digital · 4'14"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/180861648" target="_blank">Fangoria — Fiesta en el infierno</a></td><td class="fmt">16mm · 4'52"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/167299586" target="_blank">Doble Pletina — Electrobolero</a></td><td class="fmt">Digital · 4'52"</td></tr>
+  <tr><td class="yr">2016</td><td><a href="https://vimeo.com/171955023" target="_blank">Papa Topo — Lágrimas de cocodrilo</a></td><td class="fmt">Digital · 3'23"</td></tr>
+  <tr><td class="yr">2017</td><td><a href="https://vimeo.com/282864440" target="_blank">Lidia Damunt — El túnel</a></td><td class="fmt">Digital · 3'13"</td></tr>
+  <tr><td class="yr">2017</td><td><a href="https://vimeo.com/282862880" target="_blank">Templeton — Flash</a></td><td class="fmt">Digital · 2'57"</td></tr>
+  <tr><td class="yr">2018</td><td><a href="https://vimeo.com/307844476" target="_blank">Crystal Fighters — Goin' Harder</a></td><td class="fmt">Digital · 3'49"</td></tr>
+  <tr><td class="yr">2018</td><td><a href="https://vimeo.com/290895604" target="_blank">Javiera Mena — Espejo</a></td><td class="fmt">Digital · 4'26"</td></tr>
+  <tr><td class="yr">2019</td><td><a href="https://vimeo.com/315699249" target="_blank">Aries — Juramento Mantarraya</a></td><td class="fmt">16mm · 3'26"</td></tr>
+  <tr><td class="yr">2019</td><td><a href="https://vimeo.com/362236811" target="_blank">Crystal Fighters — Wild Ones</a></td><td class="fmt">Digital · 3'25"</td></tr>
+  <tr><td class="yr">2019</td><td><a href="https://vimeo.com/362236997" target="_blank">Lidia Damunt — Felicidad</a></td><td class="fmt">35mm · 3'40"</td></tr>
+  <tr><td class="yr">2019</td><td><a href="https://vimeo.com/362237366" target="_blank">Hidrogenesse — Carta exagerada</a></td><td class="fmt">35mm · 3'41"</td></tr>
+  <tr><td class="yr">2020</td><td><a href="https://vimeo.com/456256816" target="_blank">Manel — Boy Band</a></td><td class="fmt">Digital · 3'42"</td></tr>
+  <tr><td class="yr">2020</td><td><a href="https://vimeo.com/459437896" target="_blank">Masonería — El arquero</a></td><td class="fmt">Digital · 2'41"</td></tr>
+  <tr><td class="yr">2021</td><td><a href="https://vimeo.com/567111218" target="_blank">Cabiria — Después de medianoche</a></td><td class="fmt">35mm · 4'09"</td></tr>
+  <tr><td class="yr">2024</td><td><a href="https://vimeo.com/1010569896" target="_blank">Javiera Mena — Entropía (lyric video)</a></td><td class="fmt">Digital · 3'10"</td></tr>
+</table>
 
-<!-- ── VIDEOCLIPS ── -->
-<p class="section-label">Videoclips</p>
-
-<ul class="filmlist">
-  <li><a href="https://vimeo.com/38683278" target="_blank" rel="noopener">
-    <span class="yr">2011</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — Imagine</span><span class="meta">Digital · 3'11"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/40350336" target="_blank" rel="noopener">
-    <span class="yr">2011</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — Deutsche Grammophon</span><span class="meta">Digital · 3'32"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/43943054" target="_blank" rel="noopener">
-    <span class="yr">2011</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — Aerodisney</span><span class="meta">Digital · 4'27"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/54251088" target="_blank" rel="noopener">
-    <span class="yr">2012</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — Mamma Mia</span><span class="meta">Digital · 2'38"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/63595514" target="_blank" rel="noopener">
-    <span class="yr">2013</span>
-    <span class="info"><span class="title">[Physics] — Cardinal Perplexogram</span><span class="meta">Digital · 3'28"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/74241854" target="_blank" rel="noopener">
-    <span class="yr">2013</span>
-    <span class="info"><span class="title">La Bien Querida — Luna nueva</span><span class="meta">Digital · 3'58"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/76961978" target="_blank" rel="noopener">
-    <span class="yr">2013</span>
-    <span class="info"><span class="title">Meneo — Vamo a ve</span><span class="meta">Digital · 4'15"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/79379019" target="_blank" rel="noopener">
-    <span class="yr">2013</span>
-    <span class="info"><span class="title">Doble Pletina — Igual o mayor que</span><span class="meta">16mm · 2'03"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/106798027" target="_blank" rel="noopener">
-    <span class="yr">2014</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — 7Up Heaven's Gate</span><span class="meta">16mm · 3'04"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/139844315" target="_blank" rel="noopener">
-    <span class="yr">2014</span>
-    <span class="info"><span class="title">Hidrogenesse — S.XIX</span><span class="meta">Digital · 3'53"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/122882641" target="_blank" rel="noopener">
-    <span class="yr">2015</span>
-    <span class="info"><span class="title">Afrika Pseudobruitismus — Pianissimo</span><span class="meta">Digital · 2'35"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/124938884" target="_blank" rel="noopener">
-    <span class="yr">2015</span>
-    <span class="info"><span class="title">Javiera Mena — Que me tome la noche</span><span class="meta">Digital · 3'28"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/194042467" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Espanto — Atravesado por el rayo</span><span class="meta">Digital · 2'33"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/224958871" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Evripidis and His Tragedies — Dreamboat</span><span class="meta">16mm · 3'28"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/151921767" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Fangoria — Geometría polisentimental</span><span class="meta">Digital · 4'14"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/180861648" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Fangoria — Fiesta en el infierno</span><span class="meta">16mm · 4'52"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/167299586" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Doble Pletina — Electrobolero</span><span class="meta">Digital · 4'52"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/171955023" target="_blank" rel="noopener">
-    <span class="yr">2016</span>
-    <span class="info"><span class="title">Papa Topo — Lágrimas de cocodrilo</span><span class="meta">Digital · 3'23"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/282864440" target="_blank" rel="noopener">
-    <span class="yr">2017</span>
-    <span class="info"><span class="title">Lidia Damunt — El túnel</span><span class="meta">Digital · 3'13"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/282862880" target="_blank" rel="noopener">
-    <span class="yr">2017</span>
-    <span class="info"><span class="title">Templeton — Flash</span><span class="meta">Digital · 2'57"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/307844476" target="_blank" rel="noopener">
-    <span class="yr">2018</span>
-    <span class="info"><span class="title">Crystal Fighters — Goin' Harder</span><span class="meta">Digital · 3'49"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/290895604" target="_blank" rel="noopener">
-    <span class="yr">2018</span>
-    <span class="info"><span class="title">Javiera Mena — Espejo</span><span class="meta">Digital · 4'26"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/315699249" target="_blank" rel="noopener">
-    <span class="yr">2019</span>
-    <span class="info"><span class="title">Aries — Juramento Mantarraya</span><span class="meta">16mm · 3'26"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/362236811" target="_blank" rel="noopener">
-    <span class="yr">2019</span>
-    <span class="info"><span class="title">Crystal Fighters — Wild Ones</span><span class="meta">Digital · 3'25"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/362236997" target="_blank" rel="noopener">
-    <span class="yr">2019</span>
-    <span class="info"><span class="title">Lidia Damunt — Felicidad</span><span class="meta">35mm · 3'40"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/362237366" target="_blank" rel="noopener">
-    <span class="yr">2019</span>
-    <span class="info"><span class="title">Hidrogenesse — Carta exagerada</span><span class="meta">35mm · 3'41"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/456256816" target="_blank" rel="noopener">
-    <span class="yr">2020</span>
-    <span class="info"><span class="title">Manel — Boy Band</span><span class="meta">Digital · 3'42"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/459437896" target="_blank" rel="noopener">
-    <span class="yr">2020</span>
-    <span class="info"><span class="title">Masonería — El arquero</span><span class="meta">Digital · 2'41"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/567111218" target="_blank" rel="noopener">
-    <span class="yr">2021</span>
-    <span class="info"><span class="title">Cabiria — Después de medianoche</span><span class="meta">35mm · 4'09"</span></span>
-  </a></li>
-  <li><a href="https://vimeo.com/1010569896" target="_blank" rel="noopener">
-    <span class="yr">2024</span>
-    <span class="info"><span class="title">Javiera Mena — Entropía (lyric video)</span><span class="meta">Digital · 3'10"</span></span>
-  </a></li>
-</ul>
-
-<footer>
-  <a href="../">Stanley Sunday</a>
-  <a href="https://vimeo.com/stanleysunday" target="_blank" rel="noopener">Vimeo ↗</a>
-</footer>
+<br>
+<hr>
+<br>
+<a href="../">stanley sunday</a> — <a href="https://vimeo.com/stanleysunday" target="_blank">vimeo</a>
 
 </body>
 </html>
