@@ -17,10 +17,10 @@ body{display:flex;align-items:center;justify-content:center;}
   background:rgba(10,0,20,.93);backdrop-filter:blur(8px);
   opacity:0;pointer-events:none;transition:opacity .5s;
 }
-#go-title{font-family:'Fredoka One',cursive;font-size:clamp(28px,7vw,52px);color:#ffd93d;text-shadow:0 4px 0 rgba(160,100,0,.5);}
-#go-sub{font-family:'Nunito',sans-serif;font-weight:800;font-size:clamp(11px,2vw,15px);color:rgba(255,255,255,.6);letter-spacing:.15em;text-transform:uppercase;}
+#go-title{font-family:'Fredoka One',cursive;font-size:34px;color:#ffd93d;text-shadow:0 4px 0 rgba(160,100,0,.5);}
+#go-sub{font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.15em;text-transform:uppercase;}
 #go-sub span{color:#ff6b9d;font-size:1.5em;}
-#restart-btn{font-family:'Fredoka One',cursive;font-size:clamp(15px,2.5vw,20px);color:#1a0533;background:linear-gradient(135deg,#ffd93d,#ff9a3c);border:none;padding:10px 32px;cursor:pointer;border-radius:50px;box-shadow:0 4px 0 rgba(140,50,0,.5);pointer-events:all;}
+#restart-btn{font-family:'Fredoka One',cursive;font-size:16px;color:#1a0533;background:linear-gradient(135deg,#ffd93d,#ff9a3c);border:none;padding:10px 32px;cursor:pointer;border-radius:50px;box-shadow:0 4px 0 rgba(140,50,0,.5);pointer-events:all;}
 #restart-btn:active{transform:translateY(2px);}
 </style>
 </head>
@@ -339,14 +339,30 @@ function hitTile(px, py) {
 }
 
 function tilesOverlap(a, b) {
-  // Hitbox generoso para detectar contacto al arrastrar
+  // Hitbox generoso para empujar fichas incorrectas
   return Math.abs(a.x - b.x) < (a.w + b.w) * 0.7 &&
          Math.abs(a.y - b.y) < (a.h + b.h) * 0.7;
 }
-function tilesNear(a, b) {
-  // Para detectar match al soltar: hitbox generoso (1.5x)
-  return Math.abs(a.x - b.x) < (a.w + b.w) * 0.75 &&
-         Math.abs(a.y - b.y) < (a.h + b.h) * 0.75;
+function tilesTouch(a, b) {
+  // Contacto real: los bordes se tocan o solapan
+  return Math.abs(a.x - b.x) < (a.w/2 + b.w/2) &&
+         Math.abs(a.y - b.y) < (a.h/2 + b.h/2);
+}
+function isMatchPair(a, b) {
+  return a.pairIdx === b.pairIdx && a.wordIdx !== b.wordIdx;
+}
+function matchTiles(a, b) {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  spawnParticles(mx, my, PAIR_COLORS[a.pairIdx]);
+  score += 1;
+  combo = Math.min(combo + 1, 8);
+  spawnText(mx, my - 30, a.word + ' + ' + b.word, '#ffffff');
+  spawnText(mx, my - 55, '+1', '#ffd93d');
+  updateComboUI();
+  updateScoreUI();
+  a.matched = true;
+  b.matched = true;
 }
 
 // ── Input ────────────────────────────────────────────────
@@ -384,6 +400,17 @@ function onMove(e) {
   dragTrail.push({ x: dragging.x, y: dragging.y });
   if (dragTrail.length > 20) dragTrail.shift();
 
+  // Comprobar match en tiempo real al arrastrar
+  for (const t of tiles) {
+    if (t === dragging || t.matched) continue;
+    if (isMatchPair(dragging, t) && tilesTouch(dragging, t)) {
+      matchTiles(dragging, t);
+      dragging = null;
+      dragTrail = [];
+      return;
+    }
+  }
+
   // Fichas incorrectas: se mueven con el dedo Y se separan para no solaparse
   for (const t of tiles) {
     if (t === dragging || t.matched) continue;
@@ -420,7 +447,7 @@ function onEnd(e) {
     if (t === dragging || t.matched) continue;
     if (t.pairIdx === dragging.pairIdx && t.wordIdx !== dragging.wordIdx) {
       const dist = Math.hypot(dragging.x - t.x, dragging.y - t.y);
-      if (tilesNear(dragging, t) && dist < minDist) {
+      if (tilesTouch(dragging, t) && dist < minDist) {
         minDist = dist;
         matched = t;
       }
@@ -428,17 +455,7 @@ function onEnd(e) {
   }
 
   if (matched) {
-    const mx = (dragging.x + matched.x) / 2;
-    const my = (dragging.y + matched.y) / 2;
-    spawnParticles(mx, my, PAIR_COLORS[dragging.pairIdx]);
-    score += 1;
-    combo = Math.min(combo + 1, 8);
-    spawnText(mx, my - 30, dragging.word + ' + ' + matched.word, '#ffffff');
-    spawnText(mx, my - 55, '+1', '#ffd93d');
-    updateComboUI();
-    updateScoreUI();
-    dragging.matched = true;
-    matched.matched  = true;
+    matchTiles(dragging, matched);
   } else {
     dragging.parked = true;
     dragging.vx = 0;
@@ -604,14 +621,19 @@ function update(now) {
     });
   });
 
-  // Separar fichas que se solapan entre sí
+  // Separar fichas que se solapan entre sí; si son pareja correcta → match
   const active = tiles.filter(t => !t.matched && t !== dragging);
   for (let i = 0; i < active.length; i++) {
     for (let j = i+1; j < active.length; j++) {
       const a = active[i], b = active[j];
+      if (a.matched || b.matched) continue;
       const overlapX = (a.w/2 + b.w/2) - Math.abs(a.x - b.x);
       const overlapY = (a.h/2 + b.h/2) - Math.abs(a.y - b.y);
       if (overlapX > 0 && overlapY > 0) {
+        if (isMatchPair(a, b)) {
+          matchTiles(a, b);
+          continue;
+        }
         // Separar por el eje con menos solapamiento
         if (overlapX < overlapY) {
           const push = overlapX / 2 + 1;
@@ -686,7 +708,7 @@ function sizeAll() {
   const MAX_W = 480, FIXED_H = 854;
 
   WW = DESKTOP ? MAX_W : Math.round(vw);
-  WH = DESKTOP ? Math.min(FIXED_H, Math.round(vh)) : Math.round(vh);
+  WH = DESKTOP ? FIXED_H : Math.round(vh);
 
   const offsetX = Math.round((vw - WW) / 2);
   const offsetY = Math.round((vh - WH) / 2);

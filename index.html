@@ -28,22 +28,27 @@ canvas {
   z-index: 1;
   font-family: monospace;
   font-size: 13px;
-  line-height: 2.2;
 }
 
 #nav .name {
   display: block;
   color: #000;
   text-decoration: none;
-  font-size: 13px;
-  margin-bottom: 4px;
-  letter-spacing: 0;
+  font-size: 32px;
+  font-weight: normal;
+  letter-spacing: -1px;
+  line-height: 1;
 }
 
-#nav a {
+#nav .other-links {
+  margin-top: 10px;
+}
+
+#nav .other-links a {
   display: block;
   color: #000;
   text-decoration: underline;
+  line-height: 2.2;
 }
 </style>
 </head>
@@ -53,10 +58,14 @@ canvas {
 
 <div id="nav">
   <span class="name">Stanley Sunday</span>
-  <a href="./filmografia/">filmografia</a>
-  <a href="./dropmates/">dropmates</a>
-  <a href="./lluvia/">chof</a>
-  <a href="./gloria_editor.html">gloria editor</a>
+  <div class="other-links">
+    <a href="./filmografia/">filmografia</a>
+    <div style="height:22px"></div>
+    <a href="./dropmates/">dropmates</a>
+    <a href="./lluvia/">chof</a>
+    <a href="./gloria_editor.html">gloria editor</a>
+    <a href="./video-grid.html">video grid</a>
+  </div>
 </div>
 
 <script>
