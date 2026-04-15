@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Grid</title>
+<title>Video Grid — Stanley Sunday</title>
+<meta name="description" content="Video Grid — instalación interactiva de Stanley Sunday.">
+<meta property="og:title" content="Video Grid — Stanley Sunday">
+<meta property="og:description" content="Instalación interactiva. Pasa el cursor sobre las celdas.">
+<meta property="og:image" content="https://stanleysunday.github.io/caballitosalchicha.png">
+<meta property="og:url" content="https://stanleysunday.github.io/video-grid.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { overflow: hidden; height: 100%; }
@@ -40,6 +47,19 @@
     pointer-events: none;
   }
 
+  /* Back link */
+  #back {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #000;
+    text-decoration: underline;
+    z-index: 200;
+    letter-spacing: 0.05em;
+  }
+
   /* Loader */
   #loader {
     position: fixed;
@@ -74,8 +94,16 @@
     50% { opacity: 0; }
   }
 </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
 </head>
 <body>
+
+<a id="back" href="/">← stanley sunday</a>
 
 <div id="loader">
   <img src="caballitosalchicha.png" alt="">
@@ -105,15 +133,27 @@ const loader = document.getElementById('loader');
 const VIDEO_URL = 'https://res.cloudinary.com/dwkzyfnvc/video/upload/v1776250786/videoAL_bi5ca5.mp4';
 let videoBlobUrl = null;
 
-fetch(VIDEO_URL)
-  .then(r => r.blob())
-  .then(blob => {
-    videoBlobUrl = URL.createObjectURL(blob);
-    srcVideo.src = videoBlobUrl;
-    initGrid();
+const minWait = new Promise(resolve => setTimeout(resolve, 1500));
+
+Promise.all([
+  fetch(VIDEO_URL).then(r => r.blob()),
+  minWait
+]).then(([blob]) => {
+  videoBlobUrl = URL.createObjectURL(blob);
+  srcVideo.src = videoBlobUrl;
+  initGrid();
+  // Espera a que todos los vídeos de las celdas tengan el primer frame
+  const readyPromises = cells.map(cell =>
+    new Promise(resolve => {
+      if (cell.video.readyState >= 2) return resolve();
+      cell.video.addEventListener('loadeddata', resolve, { once: true });
+    })
+  );
+  Promise.all(readyPromises).then(() => {
     loader.classList.add('hidden');
     setTimeout(() => loader.remove(), 400);
   });
+});
 
 // Cell state machine
 // States: 'idle' | 'playing'
