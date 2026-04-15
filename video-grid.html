@@ -26,6 +26,7 @@
       grid-template-columns: repeat(4, 1fr);
       width: 100vw;
       gap: 2px;
+    }
   }
   .cell {
     aspect-ratio: 1;
@@ -38,13 +39,53 @@
     display: block;
     pointer-events: none;
   }
+
+  /* Loader */
+  #loader {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 100;
+    transition: opacity 0.4s ease;
+  }
+  #loader.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #loader img {
+    width: 120px;
+    animation: blink 1s step-start infinite;
+  }
+  #loader span {
+    font-family: monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #000;
+    animation: blink 1s step-start infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
 </style>
 </head>
 <body>
+
+<div id="loader">
+  <img src="caballitosalchicha.png" alt="">
+  <span>loading</span>
+</div>
+
 <div id="grid"></div>
 
 <!-- Hidden video source -->
-<video id="src-video" 
+<video id="src-video"
   style="display:none;position:absolute;left:-9999px"
   preload="auto"
   playsinline
@@ -53,16 +94,26 @@
 </video>
 
 <script>
-// Embed video as base64 - will be replaced by sed
-
 const isMobile = window.matchMedia('(max-width: 600px)').matches;
 const COLS = isMobile ? 4 : 5;
 const ROWS = isMobile ? 6 : 5;
 const grid = document.getElementById('grid');
 const srcVideo = document.getElementById('src-video');
+const loader = document.getElementById('loader');
 
-// Set video source
-srcVideo.src = 'https://res.cloudinary.com/dwkzyfnvc/video/upload/v1776250786/videoAL_bi5ca5.mp4';
+// Descarga el vídeo una vez como blob para que todas las celdas lo usen en memoria
+const VIDEO_URL = 'https://res.cloudinary.com/dwkzyfnvc/video/upload/v1776250786/videoAL_bi5ca5.mp4';
+let videoBlobUrl = null;
+
+fetch(VIDEO_URL)
+  .then(r => r.blob())
+  .then(blob => {
+    videoBlobUrl = URL.createObjectURL(blob);
+    srcVideo.src = videoBlobUrl;
+    initGrid();
+    loader.classList.add('hidden');
+    setTimeout(() => loader.remove(), 400);
+  });
 
 // Cell state machine
 // States: 'idle' | 'playing'
@@ -71,15 +122,15 @@ const cells = [];
 function createCell(index) {
   const div = document.createElement('div');
   div.className = 'cell';
-  
+
   const canvas = document.createElement('canvas');
   canvas.width = 160;
   canvas.height = 160;
   div.appendChild(canvas);
-  
+
   const ctx = canvas.getContext('2d');
-  
-  // Each cell has its own video element cloned from source
+
+  // Each cell has its own video element using the blob url
   const video = document.createElement('video');
   video.preload = 'auto';
   video.muted = true;
@@ -87,15 +138,14 @@ function createCell(index) {
   video.setAttribute('webkit-playsinline', '');
   video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
   document.body.appendChild(video);
-  video.src = srcVideo.src;
-  
+  video.src = videoBlobUrl;
+
   let state = 'idle';
   let rafId = null;
   let videoReady = false;
 
   video.addEventListener('loadeddata', () => {
     videoReady = true;
-    // Draw first frame
     video.currentTime = 0;
   });
 
@@ -106,7 +156,6 @@ function createCell(index) {
   });
 
   video.addEventListener('ended', () => {
-    // Go back to frame 0 and wait
     state = 'idle';
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     video.currentTime = 0;
@@ -140,64 +189,62 @@ function createCell(index) {
   }
 
   div._activate = activate;
-  
-  // Load video
   video.load();
 
   return { div, video, ctx, canvas };
 }
 
-// Build grid
-for (let i = 0; i < COLS * ROWS; i++) {
-  const cell = createCell(i);
-  cells.push(cell);
-  grid.appendChild(cell.div);
-}
-
-// Desktop: hover activates
-grid.addEventListener('mousemove', (e) => {
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  if (el && el.classList.contains('cell')) {
-    el._activate && el._activate();
+function initGrid() {
+  for (let i = 0; i < COLS * ROWS; i++) {
+    const cell = createCell(i);
+    cells.push(cell);
+    grid.appendChild(cell.div);
   }
-});
 
-// Mobile: unlock all videos on first touch, then activate on drag
-let touching = false;
-let unlocked = false;
-
-function unlockAll() {
-  if (unlocked) return;
-  unlocked = true;
-  // Play+pause all videos simultaneously inside the touchstart gesture
-  // so iOS considers them all unlocked for future play() calls
-  cells.forEach(cell => {
-    cell.video.play().then(() => cell.video.pause()).catch(() => {});
+  // Desktop: hover activa celda
+  grid.addEventListener('mousemove', (e) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && el.classList.contains('cell')) {
+      el._activate && el._activate();
+    }
   });
-}
 
-function activateAtPoint(clientX, clientY) {
-  const el = document.elementFromPoint(clientX, clientY);
-  if (el && el.classList.contains('cell')) {
-    el._activate && el._activate();
+  // Mobile: desbloquear todos los vídeos en el primer toque (requisito iOS)
+  // luego activar celda al arrastrar el dedo
+  let touching = false;
+  let unlocked = false;
+
+  function unlockAll() {
+    if (unlocked) return;
+    unlocked = true;
+    cells.forEach(cell => {
+      cell.video.play().then(() => cell.video.pause()).catch(() => {});
+    });
   }
+
+  function activateAtPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (el && el.classList.contains('cell')) {
+      el._activate && el._activate();
+    }
+  }
+
+  grid.addEventListener('touchstart', (e) => {
+    unlockAll();
+    touching = true;
+    const t = e.touches[0];
+    activateAtPoint(t.clientX, t.clientY);
+  }, { passive: true });
+
+  grid.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!touching) return;
+    const t = e.touches[0];
+    activateAtPoint(t.clientX, t.clientY);
+  }, { passive: false });
+
+  grid.addEventListener('touchend', () => { touching = false; }, { passive: true });
 }
-
-grid.addEventListener('touchstart', (e) => {
-  unlockAll();
-  touching = true;
-  const t = e.touches[0];
-  activateAtPoint(t.clientX, t.clientY);
-}, { passive: true });
-
-grid.addEventListener('touchmove', (e) => {
-  e.preventDefault();
-  if (!touching) return;
-  const t = e.touches[0];
-  activateAtPoint(t.clientX, t.clientY);
-}, { passive: false });
-
-grid.addEventListener('touchend', () => { touching = false; }, { passive: true });
 </script>
 </body>
 </html>
