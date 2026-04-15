@@ -359,9 +359,9 @@ function tilesOverlap(a, b) {
          Math.abs(a.y - b.y) < (a.h + b.h) * 0.7;
 }
 function tilesTouch(a, b) {
-  // Contacto real: los bordes se tocan o solapan
-  return Math.abs(a.x - b.x) < (a.w/2 + b.w/2) &&
-         Math.abs(a.y - b.y) < (a.h/2 + b.h/2);
+  // Activar en el primer contacto de borde con borde (tolerancia 3px)
+  return Math.abs(a.x - b.x) <= (a.w/2 + b.w/2 + 3) &&
+         Math.abs(a.y - b.y) <= (a.h/2 + b.h/2 + 3);
 }
 function isMatchPair(a, b) {
   return a.pairIdx === b.pairIdx && a.wordIdx !== b.wordIdx;
@@ -717,15 +717,28 @@ function draw() {
 }
 
 // ── RESIZE ───────────────────────────────────────────────────────────────────
+function getViewport() {
+  // En móvil usamos screen para ignorar la barra del navegador
+  const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (isMobileDevice) {
+    // screen.width/height dan dimensiones reales sin afectar la barra del nav
+    const sw = screen.width, sh = screen.height;
+    // Ajustar según orientación actual
+    const landscape = window.innerWidth > window.innerHeight;
+    return { vw: landscape ? Math.max(sw,sh) : Math.min(sw,sh),
+             vh: landscape ? Math.min(sw,sh) : Math.max(sw,sh) };
+  }
+  return { vw: window.innerWidth, vh: window.innerHeight };
+}
+
 function sizeAll() {
-  const vp = window.visualViewport;
-  const vw = vp ? Math.round(vp.width) : window.innerWidth;
-  const vh = vp ? Math.round(vp.height) : window.innerHeight;
-  const DESKTOP = vw > 480;
+  const { vw, vh } = getViewport();
+  const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const MAX_W = 480, FIXED_H = 854;
 
-  WW = DESKTOP ? MAX_W : Math.round(vw);
-  WH = DESKTOP ? FIXED_H : Math.round(vh);
+  // Desktop: siempre fijo. Móvil: adaptar a pantalla
+  WW = isMobileDevice ? Math.round(vw) : MAX_W;
+  WH = isMobileDevice ? Math.round(vh) : FIXED_H;
 
   const offsetX = Math.round((vw - WW) / 2);
   const offsetY = Math.round((vh - WH) / 2);
@@ -749,10 +762,9 @@ function sizeAll() {
   go.style.width=W+'px'; go.style.height=H+'px';
 }
 
-window.addEventListener('resize', sizeAll);
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', sizeAll);
-}
+// En móvil solo resize en cambio de orientación
+// En desktop nunca resize: el juego es siempre fijo 480×854
+window.addEventListener('orientationchange', () => setTimeout(sizeAll, 200));
 sizeAll();
 requestAnimationFrame(()=>requestAnimationFrame(loop));
 </script>
