@@ -28,6 +28,38 @@ canvas {
   z-index: 0;
 }
 
+#modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+#modal.open {
+  display: flex;
+}
+
+#modal video {
+  max-width: 90vw;
+  max-height: 85vh;
+  outline: none;
+}
+
+#modal-close {
+  position: absolute;
+  top: 20px;
+  right: 26px;
+  color: #fff;
+  font-family: monospace;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+}
+
 #nav {
   position: fixed;
   top: 28px;
@@ -92,6 +124,11 @@ canvas {
 
 <canvas id="c"></canvas>
 
+<div id="modal">
+  <span id="modal-close">✕</span>
+  <video id="modal-video" src="AQUI_TU_VIDEO.mp4" playsinline></video>
+</div>
+
 <div id="nav">
   <span class="name">Stanley Sunday</span>
   <div class="other-links">
@@ -108,6 +145,47 @@ canvas {
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const modal = document.getElementById('modal');
+const modalVideo = document.getElementById('modal-video');
+const modalClose = document.getElementById('modal-close');
+
+const mouse = { x: -9999, y: -9999 };
+
+function hitTest(px, py) {
+  if (!s.ready) return false;
+  const dx = px - s.x;
+  const dy = py - s.y;
+  const cos = Math.cos(-s.angle);
+  const sin = Math.sin(-s.angle);
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+  return Math.abs(lx) <= s.w / 2 && Math.abs(ly) <= s.h / 2;
+}
+
+function openModal() {
+  modal.classList.add('open');
+  modalVideo.currentTime = 0;
+  modalVideo.play();
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  modalVideo.pause();
+  modalVideo.currentTime = 0;
+}
+
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+window.addEventListener('click', e => {
+  if (hitTest(e.clientX, e.clientY)) openModal();
+});
+
+modalClose.addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+modalVideo.addEventListener('ended', closeModal);
 
 let W, H;
 
@@ -174,6 +252,14 @@ function loop() {
   }
 
   s.av *= 0.999;
+
+  // cursor pointer si el ratón está sobre el caballito
+  const mx = mouse.x, my = mouse.y;
+  if (hitTest(mx, my)) {
+    document.body.style.cursor = 'pointer';
+  } else {
+    document.body.style.cursor = '';
+  }
 
   ctx.save();
   ctx.translate(s.x, s.y);
