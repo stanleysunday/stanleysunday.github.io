@@ -4,9 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Stanley Sunday</title>
+<meta name="description" content="Stanley Sunday — cineasta, director de fotografía y artista visual. Cortometrajes, videoclips y proyectos interactivos.">
+<meta property="og:title" content="Stanley Sunday">
+<meta property="og:description" content="Cineasta, director de fotografía y artista visual. Cortometrajes, videoclips y proyectos interactivos.">
+<meta property="og:image" content="https://stanleysunday.github.io/caballitosalchicha.png">
+<meta property="og:url" content="https://stanleysunday.github.io/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; background: #fff; overflow: hidden; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
 
 canvas {
   position: fixed;
@@ -15,65 +28,164 @@ canvas {
   z-index: 0;
 }
 
-nav {
+#modal {
+  display: none;
   position: fixed;
   inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  align-items: center;
   justify-content: center;
-  padding: clamp(36px, 7vw, 100px);
-  pointer-events: none;
 }
 
-.site-title {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(52px, 10vw, 130px);
-  letter-spacing: -.02em;
+#modal.open {
+  display: flex;
+}
+
+#modal video {
+  max-width: 90vw;
+  max-height: 85vh;
+  outline: none;
+}
+
+#modal-close {
+  position: absolute;
+  top: 20px;
+  right: 26px;
+  color: #fff;
+  font-family: monospace;
+  font-size: 28px;
+  cursor: pointer;
   line-height: 1;
-  color: #000;
-  margin-bottom: clamp(32px, 6vh, 72px);
   user-select: none;
 }
 
-ul {
-  list-style: none;
-  pointer-events: all;
+#nav {
+  position: fixed;
+  top: 28px;
+  left: 28px;
+  z-index: 1;
+  font-family: monospace;
+  font-size: 13px;
 }
 
-ul li {
-  margin-bottom: clamp(6px, 1.2vh, 16px);
-}
-
-ul li a {
-  text-decoration: none;
+#nav .name {
+  display: block;
   color: #000;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(18px, 3vw, 38px);
-  letter-spacing: -.01em;
-  opacity: .35;
-  transition: opacity .15s;
+  text-decoration: none;
+  font-size: 32px;
+  font-weight: normal;
+  letter-spacing: -1px;
+  line-height: 1;
 }
 
-ul li a:hover { opacity: 1; }
+#nav .other-links {
+  margin-top: 10px;
+}
+
+#nav .other-links a {
+  display: block;
+  color: #000;
+  text-decoration: underline;
+  line-height: 2.2;
+}
+
+@media (max-height: 500px) {
+  #nav .name { font-size: 22px; }
+  #nav { top: 16px; left: 16px; }
+  #nav .other-links a { line-height: 1.8; }
+  #nav .other-links { margin-top: 6px; }
+}
 </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Stanley Sunday",
+  "url": "https://stanleysunday.github.io/",
+  "image": "https://stanleysunday.github.io/caballitosalchicha.png",
+  "jobTitle": "Director de cine y artista visual",
+  "description": "Cineasta, director de fotografía y artista visual. Cortometrajes en Súper 8, 16mm y 35mm. Videoclips para Fangoria, Crystal Fighters, Javiera Mena y más.",
+  "sameAs": [
+    "https://vimeo.com/stanleysunday",
+    "https://www.instagram.com/stanleysunday"
+  ],
+  "knowsAbout": ["Cine", "Súper 8", "16mm", "35mm", "Videoclips", "Dirección de fotografía"]
+}
+</script>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 
-<nav>
-  <p class="site-title">Stanley<br>Sunday</p>
-  <ul>
-    <li><a href="./filmografia/">Filmografía</a></li>
-    <li><a href="./dropmates/">Dropmates</a></li>
-    <li><a href="./lluvia/">CHOF</a></li>
-  </ul>
-</nav>
+<div id="modal">
+  <span id="modal-close">✕</span>
+  <video id="modal-video" src="AQUI_TU_VIDEO.mp4" playsinline></video>
+</div>
+
+<div id="nav">
+  <span class="name">Stanley Sunday</span>
+  <div class="other-links">
+    <a href="./filmografia/">filmografia</a>
+    <div style="height:22px"></div>
+    <a href="./dropmates/">dropmates</a>
+    <a href="./lluvia/">chof</a>
+    <a href="./gloria_editor.html">Gloria superochista</a>
+    <a href="./video-grid.html">video grid</a>
+    <a href="./papel-de-cartas.html">papel de cartas</a>
+  </div>
+</div>
 
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const modal = document.getElementById('modal');
+const modalVideo = document.getElementById('modal-video');
+const modalClose = document.getElementById('modal-close');
+
+const mouse = { x: -9999, y: -9999 };
+
+function hitTest(px, py) {
+  if (!s.ready) return false;
+  const dx = px - s.x;
+  const dy = py - s.y;
+  const cos = Math.cos(-s.angle);
+  const sin = Math.sin(-s.angle);
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+  return Math.abs(lx) <= s.w / 2 && Math.abs(ly) <= s.h / 2;
+}
+
+function openModal() {
+  modal.classList.add('open');
+  modalVideo.currentTime = 0;
+  modalVideo.play();
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  modalVideo.pause();
+  modalVideo.currentTime = 0;
+}
+
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+window.addEventListener('click', e => {
+  if (hitTest(e.clientX, e.clientY)) openModal();
+});
+
+modalClose.addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+modalVideo.addEventListener('ended', closeModal);
 
 let W, H;
 
@@ -140,6 +252,14 @@ function loop() {
   }
 
   s.av *= 0.999;
+
+  // cursor pointer si el ratón está sobre el caballito
+  const mx = mouse.x, my = mouse.y;
+  if (hitTest(mx, my)) {
+    document.body.style.cursor = 'pointer';
+  } else {
+    document.body.style.cursor = '';
+  }
 
   ctx.save();
   ctx.translate(s.x, s.y);
