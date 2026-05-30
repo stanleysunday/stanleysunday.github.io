@@ -11,41 +11,39 @@
 <meta property="og:url" content="https://stanleysunday.github.io/dropmates/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;user-select:none;}
-html,body{width:100%;height:100%;height:-webkit-fill-available;overflow:hidden;background:#111;}
+html,body{width:100%;height:100%;height:-webkit-fill-available;overflow:hidden;background:#ffb6c1;}
 body{display:flex;align-items:center;justify-content:center;}
 #wrap{position:relative;flex-shrink:0;}
 #c{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;}
 #gameover{
   position:absolute;z-index:4;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-  background:rgba(10,0,20,.93);backdrop-filter:blur(8px);
-  opacity:0;pointer-events:none;transition:opacity .5s;
+  background:#ffb6c1;
+  opacity:0;pointer-events:none;transition:opacity .3s;
 }
-#go-title{font-family:'Fredoka One',cursive;font-size:34px;color:#ffd93d;text-shadow:0 4px 0 rgba(160,100,0,.5);}
-#go-sub{font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.15em;text-transform:uppercase;}
-#go-sub span{color:#ff6b9d;font-size:1.5em;}
-#restart-btn{font-family:'Fredoka One',cursive;font-size:16px;color:#1a0533;background:linear-gradient(135deg,#ffd93d,#ff9a3c);border:none;padding:10px 32px;cursor:pointer;border-radius:50px;box-shadow:0 4px 0 rgba(140,50,0,.5);pointer-events:all;}
-#restart-btn:active{transform:translateY(2px);}
-#back-link{position:fixed;bottom:14px;left:16px;font-family:'Nunito',sans-serif;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.35);text-decoration:underline;z-index:10;pointer-events:all;}
+#go-title{font-family:monospace;font-size:20px;color:#000;}
+#go-sub{font-family:monospace;font-size:12px;color:#000;}
+#restart-btn{font-family:monospace;font-size:12px;color:#000;background:none;border:1px solid #000;padding:8px 22px;cursor:pointer;border-radius:0;}
+#restart-btn:active{background:#000;color:#ffb6c1;}
+#back-link{position:fixed;bottom:14px;left:16px;font-family:monospace;font-size:12px;color:#000;text-decoration:underline;z-index:10;pointer-events:all;}
 </style>
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
 </head>
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
   <a id="back-link" href="/">← stanley sunday</a>
   <div id="gameover">
-    <div id="go-title">GAME OVER</div>
-    <div id="go-sub">PUNTUACIÓN: <span id="go-score-val">0</span></div>
-    <button id="restart-btn" onclick="restartGame()">¡OTRA VEZ!</button>
+    <div id="go-title">game over</div>
+    <div id="go-sub">puntuación: <span id="go-score-val">0</span></div>
+    <button id="restart-btn" onclick="restartGame()">otra vez</button>
   </div>
 </div>
 <script>
@@ -53,184 +51,100 @@ const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 const wrap   = document.getElementById('wrap');
 let WW=0, WH=0, W=0, H=0, hL=0, hT=0, hB=0;
-const scoreEl = { textContent: 0 };
-
-// ── LOGOS CON ANIMACIÓN CROSSFADE ────────────────────────────────────────────
-const LOGO_W=780, LOGO_H=280;
-const logos = [new Image(), new Image()];
-logos[0].src = 'logo0.png';
-logos[1].src = 'logo1.png';
-
-// Estado animación
-let logoAlpha   = 1.0;   // alpha del logo actual (0→1)
-let logoCurrent = 0;     // índice del logo visible
-let logoNext    = 1;     // índice del logo entrante
-let logoPhase   = 'hold'; // 'hold' | 'fade'
-let logoTimer   = 0;     // ms acumulados en esta fase
-const HOLD_MS   = 4000;  // tiempo mostrando cada logo
-const FADE_MS   = 800;   // duración del crossfade
-
-function updateLogo(dt) {
-  logoTimer += dt;
-  if(logoPhase === 'hold') {
-    if(logoTimer >= HOLD_MS) {
-      logoTimer = 0;
-      logoPhase = 'fade';
-    }
-  } else {
-    // fade: alpha del actual baja de 1 a 0
-    logoAlpha = 1 - (logoTimer / FADE_MS);
-    if(logoTimer >= FADE_MS) {
-      // swap
-      logoCurrent = logoNext;
-      logoNext    = (logoNext + 1) % logos.length;
-      logoAlpha   = 1.0;
-      logoPhase   = 'hold';
-      logoTimer   = 0;
-    }
-  }
-}
 
 // ── DRAW FRAME ───────────────────────────────────────────────────────────────
-function drawFrame(dt) {
-  updateLogo(dt);
+function drawFrame() {
+  ctx.fillStyle = '#ffb6c1';
+  ctx.fillRect(0, 0, WW, WH);
 
-  // Ladrillo beige fondo completo
-  const bW=Math.round(WW/12), bH=Math.round(bW/2.3);
-  for(let row=0; row*bH<WH; row++) {
-    const off=(row%2)*Math.round(bW/2);
-    for(let col=-1; col*bW<WW+bW; col++) {
-      const bx=col*bW+off, by=row*bH;
-      ctx.fillStyle='#caa882'; ctx.fillRect(bx,by,bW-1,bH-1);
-      ctx.fillStyle='#dabbaa'; ctx.fillRect(bx,by,bW-1,1); ctx.fillRect(bx,by,1,bH-1);
-      ctx.fillStyle='#a07840'; ctx.fillRect(bx,by+bH-2,bW-1,1);
-    }
-  }
+  ctx.font = '12px monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#000';
 
-  // Borde del hueco
-  const hW=WW-hL*2;
-  for(let t=5;t>=1;t--) {
-    const v=30+t*11;
-    ctx.fillStyle=`rgb(${v},${Math.round(v*.48)},${Math.round(v*.13)})`;
-    ctx.fillRect(hL-t, hT-t, hW+t*2, WH-hT-hB+t);
-  }
-  // Hueco negro
-  ctx.fillStyle='#05020f';
-  ctx.fillRect(hL, hT, hW, WH-hT-hB);
+  ctx.textAlign = 'left';
+  ctx.fillText('dropmates', hL, hT / 2);
 
-  // Logos con crossfade
-  const logoDrawW = hW;
-  const logoDrawH = Math.round(logoDrawW * LOGO_H / LOGO_W);
-  const logoY = Math.round((hT - logoDrawH) / 2);
-  ctx.imageSmoothingEnabled = false;
+  ctx.textAlign = 'right';
+  let scoreStr = 'score ' + score;
+  if (combo > 1) scoreStr += '  ×' + combo;
+  ctx.fillText(scoreStr, WW - hL, hT / 2);
 
-  // Logo siguiente (siempre opaco detrás)
-  if(logos[logoNext].complete && logos[logoNext].naturalWidth>0) {
-    ctx.globalAlpha = 1;
-    ctx.drawImage(logos[logoNext], hL, logoY, logoDrawW, logoDrawH);
-  }
-  // Logo actual encima con alpha
-  if(logos[logoCurrent].complete && logos[logoCurrent].naturalWidth>0) {
-    ctx.globalAlpha = Math.max(0, Math.min(1, logoAlpha));
-    ctx.drawImage(logos[logoCurrent], hL, logoY, logoDrawW, logoDrawH);
-  }
-  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, hT - 0.5);
+  ctx.lineTo(WW, hT - 0.5);
+  ctx.stroke();
 }
 
 // ── DRAW GAME ────────────────────────────────────────────────────────────────
 function drawGame() {
   ctx.save();
   ctx.translate(hL, hT);
-  // Recortar al play area — nada se dibuja fuera del hueco
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
   ctx.clip();
 
-  const bg=ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#0a0018'); bg.addColorStop(1,'#050008');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-
-  for(let i=0;i<40;i++) {
-    const sx=(Math.sin(i*127.1)*W*5+W*5)%W;
-    const sy=(Math.cos(i*311.7)*H*5+H*5)%H;
-    ctx.globalAlpha=0.15+Math.abs(Math.sin(i*0.3+Date.now()*0.001))*0.25;
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(sx,sy,0.5+Math.abs(Math.sin(i*73))*1.2,0,Math.PI*2); ctx.fill();
-  }
-  ctx.globalAlpha=1;
-
-  bricks.forEach(b=>{
-    const x0=b.x-b.w/2, y0=b.y-b.h/2;
-    ctx.fillStyle='#7a2e0e'; ctx.fillRect(x0,y0,b.w,b.h);
-    const g=ctx.createLinearGradient(x0,y0,x0,y0+b.h);
-    g.addColorStop(0,'rgba(255,180,100,0.18)'); g.addColorStop(1,'rgba(0,0,0,0.35)');
-    ctx.fillStyle=g; ctx.fillRect(x0,y0,b.w,b.h);
-    ctx.strokeStyle='rgba(30,10,0,0.6)'; ctx.lineWidth=1; ctx.strokeRect(x0,y0,b.w,b.h);
-    ctx.strokeStyle='rgba(255,150,80,0.2)';
-    ctx.beginPath(); ctx.moveTo(x0+1,y0+1); ctx.lineTo(x0+b.w-1,y0+1); ctx.stroke();
+  bricks.forEach(b => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(b.x - b.w/2, b.y - b.h/2, b.w, b.h);
+    ctx.fillStyle = '#ffb6c1';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.word, b.x, b.y);
   });
 
-  drawTrail();
-  tiles.filter(t=>t!==dragging).forEach(drawTile);
-  if(dragging) drawTile(dragging);
+  tiles.filter(t => t !== dragging).forEach(drawTile);
+  if (dragging) drawTile(dragging);
 
-  particles.forEach(p=>{
-    ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
-    ctx.shadowColor=p.color; ctx.shadowBlur=6;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  });
-  floatingTexts.forEach(t=>{
-    ctx.save(); ctx.globalAlpha=t.alpha; ctx.fillStyle=t.color;
-    ctx.font="700 16px 'Nunito',sans-serif"; ctx.textAlign='center';
-    ctx.shadowColor=t.color; ctx.shadowBlur=8; ctx.fillText(t.text,t.x,t.y);
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
     ctx.restore();
   });
 
-  const hY=H*0.045, hFs=Math.max(12,Math.round(H*0.032));
-  ctx.save();
-  ctx.textBaseline='middle';
-  ctx.font=`900 ${hFs}px 'Fredoka One',cursive`;
-  const st='SCORE  '+score, stw=ctx.measureText(st).width, pad=8;
-  ctx.fillStyle='rgba(0,0,0,0.5)';
-  ctx.beginPath(); ctx.roundRect(W/2-stw/2-pad,hY-hFs/2-pad,stw+pad*2,hFs+pad*2,8); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.shadowColor='#000'; ctx.shadowBlur=4;
-  ctx.textAlign='center'; ctx.fillText(st,W/2,hY);
-  if(combo>1) {
-    ctx.font=`900 ${Math.round(hFs*.85)}px 'Fredoka One',cursive`;
-    ctx.fillStyle=PAIR_COLORS[(combo-2)%PAIR_COLORS.length];
-    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
-    ctx.fillText('x'+combo+' COMBO',W/2,hY+hFs+8);
-  }
-  ctx.restore();
+  floatingTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = t.alpha;
+    ctx.fillStyle = '#000';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
   ctx.restore();
 }
 
 // ── JUEGO ────────────────────────────────────────────────────────────────────
 const PAIRS = [
-      ['glory', 'hole'],
-      ['poppers', 'disco'],
-      ['Judy', 'Garland'],
-      ['cruising', 'parque'],
-      ['Freddie', 'Mercury'],
-      ['George', 'Michael'],
-      ['Liza', 'Minnelli'],
-      ['leather', 'harness'],
-      ['Kylie', 'Minogue'],
-      ['sauna', 'toalla'],
-      ['Brokeback', 'Mountain'],
-      ['Scissor', 'Sisters'],
-      ['Divine', 'John Waters'],
-      ['Oscar', 'Wilde'],
-      ['Elton', 'John'],
-      ['bottom', 'top'],
-      ['vibrador', 'pilas'],
-      ['onlyfans', 'suscripción'],
-      ['oso', 'peludo'],
-    ];
+  ['glory', 'hole'],
+  ['poppers', 'disco'],
+  ['Judy', 'Garland'],
+  ['cruising', 'parque'],
+  ['Freddie', 'Mercury'],
+  ['George', 'Michael'],
+  ['Liza', 'Minnelli'],
+  ['leather', 'harness'],
+  ['Kylie', 'Minogue'],
+  ['sauna', 'toalla'],
+  ['Brokeback', 'Mountain'],
+  ['Scissor', 'Sisters'],
+  ['Divine', 'John Waters'],
+  ['Oscar', 'Wilde'],
+  ['Elton', 'John'],
+  ['bottom', 'top'],
+  ['vibrador', 'pilas'],
+  ['onlyfans', 'suscripción'],
+  ['oso', 'peludo'],
+];
 
-// Paleta: todas las fichas blancas sobre fondo oscuro
-// El color de fondo de la ficha varía por pareja para ayudar visualmente
 const PAIR_COLORS = [
   '#e63946', '#2ec4b6', '#f4a261',
   '#c77dff', '#f9c74f', '#06d6a0', '#ff6b9d'
@@ -240,7 +154,7 @@ const FALL_SPEED = 0.12;
 const SPAWN_INTERVAL = 2400;
 const PAD_X = 10, PAD_Y = 8;
 const FONT_SIZE = 13;
-const FONT = `700 ${FONT_SIZE}px 'Nunito', sans-serif`;
+const FONT = `${FONT_SIZE}px monospace`;
 
 let tiles = [];
 let particles = [];
@@ -250,43 +164,36 @@ let combo = 1;
 let idCounter = 0;
 let lastSpawn = 0;
 let dragging = null;
-let bricks = [];  // ladrillos acumulados en el suelo
+let bricks = [];
 let gameOver = false;
 let dragOffX = 0, dragOffY = 0;
 let dragTrail = [];
 
-// Medir texto
-// Tamaño fijo para todas las fichas
-const TILE_W_MAX = 90; // ancho máximo fijo en px
+const TILE_W_MAX = 90;
 const TILE_H_FIXED = FONT_SIZE + PAD_Y * 2;
 
 function getTileFont(word) {
-  // Fuente normal si cabe, reducida si es larga
   ctx.font = FONT;
   const tw = ctx.measureText(word).width;
   const available = TILE_W_MAX - PAD_X * 2;
   if (tw <= available) return FONT;
-  // Reducir fuente proporcionalmente
   const fs = Math.max(9, Math.floor(FONT_SIZE * available / tw));
-  return `700 ${fs}px 'Nunito', sans-serif`;
+  return `${fs}px monospace`;
 }
 
-function measureTile(word) {
+function measureTile() {
   return { w: TILE_W_MAX, h: TILE_H_FIXED };
 }
 
-function initTileSize() { /* tamaño fijo, nada que calcular */ }
+function initTileSize() {}
 
 function makeTile(pairIdx, wordIdx) {
   const word = PAIRS[pairIdx][wordIdx];
-  const { w, h } = measureTile(word);
+  const { w, h } = measureTile();
   const margin = w/2 + 10;
   return {
     id: idCounter++,
-    word,
-    pairIdx,
-    wordIdx,
-    w, h,
+    word, pairIdx, wordIdx, w, h,
     x: margin + Math.random() * (W - margin*2),
     y: -h,
     vy: FALL_SPEED * (0.85 + Math.random()*0.3),
@@ -302,16 +209,12 @@ function spawnTile(now) {
   if (now - lastSpawn < SPAWN_INTERVAL) return;
   lastSpawn = now;
 
-  // Elegir pareja: preferir una ya en pantalla para que haya match posible
   const activePairs = [...new Set(tiles.filter(t=>!t.matched).map(t=>t.pairIdx))];
-  let pairIdx;
-  let wordIdx;
+  let pairIdx, wordIdx;
 
   if (activePairs.length > 0 && Math.random() < 0.6) {
-    // Sacar la otra mitad de una pareja activa
     pairIdx = activePairs[Math.floor(Math.random()*activePairs.length)];
     const existingWords = tiles.filter(t=>!t.matched && t.pairIdx===pairIdx).map(t=>t.wordIdx);
-    // Si ya están las dos, elegir otra pareja
     if (existingWords.includes(0) && existingWords.includes(1)) {
       pairIdx = Math.floor(Math.random()*PAIRS.length);
       wordIdx = Math.round(Math.random());
@@ -330,20 +233,18 @@ function spawnTile(now) {
   tiles.push(makeTile(pairIdx, wordIdx));
 }
 
-// ── Partículas ───────────────────────────────────────────
 function spawnParticles(x, y, color) {
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 12; i++) {
     const angle = Math.random()*Math.PI*2;
-    const speed = 2 + Math.random()*6;
-    particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, r: 2+Math.random()*5, alpha: 1, color });
+    const speed = 1.5 + Math.random()*4;
+    particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, r: 1.5+Math.random()*3, alpha: 1, color });
   }
 }
 
-function spawnText(x, y, text, color) {
-  floatingTexts.push({ x, y, text, color, alpha: 1, vy: -1.8, life: 70 });
+function spawnText(x, y, text) {
+  floatingTexts.push({ x, y, text, alpha: 1, vy: -1.5, life: 60 });
 }
 
-// ── Hit test ─────────────────────────────────────────────
 function hitTile(px, py) {
   for (let i = tiles.length-1; i >= 0; i--) {
     const t = tiles[i];
@@ -354,12 +255,10 @@ function hitTile(px, py) {
 }
 
 function tilesOverlap(a, b) {
-  // Hitbox generoso para empujar fichas incorrectas
   return Math.abs(a.x - b.x) < (a.w + b.w) * 0.7 &&
          Math.abs(a.y - b.y) < (a.h + b.h) * 0.7;
 }
 function tilesTouch(a, b) {
-  // Activar en el primer contacto de borde con borde (tolerancia 3px)
   return Math.abs(a.x - b.x) <= (a.w/2 + b.w/2 + 3) &&
          Math.abs(a.y - b.y) <= (a.h/2 + b.h/2 + 3);
 }
@@ -369,13 +268,11 @@ function isMatchPair(a, b) {
 function matchTiles(a, b) {
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
-  spawnParticles(mx, my, PAIR_COLORS[a.pairIdx]);
+  spawnParticles(mx, my, PAIR_COLORS[a.pairIdx % PAIR_COLORS.length]);
   score += 1;
   combo = Math.min(combo + 1, 8);
-  spawnText(mx, my - 30, a.word + ' + ' + b.word, '#ffffff');
-  spawnText(mx, my - 55, '+1', '#ffd93d');
-  updateComboUI();
-  updateScoreUI();
+  spawnText(mx, my - 24, a.word + ' + ' + b.word);
+  spawnText(mx, my - 40, '+1');
   a.matched = true;
   b.matched = true;
 }
@@ -383,7 +280,7 @@ function matchTiles(a, b) {
 // ── Input ────────────────────────────────────────────────
 function getPos(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width  / rect.width;
+  const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   const raw = e.touches ? e.touches[0] : e;
   return {
@@ -415,7 +312,6 @@ function onMove(e) {
   dragTrail.push({ x: dragging.x, y: dragging.y });
   if (dragTrail.length > 20) dragTrail.shift();
 
-  // Comprobar match en tiempo real al arrastrar
   for (const t of tiles) {
     if (t === dragging || t.matched) continue;
     if (isMatchPair(dragging, t) && tilesTouch(dragging, t)) {
@@ -426,15 +322,12 @@ function onMove(e) {
     }
   }
 
-  // Fichas incorrectas: se mueven con el dedo Y se separan para no solaparse
   for (const t of tiles) {
     if (t === dragging || t.matched) continue;
     if (t.pairIdx === dragging.pairIdx && t.wordIdx !== dragging.wordIdx) continue;
     if (tilesOverlap(dragging, t)) {
-      // Mover con el dedo
       t.x = Math.max(t.w/2, Math.min(W - t.w/2, t.x + dx));
       t.y = Math.max(t.h/2, Math.min(H - t.h/2, t.y + dy));
-      // Separar para evitar solapamiento
       const overlapX = (dragging.w/2 + t.w/2) - Math.abs(t.x - dragging.x);
       const overlapY = (dragging.h/2 + t.h/2) - Math.abs(t.y - dragging.y);
       if (overlapX > 0 && overlapY > 0) {
@@ -455,7 +348,6 @@ function onEnd(e) {
   e.preventDefault();
   if (!dragging) return;
 
-  // Buscar pareja correcta más cercana con zona generosa
   let matched = null;
   let minDist = Infinity;
   for (const t of tiles) {
@@ -490,60 +382,28 @@ canvas.addEventListener('mousedown', onStart);
 canvas.addEventListener('mousemove', onMove);
 canvas.addEventListener('mouseup', onEnd);
 
-// ── UI ───────────────────────────────────────────────────
-
-const comboEl    = { textContent: '', style: {} };
-const comboPill  = { style: {} };
-function updateScoreUI() { /* score se dibuja en canvas */ }
-function updateComboUI() {
-  if (combo > 1) {
-    comboEl.textContent = 'x'+combo;
-    comboPill.style.opacity = 1;
-    comboPill.style.borderColor = PAIR_COLORS[(combo-2)%PAIR_COLORS.length];
-    comboEl.style.color = PAIR_COLORS[(combo-2)%PAIR_COLORS.length];
-  } else {
-    comboPill.style.opacity = 0;
-  }
-}
-
-// ── Draw ─────────────────────────────────────────────────
+// ── Draw tile ─────────────────────────────────────────────
 function drawTile(t) {
-  const color = PAIR_COLORS[t.pairIdx];
+  const color = PAIR_COLORS[t.pairIdx % PAIR_COLORS.length];
   ctx.save();
   ctx.translate(t.x, t.y);
-
   const hw = t.w/2, hh = t.h/2;
-  const r = 8;
 
-  // Sombra / glow
-  ctx.shadowColor = t === dragging ? '#ffd93d' : 'rgba(200,150,255,0.3)';
-  ctx.shadowBlur = t === dragging ? 28 : 8;
+  ctx.fillStyle = t === dragging ? '#000' : '#fff';
+  ctx.fillRect(-hw, -hh, t.w, t.h);
 
-  // Fondo
-  ctx.beginPath();
-  ctx.moveTo(-hw+r, -hh);
-  ctx.lineTo(hw-r, -hh); ctx.quadraticCurveTo(hw,-hh,hw,-hh+r);
-  ctx.lineTo(hw, hh-r); ctx.quadraticCurveTo(hw,hh,hw-r,hh);
-  ctx.lineTo(-hw+r, hh); ctx.quadraticCurveTo(-hw,hh,-hw,hh-r);
-  ctx.lineTo(-hw, -hh+r); ctx.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
-  ctx.closePath();
-  ctx.fillStyle = t === dragging ? '#2d1060' : '#1e0a4a';
-  ctx.fill();
-
-  // Borde blanco
-  let borderColor, borderWidth;
-  if (t === dragging) { borderColor='rgba(255,255,255,0.9)'; borderWidth=2; }
-  else if (t.parked)  { borderColor='rgba(255,255,255,0.55)'; borderWidth=1.5; ctx.setLineDash([4,3]); }
-  else                { borderColor='rgba(255,255,255,0.25)'; borderWidth=1.2; }
-  ctx.strokeStyle = borderColor;
-  ctx.lineWidth = borderWidth;
-  ctx.stroke();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+  if (t.parked) ctx.setLineDash([4, 3]);
+  ctx.strokeRect(-hw, -hh, t.w, t.h);
   ctx.setLineDash([]);
 
-  // Texto — fuente reducida si la palabra es larga
-  ctx.shadowBlur = 0;
+  // small pair color indicator
+  ctx.fillStyle = color;
+  ctx.fillRect(hw - 7, -hh + 3, 4, 4);
+
   ctx.font = getTileFont(t.word);
-  ctx.fillStyle = t === dragging ? '#ffd93d' : '#ffffff';
+  ctx.fillStyle = t === dragging ? '#ffb6c1' : '#000';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(t.word, 0, 1);
@@ -551,30 +411,10 @@ function drawTile(t) {
   ctx.restore();
 }
 
-function drawTrail() {
-  if (!dragging || dragTrail.length < 2) return;
-  const color = PAIR_COLORS[dragging.pairIdx];
-  ctx.save();
-  ctx.lineCap = 'round';
-  for (let i = 1; i < dragTrail.length; i++) {
-    const t = i/dragTrail.length;
-    ctx.globalAlpha = t*0.4;
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.lineWidth = t*5;
-    ctx.beginPath();
-    ctx.moveTo(dragTrail[i-1].x, dragTrail[i-1].y);
-    ctx.lineTo(dragTrail[i].x, dragTrail[i].y);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-// ── Física de ladrillos ──────────────────────────────────
+// ── Physics ───────────────────────────────────────────────
 function getLandingY(t) {
-  // Buscar el techo más alto entre los ladrillos que están debajo de t
   let floor = H;
   for (const b of bricks) {
-    // ¿Se solapan horizontalmente?
     if (Math.abs(b.x - t.x) < (b.w + t.w) / 2 - 2) {
       const top = b.y - b.h / 2;
       if (top < floor) floor = top;
@@ -583,21 +423,17 @@ function getLandingY(t) {
   return floor;
 }
 
-// ── Update ───────────────────────────────────────────────
 function update(now) {
   spawnTile(now);
-
-  const PARK_ZONE = 60; // px desde cada lado
 
   tiles.forEach(t => {
     if (t === dragging || t.matched) return;
 
     if (t.parked) {
-      // Parked: quieta hasta que la golpeen
       if (t.bounceTimer > 0) {
         t.bounceTimer--; t.x += t.vx; t.y += t.vy;
         t.vx *= 0.85; t.vy *= 0.85;
-        if (t.bounceTimer === 0) { t.parked = false; } // si la golpean vuelve a caer
+        if (t.bounceTimer === 0) t.parked = false;
       }
       if (t.x - t.w/2 < 0) { t.x = t.w/2; t.vx = Math.abs(t.vx); }
       if (t.x + t.w/2 > W) { t.x = W-t.w/2; t.vx = -Math.abs(t.vx); }
@@ -610,25 +446,21 @@ function update(now) {
     if (t.x - t.w/2 < 0) { t.x = t.w/2; t.vx = Math.abs(t.vx); }
     if (t.x + t.w/2 > W) { t.x = W-t.w/2; t.vx = -Math.abs(t.vx); }
     if (t.y - t.h/2 < 0) { t.y = t.h/2; t.vy = Math.abs(t.vy)*0.3; }
-    // ¿Toca el suelo o algún ladrillo?
+
     const landY = getLandingY(t);
     if (t.y + t.h/2 >= landY) {
       t.y = landY - t.h/2;
       bricks.push({ x: t.x, y: t.y, w: t.w, h: t.h, word: t.word });
       t.matched = true;
       score = Math.max(0, score - 1);
-      updateScoreUI();
-      spawnText(t.x, t.y - 20, '-1', '#e63946');
-      combo = 1; updateComboUI();
-      // ¿Game over? — si algún ladrillo llega al 15% superior
-      if (bricks.some(b => b.y - b.h/2 < H * 0.15)) { triggerGameOver(); }
+      spawnText(t.x, t.y - 16, '-1');
+      combo = 1;
+      if (bricks.some(b => b.y - b.h/2 < H * 0.15)) triggerGameOver();
     }
 
-    // ¿Golpea a una parked?
     tiles.forEach(p => {
       if (p === t || p.matched || !p.parked) return;
       if (tilesOverlap(t, p)) {
-        // La parked vuelve a caer
         p.parked = false;
         p.vy = FALL_SPEED;
         p.vx = (p.x - t.x > 0 ? 1 : -1) * 2;
@@ -636,7 +468,6 @@ function update(now) {
     });
   });
 
-  // Separar fichas que se solapan entre sí; si son pareja correcta → match
   const active = tiles.filter(t => !t.matched && t !== dragging);
   for (let i = 0; i < active.length; i++) {
     for (let j = i+1; j < active.length; j++) {
@@ -645,11 +476,7 @@ function update(now) {
       const overlapX = (a.w/2 + b.w/2) - Math.abs(a.x - b.x);
       const overlapY = (a.h/2 + b.h/2) - Math.abs(a.y - b.y);
       if (overlapX > 0 && overlapY > 0) {
-        if (isMatchPair(a, b)) {
-          matchTiles(a, b);
-          continue;
-        }
-        // Separar por el eje con menos solapamiento
+        if (isMatchPair(a, b)) { matchTiles(a, b); continue; }
         if (overlapX < overlapY) {
           const push = overlapX / 2 + 1;
           const dir = a.x < b.x ? -1 : 1;
@@ -667,14 +494,14 @@ function update(now) {
 
   tiles = tiles.filter(t => !t.matched);
 
-  particles = particles.filter(p=>p.alpha>0.02);
-  particles.forEach(p=>{
-    p.x+=p.vx; p.y+=p.vy; p.vy+=0.12;
-    p.vx*=0.93; p.vy*=0.93; p.alpha*=0.91;
+  particles = particles.filter(p => p.alpha > 0.02);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.93; p.vy *= 0.93; p.alpha *= 0.91;
   });
 
-  floatingTexts = floatingTexts.filter(t=>t.life>0);
-  floatingTexts.forEach(t=>{ t.y+=t.vy; t.life--; t.alpha=t.life/70; });
+  floatingTexts = floatingTexts.filter(t => t.life > 0);
+  floatingTexts.forEach(t => { t.y += t.vy; t.life--; t.alpha = t.life / 60; });
 }
 
 function draw() {
@@ -686,16 +513,18 @@ function draw() {
 function triggerGameOver() {
   gameOver = true;
   document.getElementById('go-score-val').textContent = score;
-  const go = document.getElementById('gameover'); go.style.opacity=1; go.style.pointerEvents='all';
+  const go = document.getElementById('gameover');
+  go.style.opacity = 1;
+  go.style.pointerEvents = 'all';
 }
 
 function restartGame() {
-  initTileSize();
   tiles = []; bricks = []; particles = []; floatingTexts = [];
   score = 0; combo = 1; gameOver = false;
   dragging = null; dragTrail = []; lastSpawn = 0;
-  updateScoreUI(); updateComboUI();
-  const go = document.getElementById('gameover'); go.style.opacity=0; go.style.pointerEvents='none';
+  const go = document.getElementById('gameover');
+  go.style.opacity = 0;
+  go.style.pointerEvents = 'none';
 }
 
 function loop(now) {
@@ -703,27 +532,12 @@ function loop(now) {
   draw();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
 
-// draw() — llamado por loop() cada frame
-let _lastDrawTime = 0;
-function draw() {
-  const now = Date.now();
-  const dt = _lastDrawTime ? Math.min(now - _lastDrawTime, 100) : 16;
-  _lastDrawTime = now;
-  ctx.imageSmoothingEnabled = false;
-  drawFrame(dt);
-  drawGame();
-}
-
-// ── RESIZE ───────────────────────────────────────────────────────────────────
+// ── Resize ────────────────────────────────────────────────
 function getViewport() {
-  // En móvil usamos screen para ignorar la barra del navegador
-  const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (isMobileDevice) {
-    // screen.width/height dan dimensiones reales sin afectar la barra del nav
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (isMobile) {
     const sw = screen.width, sh = screen.height;
-    // Ajustar según orientación actual
     const landscape = window.innerWidth > window.innerHeight;
     return { vw: landscape ? Math.max(sw,sh) : Math.min(sw,sh),
              vh: landscape ? Math.min(sw,sh) : Math.max(sw,sh) };
@@ -733,40 +547,41 @@ function getViewport() {
 
 function sizeAll() {
   const { vw, vh } = getViewport();
-  const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const MAX_W = 480, FIXED_H = 854;
 
-  // Desktop: siempre fijo. Móvil: adaptar a pantalla
-  WW = isMobileDevice ? Math.round(vw) : MAX_W;
-  WH = isMobileDevice ? Math.round(vh) : FIXED_H;
+  WW = isMobile ? Math.round(vw) : MAX_W;
+  WH = isMobile ? Math.round(vh) : FIXED_H;
 
   const offsetX = Math.round((vw - WW) / 2);
   const offsetY = Math.round((vh - WH) / 2);
 
-  wrap.style.width=WW+'px'; wrap.style.height=WH+'px';
-  wrap.style.left=offsetX+'px'; wrap.style.top=offsetY+'px'; wrap.style.position='absolute';
-  canvas.width=WW; canvas.height=WH;
+  wrap.style.width = WW + 'px';
+  wrap.style.height = WH + 'px';
+  wrap.style.left = offsetX + 'px';
+  wrap.style.top = offsetY + 'px';
+  wrap.style.position = 'absolute';
+  canvas.width = WW;
+  canvas.height = WH;
 
-  hL = Math.round(WW*0.04);
-  const hW = WW - hL*2;
-  const logoDrawH = Math.round(hW * LOGO_H / LOGO_W);
-  const vMargin = Math.round(WW*0.04);
-  hT = logoDrawH + vMargin*2;
-  hB = Math.round(WH*0.03);
-  W  = hW;
-  H  = WH - hT - hB;
+  hL = 16;
+  hT = 40;
+  hB = 32;
+  W = WW - hL * 2;
+  H = WH - hT - hB;
 
   initTileSize();
-  const go=document.getElementById('gameover');
-  go.style.left=hL+'px'; go.style.top=hT+'px';
-  go.style.width=W+'px'; go.style.height=H+'px';
+
+  const go = document.getElementById('gameover');
+  go.style.left = hL + 'px';
+  go.style.top = hT + 'px';
+  go.style.width = W + 'px';
+  go.style.height = H + 'px';
 }
 
-// En móvil solo resize en cambio de orientación
-// En desktop nunca resize: el juego es siempre fijo 480×854
 window.addEventListener('orientationchange', () => setTimeout(sizeAll, 200));
 sizeAll();
-requestAnimationFrame(()=>requestAnimationFrame(loop));
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
