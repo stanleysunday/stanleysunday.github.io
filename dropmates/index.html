@@ -97,31 +97,43 @@ const PAIRS = [
   ['Divine','John Waters'],['Oscar','Wilde'],['Elton','John'],['bottom','top'],
   ['vibrador','pilas'],['onlyfans','suscripción'],['oso','peludo'],
 ];
-const FALL_SPEED=0.12, SPAWN_INTERVAL=2400, PAD_X=10, PAD_Y=8, FONT_SIZE=13;
+const FALL_SPEED=0.12, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
 const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
 
 let tiles=[],particles=[],floatingTexts=[],score=0,combo=1,idCounter=0,lastSpawn=0;
-let dragging=null,bricks=[],gameOver=false,dragOffX=0,dragOffY=0,dragTrail=[];
+let dragging=null,bricks=[],gameOver=false,dragOffX=0,dragOffY=0;
+
+// Los recuadros se tocan o solapan
+function boxesTouch(a,b){
+  return Math.abs(a.x-b.x) <= (a.w+b.w)/2 &&
+         Math.abs(a.y-b.y) <= (a.h+b.h)/2;
+}
+
+// Los recuadros se solapan (para empujar)
+function boxesOverlap(a,b){
+  return Math.abs(a.x-b.x) < (a.w+b.w)/2 &&
+         Math.abs(a.y-b.y) < (a.h+b.h)/2;
+}
+
+function isMatchPair(a,b){return a.pairIdx===b.pairIdx && a.wordIdx!==b.wordIdx;}
 
 function getTileFont(word){
   ctx.font=FONT;
-  const tw=ctx.measureText(word).width,available=TILE_W_MAX-PAD_X*2;
-  if(tw<=available)return FONT;
+  const tw=ctx.measureText(word).width, available=TILE_W_MAX-16;
+  if(tw<=available) return FONT;
   return `${Math.max(9,Math.floor(FONT_SIZE*available/tw))}px monospace`;
 }
-function measureTile(){return{w:TILE_W_MAX,h:TILE_H_FIXED};}
-function initTileSize(){}
 
 function makeTile(pairIdx,wordIdx){
-  const word=PAIRS[pairIdx][wordIdx],{w,h}=measureTile(),margin=w/2+10;
+  const word=PAIRS[pairIdx][wordIdx], w=TILE_W_MAX, h=TILE_H_FIXED, margin=w/2+10;
   return{id:idCounter++,word,pairIdx,wordIdx,w,h,
-    x:margin+Math.random()*(W-margin*2),y:-h,
-    vy:FALL_SPEED*(0.85+Math.random()*0.3),vx:0,bounceTimer:0,matched:false,parked:false};
+    x:margin+Math.random()*(W-margin*2), y:-h,
+    vy:FALL_SPEED*(0.85+Math.random()*0.3), vx:0, bounceTimer:0, matched:false, parked:false};
 }
 
 function spawnTile(now){
-  if(gameOver||now-lastSpawn<SPAWN_INTERVAL)return;
+  if(gameOver||now-lastSpawn<SPAWN_INTERVAL) return;
   lastSpawn=now;
   const activePairs=[...new Set(tiles.filter(t=>!t.matched).map(t=>t.pairIdx))];
   let pairIdx,wordIdx;
@@ -129,83 +141,102 @@ function spawnTile(now){
     pairIdx=activePairs[Math.floor(Math.random()*activePairs.length)];
     const ew=tiles.filter(t=>!t.matched&&t.pairIdx===pairIdx).map(t=>t.wordIdx);
     if(ew.includes(0)&&ew.includes(1)){pairIdx=Math.floor(Math.random()*PAIRS.length);wordIdx=Math.round(Math.random());}
-    else if(ew.includes(0))wordIdx=1;
-    else if(ew.includes(1))wordIdx=0;
+    else if(ew.includes(0)) wordIdx=1;
+    else if(ew.includes(1)) wordIdx=0;
     else wordIdx=Math.round(Math.random());
-  }else{pairIdx=Math.floor(Math.random()*PAIRS.length);wordIdx=Math.round(Math.random());}
+  } else {pairIdx=Math.floor(Math.random()*PAIRS.length);wordIdx=Math.round(Math.random());}
   tiles.push(makeTile(pairIdx,wordIdx));
 }
 
 function spawnParticles(x,y){
-  for(let i=0;i<12;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*4;
-    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:1.5+Math.random()*3,alpha:1});}
+  for(let i=0;i<12;i++){
+    const a=Math.random()*Math.PI*2, s=1.5+Math.random()*4;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:1.5+Math.random()*3,alpha:1});
+  }
 }
 function spawnText(x,y,text){floatingTexts.push({x,y,text,alpha:1,vy:-1.5,life:60});}
 
 function hitTile(px,py){
   for(let i=tiles.length-1;i>=0;i--){
-    const t=tiles[i];if(t.matched)continue;
-    if(px>=t.x-t.w/2&&px<=t.x+t.w/2&&py>=t.y-t.h/2&&py<=t.y+t.h/2)return t;
-  }return null;
+    const t=tiles[i]; if(t.matched) continue;
+    if(px>=t.x-t.w/2 && px<=t.x+t.w/2 && py>=t.y-t.h/2 && py<=t.y+t.h/2) return t;
+  }
+  return null;
 }
-function tilesOverlap(a,b){return Math.abs(a.x-b.x)<(a.w+b.w)*0.7&&Math.abs(a.y-b.y)<(a.h+b.h)*0.7;}
-function tilesTouch(a,b){return Math.abs(a.x-b.x)<=(a.w/2+b.w/2+3)&&Math.abs(a.y-b.y)<=(a.h/2+b.h/2+3);}
-function isMatchPair(a,b){return a.pairIdx===b.pairIdx&&a.wordIdx!==b.wordIdx;}
+
 function matchTiles(a,b){
-  const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+  const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
   spawnParticles(mx,my);
-  score+=1;combo=Math.min(combo+1,8);
-  spawnText(mx,my-24,a.word+' + '+b.word);spawnText(mx,my-40,'+1');
-  a.matched=true;b.matched=true;
+  score+=1; combo=Math.min(combo+1,8);
+  spawnText(mx,my-24,a.word+' + '+b.word);
+  spawnText(mx,my-40,'+1');
+  a.matched=true; b.matched=true;
+}
+
+// Empuja t fuera de la zona del recuadro dragging
+function pushAway(t){
+  const ox=(dragging.w+t.w)/2 - Math.abs(t.x-dragging.x);
+  const oy=(dragging.h+t.h)/2 - Math.abs(t.y-dragging.y);
+  if(ox<=0||oy<=0) return;
+  if(ox<oy){
+    t.x += t.x>=dragging.x ? ox : -ox;
+  } else {
+    t.y += t.y>=dragging.y ? oy : -oy;
+  }
+  t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x));
+  t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y));
+  t.vx=0; t.vy=FALL_SPEED; t.parked=false;
 }
 
 function getPos(e){
-  const rect=canvas.getBoundingClientRect(),scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
+  const rect=canvas.getBoundingClientRect(), scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
   const raw=e.touches?e.touches[0]:e;
-  return{x:(raw.clientX-rect.left)*scaleX-hL,y:(raw.clientY-rect.top)*scaleY-hT};
+  return{x:(raw.clientX-rect.left)*scaleX-hL, y:(raw.clientY-rect.top)*scaleY-hT};
 }
+
 function onStart(e){
-  e.preventDefault();const{x,y}=getPos(e),t=hitTile(x,y);
-  if(!t)return;dragging=t;dragOffX=x-t.x;dragOffY=y-t.y;dragTrail=[];
+  e.preventDefault();
+  const{x,y}=getPos(e), t=hitTile(x,y);
+  if(!t) return;
+  dragging=t; dragOffX=x-t.x; dragOffY=y-t.y;
 }
+
 function onMove(e){
-  e.preventDefault();if(!dragging)return;
-  const{x,y}=getPos(e),prevX=dragging.x,prevY=dragging.y;
-  dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2,x-dragOffX));
-  dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2,y-dragOffY));
-  const dx=dragging.x-prevX,dy=dragging.y-prevY;
-  dragTrail.push({x:dragging.x,y:dragging.y});if(dragTrail.length>20)dragTrail.shift();
+  e.preventDefault();
+  if(!dragging) return;
+  const{x,y}=getPos(e);
+  dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2, x-dragOffX));
+  dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2, y-dragOffY));
+
+  // Comprobar pareja: si los recuadros se tocan, match
   for(const t of tiles){
-    if(t===dragging||t.matched)continue;
-    if(isMatchPair(dragging,t)&&tilesTouch(dragging,t)){matchTiles(dragging,t);dragging=null;dragTrail=[];return;}
-  }
-  for(const t of tiles){
-    if(t===dragging||t.matched)continue;
-    if(t.pairIdx===dragging.pairIdx&&t.wordIdx!==dragging.wordIdx)continue;
-    if(tilesOverlap(dragging,t)){
-      t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x+dx));t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y+dy));
-      const ox=(dragging.w/2+t.w/2)-Math.abs(t.x-dragging.x),oy=(dragging.h/2+t.h/2)-Math.abs(t.y-dragging.y);
-      if(ox>0&&oy>0){if(ox<oy){t.x+=t.x>dragging.x?ox:-ox;}else{t.y+=t.y>dragging.y?oy:-oy;}}
-      t.vx=0;t.vy=FALL_SPEED;t.parked=false;
+    if(t===dragging||t.matched) continue;
+    if(isMatchPair(dragging,t) && boxesTouch(dragging,t)){
+      matchTiles(dragging,t); dragging=null; return;
     }
   }
+
+  // Empujar fichas no-pareja que se solapen: solo se mueve la otra, no la arrastrada
+  for(const t of tiles){
+    if(t===dragging||t.matched||isMatchPair(dragging,t)) continue;
+    if(boxesOverlap(dragging,t)) pushAway(t);
+  }
 }
+
 function onEnd(e){
-  e.preventDefault();if(!dragging)return;
-  let matched=null,minDist=Infinity;
+  e.preventDefault();
+  if(!dragging) return;
+  // Último chequeo de pareja al soltar
   for(const t of tiles){
-    if(t===dragging||t.matched)continue;
-    if(t.pairIdx===dragging.pairIdx&&t.wordIdx!==dragging.wordIdx){
-      const dist=Math.hypot(dragging.x-t.x,dragging.y-t.y);
-      if(tilesTouch(dragging,t)&&dist<minDist){minDist=dist;matched=t;}
+    if(t===dragging||t.matched) continue;
+    if(isMatchPair(dragging,t) && boxesTouch(dragging,t)){
+      matchTiles(dragging,t); dragging=null; return;
     }
   }
-  if(matched){matchTiles(dragging,matched);}
-  else{dragging.parked=true;dragging.vx=0;dragging.vy=0;
-    dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2,dragging.x));
-    dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2,dragging.y));}
-  dragging=null;dragTrail=[];
+  dragging.parked=true; dragging.vx=0; dragging.vy=0;
+  dragging=null;
 }
+
 canvas.addEventListener('touchstart',onStart,{passive:false});
 canvas.addEventListener('touchmove',onMove,{passive:false});
 canvas.addEventListener('touchend',onEnd,{passive:false});
@@ -214,60 +245,74 @@ canvas.addEventListener('mousemove',onMove);
 canvas.addEventListener('mouseup',onEnd);
 
 function drawTile(t){
-  ctx.save();ctx.translate(t.x,t.y);
-  const hw=t.w/2,hh=t.h/2;
+  ctx.save(); ctx.translate(t.x,t.y);
+  const hw=t.w/2, hh=t.h/2;
   ctx.fillStyle=t===dragging?'#000':'#fff';
   ctx.fillRect(-hw,-hh,t.w,t.h);
-  ctx.strokeStyle='#000';ctx.lineWidth=1;
-  if(t.parked)ctx.setLineDash([4,3]);
-  ctx.strokeRect(-hw,-hh,t.w,t.h);ctx.setLineDash([]);
+  ctx.strokeStyle='#000'; ctx.lineWidth=1;
+  if(t.parked) ctx.setLineDash([4,3]);
+  ctx.strokeRect(-hw,-hh,t.w,t.h); ctx.setLineDash([]);
   ctx.font=getTileFont(t.word);
   ctx.fillStyle=t===dragging?'#fff':'#000';
-  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.word,0,1);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(t.word,0,1);
   ctx.restore();
 }
 
 function getLandingY(t){
   let floor=H;
-  for(const b of bricks){if(Math.abs(b.x-t.x)<(b.w+t.w)/2-2){const top=b.y-b.h/2;if(top<floor)floor=top;}}
+  for(const b of bricks){
+    if(Math.abs(b.x-t.x)<(b.w+t.w)/2-2){
+      const top=b.y-b.h/2; if(top<floor) floor=top;
+    }
+  }
   return floor;
 }
 
 function update(now){
   spawnTile(now);
   tiles.forEach(t=>{
-    if(t===dragging||t.matched)return;
+    if(t===dragging||t.matched) return;
     if(t.parked){
       if(t.bounceTimer>0){t.bounceTimer--;t.x+=t.vx;t.y+=t.vy;t.vx*=0.85;t.vy*=0.85;if(t.bounceTimer===0)t.parked=false;}
-      if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
+      if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
+      if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
       return;
     }
     t.vy=Math.min(t.vy+0.003,0.22);
     if(t.bounceTimer>0){t.bounceTimer--;t.x+=t.vx;t.vx*=0.85;}
     t.y+=t.vy;
-    if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
+    if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
+    if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
     if(t.y-t.h/2<0){t.y=t.h/2;t.vy=Math.abs(t.vy)*0.3;}
     const landY=getLandingY(t);
     if(t.y+t.h/2>=landY){
-      t.y=landY-t.h/2;bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
-      t.matched=true;score=Math.max(0,score-1);spawnText(t.x,t.y-16,'-1');combo=1;
-      if(bricks.some(b=>b.y-b.h/2<H*0.15))triggerGameOver();
+      t.y=landY-t.h/2;
+      bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
+      t.matched=true; score=Math.max(0,score-1);
+      spawnText(t.x,t.y-16,'-1'); combo=1;
+      if(bricks.some(b=>b.y-b.h/2<H*0.15)) triggerGameOver();
     }
-    tiles.forEach(p=>{if(p===t||p.matched||!p.parked)return;
-      if(tilesOverlap(t,p)){p.parked=false;p.vy=FALL_SPEED;p.vx=(p.x-t.x>0?1:-1)*2;}});
   });
+  // Separar fichas que se solapen entre sí (en caída libre)
   const active=tiles.filter(t=>!t.matched&&t!==dragging);
-  for(let i=0;i<active.length;i++){for(let j=i+1;j<active.length;j++){
-    const a=active[i],b=active[j];if(a.matched||b.matched)continue;
-    const ox=(a.w/2+b.w/2)-Math.abs(a.x-b.x),oy=(a.h/2+b.h/2)-Math.abs(a.y-b.y);
-    if(ox>0&&oy>0){
-      if(isMatchPair(a,b)){matchTiles(a,b);continue;}
-      if(ox<oy){const push=ox/2+1,dir=a.x<b.x?-1:1;
-        a.x=Math.max(a.w/2,Math.min(W-a.w/2,a.x+dir*push));b.x=Math.max(b.w/2,Math.min(W-b.w/2,b.x-dir*push));}
-      else{const push=oy/2+1,dir=a.y<b.y?-1:1;
-        a.y=Math.max(a.h/2,Math.min(H-a.h/2,a.y+dir*push));b.y=Math.max(b.h/2,Math.min(H-b.h/2,b.y-dir*push));}
+  for(let i=0;i<active.length;i++){
+    for(let j=i+1;j<active.length;j++){
+      const a=active[i],b=active[j];
+      if(a.matched||b.matched) continue;
+      const ox=(a.w+b.w)/2-Math.abs(a.x-b.x), oy=(a.h+b.h)/2-Math.abs(a.y-b.y);
+      if(ox>0&&oy>0){
+        if(isMatchPair(a,b)){matchTiles(a,b);continue;}
+        if(ox<oy){const push=ox/2+1,dir=a.x<b.x?-1:1;
+          a.x=Math.max(a.w/2,Math.min(W-a.w/2,a.x+dir*push));
+          b.x=Math.max(b.w/2,Math.min(W-b.w/2,b.x-dir*push));
+        } else {const push=oy/2+1,dir=a.y<b.y?-1:1;
+          a.y=Math.max(a.h/2,Math.min(H-a.h/2,a.y+dir*push));
+          b.y=Math.max(b.h/2,Math.min(H-b.h/2,b.y-dir*push));
+        }
+      }
     }
-  }}
+  }
   tiles=tiles.filter(t=>!t.matched);
   particles=particles.filter(p=>p.alpha>0.02);
   particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vx*=0.93;p.vy*=0.93;p.alpha*=0.91;});
@@ -278,13 +323,13 @@ function update(now){
 function draw(){ctx.imageSmoothingEnabled=false;drawFrame();drawGame();}
 
 function triggerGameOver(){
-  gameOver=true;document.getElementById('go-score-val').textContent=score;
-  const go=document.getElementById('gameover');go.style.opacity=1;go.style.pointerEvents='all';
+  gameOver=true; document.getElementById('go-score-val').textContent=score;
+  const go=document.getElementById('gameover'); go.style.opacity=1; go.style.pointerEvents='all';
 }
 function restartGame(){
   tiles=[];bricks=[];particles=[];floatingTexts=[];score=0;combo=1;gameOver=false;
-  dragging=null;dragTrail=[];lastSpawn=0;
-  const go=document.getElementById('gameover');go.style.opacity=0;go.style.pointerEvents='none';
+  dragging=null;lastSpawn=0;
+  const go=document.getElementById('gameover'); go.style.opacity=0; go.style.pointerEvents='none';
 }
 function loop(now){if(!gameOver)update(now);draw();requestAnimationFrame(loop);}
 
@@ -296,17 +341,16 @@ function getViewport(){
 }
 function sizeAll(){
   const{vw,vh}=getViewport(),isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  WW=isMobile?Math.round(vw):480;WH=isMobile?Math.round(vh):854;
-  wrap.style.width=WW+'px';wrap.style.height=WH+'px';
-  wrap.style.left=Math.round((vw-WW)/2)+'px';wrap.style.top=Math.round((vh-WH)/2)+'px';
-  wrap.style.position='absolute';canvas.width=WW;canvas.height=WH;
-  hL=16;hT=40;hB=32;W=WW-hL*2;H=WH-hT-hB;
-  initTileSize();
+  WW=isMobile?Math.round(vw):480; WH=isMobile?Math.round(vh):854;
+  wrap.style.width=WW+'px'; wrap.style.height=WH+'px';
+  wrap.style.left=Math.round((vw-WW)/2)+'px'; wrap.style.top=Math.round((vh-WH)/2)+'px';
+  wrap.style.position='absolute'; canvas.width=WW; canvas.height=WH;
+  hL=16; hT=40; hB=32; W=WW-hL*2; H=WH-hT-hB;
   const go=document.getElementById('gameover');
-  go.style.left=hL+'px';go.style.top=hT+'px';go.style.width=W+'px';go.style.height=H+'px';
+  go.style.left=hL+'px'; go.style.top=hT+'px'; go.style.width=W+'px'; go.style.height=H+'px';
 }
 window.addEventListener('orientationchange',()=>setTimeout(sizeAll,200));
-sizeAll();requestAnimationFrame(loop);
+sizeAll(); requestAnimationFrame(loop);
 </script>
 </body>
 </html>
