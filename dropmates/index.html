@@ -103,7 +103,6 @@ const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
 
 let tiles=[],particles=[],floatingTexts=[],score=0,combo=1,idCounter=0,lastSpawn=0;
 let dragging=null,bricks=[],gameOver=false,dragOffX=0,dragOffY=0;
-// IDs de fichas ya empujadas en este arrastre (para no empujar cada frame)
 let dragContacts = new Set();
 
 function boxesTouch(a,b){
@@ -171,24 +170,23 @@ function matchTiles(a,b){
   a.matched=true; b.matched=true;
 }
 
-// Empuja t en el primer contacto con un golpe de velocidad para que se aleje
+// Empuja t alejándolo de dragging
 function pushAway(t){
-  const dx = t.x - dragging.x, dy = t.y - dragging.y;
-  const ox = (dragging.w+t.w)/2 - Math.abs(dx);
-  const oy = (dragging.h+t.h)/2 - Math.abs(dy);
+  const dx=t.x-dragging.x, dy=t.y-dragging.y;
+  const ox=(dragging.w+t.w)/2-Math.abs(dx);
+  const oy=(dragging.h+t.h)/2-Math.abs(dy);
   if(ox<=0||oy<=0) return;
-  if(ox < oy){
-    const dir = dx >= 0 ? 1 : -1;
-    t.x += dir * (ox + 3);
-    t.vx = dir * 2;
+  if(ox<oy){
+    const dir=dx>=0?1:-1;
+    t.x+=dir*(ox+3); t.vx=dir*2;
   } else {
-    const dir = dy >= 0 ? 1 : -1;
-    t.y += dir * (oy + 3);
-    t.vy = dir > 0 ? Math.max(t.vy, FALL_SPEED * 4) : -1;
+    const dir=dy>=0?1:-1;
+    t.y+=dir*(oy+3);
+    t.vy=dir>0 ? Math.max(t.vy,FALL_SPEED*4) : -1;
   }
-  t.x = Math.max(t.w/2, Math.min(W-t.w/2, t.x));
-  t.y = Math.max(t.h/2, Math.min(H-t.h/2, t.y));
-  t.parked = false;
+  t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x));
+  t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y));
+  t.parked=false;
 }
 
 function getPos(e){
@@ -212,24 +210,17 @@ function onMove(e){
   dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2, x-dragOffX));
   dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2, y-dragOffY));
 
-  // Comprobar pareja: match si los recuadros se tocan
   for(const t of tiles){
     if(t===dragging||t.matched) continue;
     if(isMatchPair(dragging,t) && boxesTouch(dragging,t)){
       matchTiles(dragging,t); dragging=null; dragContacts.clear(); return;
     }
   }
-
-  // Empujar no-parejas: solo al primer contacto, luego el arrastrado pasa libremente
   for(const t of tiles){
     if(t===dragging||t.matched||isMatchPair(dragging,t)) continue;
     if(boxesOverlap(dragging,t)){
-      if(!dragContacts.has(t.id)){
-        pushAway(t);
-        dragContacts.add(t.id);
-      }
+      if(!dragContacts.has(t.id)){ pushAway(t); dragContacts.add(t.id); }
     } else {
-      // Ya no se solapan: reset para que pueda volver a ser empujada si vuelve a entrar
       dragContacts.delete(t.id);
     }
   }
@@ -296,6 +287,23 @@ function update(now){
     if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
     if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
     if(t.y-t.h/2<0){t.y=t.h/2;t.vy=Math.abs(t.vy)*0.3;}
+
+    // Colisión con la ficha arrastrada (se detecta cada frame aunque el ratón esté quieto)
+    if(dragging && boxesOverlap(t,dragging)){
+      if(isMatchPair(t,dragging)){
+        matchTiles(t,dragging); dragging=null; dragContacts.clear(); return;
+      }
+      const dx=t.x-dragging.x, dy=t.y-dragging.y;
+      const ox=(dragging.w+t.w)/2-Math.abs(dx), oy=(dragging.h+t.h)/2-Math.abs(dy);
+      if(ox>0&&oy>0){
+        if(ox<oy){const dir=dx>=0?1:-1; t.x+=dir*(ox+2); t.vx=dir*1.5;}
+        else{const dir=dy>=0?1:-1; t.y+=dir*(oy+2); if(dir<0)t.vy*=-0.3; else t.vy=Math.max(t.vy,FALL_SPEED*3);}
+        t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x));
+        t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y));
+      }
+      return;
+    }
+
     const landY=getLandingY(t);
     if(t.y+t.h/2>=landY){
       t.y=landY-t.h/2;
