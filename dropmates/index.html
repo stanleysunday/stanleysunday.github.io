@@ -91,11 +91,16 @@ function drawGame() {
 }
 
 const PAIRS = [
-  ['glory','hole'],['poppers','disco'],['Judy','Garland'],['cruising','parque'],
-  ['Freddie','Mercury'],['George','Michael'],['Liza','Minnelli'],['leather','harness'],
-  ['Kylie','Minogue'],['sauna','toalla'],['Brokeback','Mountain'],['Scissor','Sisters'],
-  ['Divine','John Waters'],['Oscar','Wilde'],['Elton','John'],['bottom','top'],
-  ['vibrador','pilas'],['onlyfans','suscripción'],['oso','peludo'],
+  ['glory','hole'],
+  ['poppers','disco'],
+  ['cruising','parque'],
+  ['leather','harness'],
+  ['sauna','toalla'],
+  ['Brokeback','Mountain'],
+  ['bottom','top'],
+  ['vibrador','pilas'],
+  ['onlyfans','suscripción'],
+  ['oso','peludo'],
 ];
 const FALL_SPEED=0.12, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
@@ -170,7 +175,6 @@ function matchTiles(a,b){
   a.matched=true; b.matched=true;
 }
 
-// Empuja t alejándolo de dragging
 function pushAway(t){
   const dx=t.x-dragging.x, dy=t.y-dragging.y;
   const ox=(dragging.w+t.w)/2-Math.abs(dx);
@@ -288,7 +292,6 @@ function update(now){
     if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
     if(t.y-t.h/2<0){t.y=t.h/2;t.vy=Math.abs(t.vy)*0.3;}
 
-    // Colisión con la ficha arrastrada (se detecta cada frame aunque el ratón esté quieto)
     if(dragging && boxesOverlap(t,dragging)){
       if(isMatchPair(t,dragging)){
         matchTiles(t,dragging); dragging=null; dragContacts.clear(); return;
