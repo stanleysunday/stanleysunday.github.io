@@ -4,42 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>Dropmates — Stanley Sunday</title>
-<meta name="description" content="Dropmates — juego arcade interactivo de Stanley Sunday.">
-<meta property="og:title" content="Dropmates — Stanley Sunday">
-<meta property="og:description" content="Juego arcade interactivo en el navegador.">
-<meta property="og:image" content="https://stanleysunday.github.io/caballitosalchicha.png">
-<meta property="og:url" content="https://stanleysunday.github.io/dropmates/">
-<meta property="og:type" content="website">
-<meta name="twitter:card" content="summary_large_image">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;user-select:none;}
-html,body{width:100%;height:100%;height:-webkit-fill-available;overflow:hidden;background:#ffb6c1;}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;}
 body{display:flex;align-items:center;justify-content:center;}
 #wrap{position:relative;flex-shrink:0;}
 #c{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;}
 #gameover{
   position:absolute;z-index:4;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-  background:#ffb6c1;
+  background:#fff;
   opacity:0;pointer-events:none;transition:opacity .3s;
 }
 #go-title{font-family:monospace;font-size:20px;color:#000;}
 #go-sub{font-family:monospace;font-size:12px;color:#000;}
 #restart-btn{font-family:monospace;font-size:12px;color:#000;background:none;border:1px solid #000;padding:8px 22px;cursor:pointer;border-radius:0;}
-#restart-btn:active{background:#000;color:#ffb6c1;}
+#restart-btn:active{background:#000;color:#fff;}
 #back-link{position:fixed;bottom:14px;left:16px;font-family:monospace;font-size:12px;color:#000;text-decoration:underline;z-index:10;pointer-events:all;}
 </style>
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
 </head>
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
-  <a id="back-link" href="/">&#8592; stanley sunday</a>
+  <a id="back-link" href="/">← stanley sunday</a>
   <div id="gameover">
     <div id="go-title">game over</div>
     <div id="go-sub">puntuación: <span id="go-score-val">0</span></div>
@@ -53,7 +41,7 @@ const wrap   = document.getElementById('wrap');
 let WW=0, WH=0, W=0, H=0, hL=0, hT=0, hB=0;
 
 function drawFrame() {
-  ctx.fillStyle = '#ffb6c1';
+  ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, WW, WH);
   ctx.font = '12px monospace';
   ctx.textBaseline = 'middle';
@@ -81,7 +69,7 @@ function drawGame() {
   bricks.forEach(b => {
     ctx.fillStyle = '#000';
     ctx.fillRect(b.x - b.w/2, b.y - b.h/2, b.w, b.h);
-    ctx.fillStyle = '#ffb6c1';
+    ctx.fillStyle = '#fff';
     ctx.font = '11px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -90,7 +78,7 @@ function drawGame() {
   tiles.filter(t => t !== dragging).forEach(drawTile);
   if (dragging) drawTile(dragging);
   particles.forEach(p => {
-    ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+    ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   });
@@ -109,7 +97,6 @@ const PAIRS = [
   ['Divine','John Waters'],['Oscar','Wilde'],['Elton','John'],['bottom','top'],
   ['vibrador','pilas'],['onlyfans','suscripción'],['oso','peludo'],
 ];
-const PAIR_COLORS = ['#e63946','#2ec4b6','#f4a261','#c77dff','#f9c74f','#06d6a0','#ff6b9d'];
 const FALL_SPEED=0.12, SPAWN_INTERVAL=2400, PAD_X=10, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
 const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
@@ -149,9 +136,9 @@ function spawnTile(now){
   tiles.push(makeTile(pairIdx,wordIdx));
 }
 
-function spawnParticles(x,y,color){
+function spawnParticles(x,y){
   for(let i=0;i<12;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*4;
-    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:1.5+Math.random()*3,alpha:1,color});}
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:1.5+Math.random()*3,alpha:1});}
 }
 function spawnText(x,y,text){floatingTexts.push({x,y,text,alpha:1,vy:-1.5,life:60});}
 
@@ -166,7 +153,7 @@ function tilesTouch(a,b){return Math.abs(a.x-b.x)<=(a.w/2+b.w/2+3)&&Math.abs(a.y
 function isMatchPair(a,b){return a.pairIdx===b.pairIdx&&a.wordIdx!==b.wordIdx;}
 function matchTiles(a,b){
   const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
-  spawnParticles(mx,my,PAIR_COLORS[a.pairIdx%PAIR_COLORS.length]);
+  spawnParticles(mx,my);
   score+=1;combo=Math.min(combo+1,8);
   spawnText(mx,my-24,a.word+' + '+b.word);spawnText(mx,my-40,'+1');
   a.matched=true;b.matched=true;
@@ -227,7 +214,6 @@ canvas.addEventListener('mousemove',onMove);
 canvas.addEventListener('mouseup',onEnd);
 
 function drawTile(t){
-  const color=PAIR_COLORS[t.pairIdx%PAIR_COLORS.length];
   ctx.save();ctx.translate(t.x,t.y);
   const hw=t.w/2,hh=t.h/2;
   ctx.fillStyle=t===dragging?'#000':'#fff';
@@ -235,9 +221,8 @@ function drawTile(t){
   ctx.strokeStyle='#000';ctx.lineWidth=1;
   if(t.parked)ctx.setLineDash([4,3]);
   ctx.strokeRect(-hw,-hh,t.w,t.h);ctx.setLineDash([]);
-  ctx.fillStyle=color;ctx.fillRect(hw-7,-hh+3,4,4);
   ctx.font=getTileFont(t.word);
-  ctx.fillStyle=t===dragging?'#ffb6c1':'#000';
+  ctx.fillStyle=t===dragging?'#fff':'#000';
   ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.word,0,1);
   ctx.restore();
 }
