@@ -104,18 +104,14 @@ const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
 let tiles=[],particles=[],floatingTexts=[],score=0,combo=1,idCounter=0,lastSpawn=0;
 let dragging=null,bricks=[],gameOver=false,dragOffX=0,dragOffY=0;
 
-// Los recuadros se tocan o solapan
 function boxesTouch(a,b){
   return Math.abs(a.x-b.x) <= (a.w+b.w)/2 &&
          Math.abs(a.y-b.y) <= (a.h+b.h)/2;
 }
-
-// Los recuadros se solapan (para empujar)
 function boxesOverlap(a,b){
   return Math.abs(a.x-b.x) < (a.w+b.w)/2 &&
          Math.abs(a.y-b.y) < (a.h+b.h)/2;
 }
-
 function isMatchPair(a,b){return a.pairIdx===b.pairIdx && a.wordIdx!==b.wordIdx;}
 
 function getTileFont(word){
@@ -173,7 +169,7 @@ function matchTiles(a,b){
   a.matched=true; b.matched=true;
 }
 
-// Empuja t fuera de la zona del recuadro dragging
+// Solo resuelve el solapamiento geométrico, sin tocar velocidad ni estado
 function pushAway(t){
   const ox=(dragging.w+t.w)/2 - Math.abs(t.x-dragging.x);
   const oy=(dragging.h+t.h)/2 - Math.abs(t.y-dragging.y);
@@ -185,7 +181,6 @@ function pushAway(t){
   }
   t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x));
   t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y));
-  t.vx=0; t.vy=FALL_SPEED; t.parked=false;
 }
 
 function getPos(e){
@@ -208,15 +203,12 @@ function onMove(e){
   dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2, x-dragOffX));
   dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2, y-dragOffY));
 
-  // Comprobar pareja: si los recuadros se tocan, match
   for(const t of tiles){
     if(t===dragging||t.matched) continue;
     if(isMatchPair(dragging,t) && boxesTouch(dragging,t)){
       matchTiles(dragging,t); dragging=null; return;
     }
   }
-
-  // Empujar fichas no-pareja que se solapen: solo se mueve la otra, no la arrastrada
   for(const t of tiles){
     if(t===dragging||t.matched||isMatchPair(dragging,t)) continue;
     if(boxesOverlap(dragging,t)) pushAway(t);
@@ -226,7 +218,6 @@ function onMove(e){
 function onEnd(e){
   e.preventDefault();
   if(!dragging) return;
-  // Último chequeo de pareja al soltar
   for(const t of tiles){
     if(t===dragging||t.matched) continue;
     if(isMatchPair(dragging,t) && boxesTouch(dragging,t)){
@@ -294,7 +285,6 @@ function update(now){
       if(bricks.some(b=>b.y-b.h/2<H*0.15)) triggerGameOver();
     }
   });
-  // Separar fichas que se solapen entre sí (en caída libre)
   const active=tiles.filter(t=>!t.matched&&t!==dragging);
   for(let i=0;i<active.length;i++){
     for(let j=i+1;j<active.length;j++){
