@@ -287,6 +287,17 @@ function getLandingY(t){
   return floor;
 }
 
+function landTile(t){
+  const landY=getLandingY(t);
+  if(t.y+t.h/2<landY) return false;
+  t.y=landY-t.h/2;
+  bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
+  t.matched=true; score=Math.max(0,score-1);
+  spawnText(t.x,t.y-16,'-1'); combo=1;
+  if(bricks.some(b=>b.y-b.h/2<H*0.15)) triggerGameOver();
+  return true;
+}
+
 function update(now,f){
   spawnTile(now);
   tiles.forEach(t=>{
@@ -295,6 +306,7 @@ function update(now,f){
       if(t.bounceTimer>0){t.bounceTimer-=f;t.x+=t.vx*f;t.y+=t.vy*f;t.vx*=Math.pow(0.85,f);t.vy*=Math.pow(0.85,f);if(t.bounceTimer<=0){t.bounceTimer=0;t.parked=false;}}
       if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
       if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
+      landTile(t);
       return;
     }
     t.vy=Math.min(t.vy+GRAVITY*f,FALL_MAX);
@@ -319,14 +331,7 @@ function update(now,f){
       return;
     }
 
-    const landY=getLandingY(t);
-    if(t.y+t.h/2>=landY){
-      t.y=landY-t.h/2;
-      bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
-      t.matched=true; score=Math.max(0,score-1);
-      spawnText(t.x,t.y-16,'-1'); combo=1;
-      if(bricks.some(b=>b.y-b.h/2<H*0.15)) triggerGameOver();
-    }
+    landTile(t);
   });
   const active=tiles.filter(t=>!t.matched&&t!==dragging);
   for(let i=0;i<active.length;i++){
