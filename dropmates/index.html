@@ -102,7 +102,7 @@ const PAIRS = [
   ['onlyfans','suscripción'],
   ['oso','peludo'],
 ];
-const FALL_SPEED=0.12, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
+const FALL_SPEED=1.2, FALL_MAX=2.2, GRAVITY=0.03, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
 const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
 
@@ -186,7 +186,7 @@ function pushAway(t){
   } else {
     const dir=dy>=0?1:-1;
     t.y+=dir*(oy+3);
-    t.vy=dir>0 ? Math.max(t.vy,FALL_SPEED*4) : -1;
+    t.vy=dir>0 ? Math.max(t.vy,FALL_SPEED*4) : -2;
   }
   t.x=Math.max(t.w/2,Math.min(W-t.w/2,t.x));
   t.y=Math.max(t.h/2,Math.min(H-t.h/2,t.y));
@@ -247,8 +247,8 @@ canvas.addEventListener('touchstart',onStart,{passive:false});
 canvas.addEventListener('touchmove',onMove,{passive:false});
 canvas.addEventListener('touchend',onEnd,{passive:false});
 canvas.addEventListener('mousedown',onStart);
-canvas.addEventListener('mousemove',onMove);
-canvas.addEventListener('mouseup',onEnd);
+window.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onEnd);
 
 function drawTile(t){
   ctx.save(); ctx.translate(t.x,t.y);
@@ -275,19 +275,19 @@ function getLandingY(t){
   return floor;
 }
 
-function update(now){
+function update(now,f){
   spawnTile(now);
   tiles.forEach(t=>{
     if(t===dragging||t.matched) return;
     if(t.parked){
-      if(t.bounceTimer>0){t.bounceTimer--;t.x+=t.vx;t.y+=t.vy;t.vx*=0.85;t.vy*=0.85;if(t.bounceTimer===0)t.parked=false;}
+      if(t.bounceTimer>0){t.bounceTimer-=f;t.x+=t.vx*f;t.y+=t.vy*f;t.vx*=Math.pow(0.85,f);t.vy*=Math.pow(0.85,f);if(t.bounceTimer<=0){t.bounceTimer=0;t.parked=false;}}
       if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
       if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
       return;
     }
-    t.vy=Math.min(t.vy+0.003,0.22);
-    if(t.vx!==0){t.x+=t.vx;t.vx*=0.9;if(Math.abs(t.vx)<0.01)t.vx=0;}
-    t.y+=t.vy;
+    t.vy=Math.min(t.vy+GRAVITY*f,FALL_MAX);
+    if(t.vx!==0){t.x+=t.vx*f;t.vx*=Math.pow(0.9,f);if(Math.abs(t.vx)<0.01)t.vx=0;}
+    t.y+=t.vy*f;
     if(t.x-t.w/2<0){t.x=t.w/2;t.vx=Math.abs(t.vx);}
     if(t.x+t.w/2>W){t.x=W-t.w/2;t.vx=-Math.abs(t.vx);}
     if(t.y-t.h/2<0){t.y=t.h/2;t.vy=Math.abs(t.vy)*0.3;}
@@ -336,9 +336,9 @@ function update(now){
   }
   tiles=tiles.filter(t=>!t.matched);
   particles=particles.filter(p=>p.alpha>0.02);
-  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vx*=0.93;p.vy*=0.93;p.alpha*=0.91;});
+  particles.forEach(p=>{p.x+=p.vx*f;p.y+=p.vy*f;p.vx*=Math.pow(0.93,f);p.vy*=Math.pow(0.93,f);p.alpha*=Math.pow(0.91,f);});
   floatingTexts=floatingTexts.filter(t=>t.life>0);
-  floatingTexts.forEach(t=>{t.y+=t.vy;t.life--;t.alpha=t.life/60;});
+  floatingTexts.forEach(t=>{t.y+=t.vy*f;t.life-=f;t.alpha=Math.max(0,t.life/60);});
 }
 
 function draw(){ctx.imageSmoothingEnabled=false;drawFrame();drawGame();}
@@ -352,7 +352,13 @@ function restartGame(){
   dragging=null;lastSpawn=0;dragContacts.clear();
   const go=document.getElementById('gameover'); go.style.opacity=0; go.style.pointerEvents='none';
 }
-function loop(now){if(!gameOver)update(now);draw();requestAnimationFrame(loop);}
+let lastT=0;
+function loop(now){
+  const f=lastT?Math.min((now-lastT)/16.667,3):1;
+  lastT=now;
+  if(!gameOver)update(now,f);
+  draw();requestAnimationFrame(loop);
+}
 
 function getViewport(){
   const isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -363,14 +369,18 @@ function getViewport(){
 function sizeAll(){
   const{vw,vh}=getViewport(),isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   WW=isMobile?Math.round(vw):480; WH=isMobile?Math.round(vh):854;
-  wrap.style.width=WW+'px'; wrap.style.height=WH+'px';
-  wrap.style.left=Math.round((vw-WW)/2)+'px'; wrap.style.top=Math.round((vh-WH)/2)+'px';
+  const scale=isMobile?1:Math.min(1,vw/WW,vh/WH);
+  const dw=Math.round(WW*scale), dh=Math.round(WH*scale);
+  wrap.style.width=dw+'px'; wrap.style.height=dh+'px';
+  wrap.style.left=Math.round((vw-dw)/2)+'px'; wrap.style.top=Math.round((vh-dh)/2)+'px';
   wrap.style.position='absolute'; canvas.width=WW; canvas.height=WH;
   hL=16; hT=40; hB=32; W=WW-hL*2; H=WH-hT-hB;
   const go=document.getElementById('gameover');
-  go.style.left=hL+'px'; go.style.top=hT+'px'; go.style.width=W+'px'; go.style.height=H+'px';
+  go.style.left=Math.round(hL*scale)+'px'; go.style.top=Math.round(hT*scale)+'px';
+  go.style.width=Math.round(W*scale)+'px'; go.style.height=Math.round(H*scale)+'px';
 }
 window.addEventListener('orientationchange',()=>setTimeout(sizeAll,200));
+window.addEventListener('resize',sizeAll);
 sizeAll(); requestAnimationFrame(loop);
 </script>
 </body>
