@@ -361,9 +361,6 @@ function loop(now){
 }
 
 function getViewport(){
-  const isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if(isMobile){const sw=screen.width,sh=screen.height,l=window.innerWidth>window.innerHeight;
-    return{vw:l?Math.max(sw,sh):Math.min(sw,sh),vh:l?Math.min(sw,sh):Math.max(sw,sh)};}
   return{vw:window.innerWidth,vh:window.innerHeight};
 }
 function sizeAll(){
