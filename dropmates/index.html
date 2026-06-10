@@ -101,7 +101,20 @@ const PAIRS = [
   ['vibrador','pilas'],
   ['onlyfans','suscripción'],
   ['oso','peludo'],
+  ['patinaje','artístico'],
+  ['discreción','casado'],
+  ['de qué','foto'],
+  ['sitio','muevo'],
+  ['hetero','curioso'],
+  ['cut','uncut'],
+  ['álbum','privado'],
+  ['puño','letra'],
+  ['fist','manicura'],
+  ['fist','codo'],
 ];
+const WORDS=[...new Set(PAIRS.flat())];
+const PARTNERS={};
+PAIRS.forEach(([a,b])=>{(PARTNERS[a]=PARTNERS[a]||[]).push(b);(PARTNERS[b]=PARTNERS[b]||[]).push(a);});
 const FALL_SPEED=1.2, FALL_MAX=2.2, GRAVITY=0.03, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
 const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
@@ -118,7 +131,7 @@ function boxesOverlap(a,b){
   return Math.abs(a.x-b.x) < (a.w+b.w)/2 &&
          Math.abs(a.y-b.y) < (a.h+b.h)/2;
 }
-function isMatchPair(a,b){return a.pairIdx===b.pairIdx && a.wordIdx!==b.wordIdx;}
+function isMatchPair(a,b){return (PARTNERS[a.word]||[]).includes(b.word);}
 
 function getTileFont(word){
   ctx.font=FONT;
@@ -127,9 +140,9 @@ function getTileFont(word){
   return `${Math.max(9,Math.floor(FONT_SIZE*available/tw))}px monospace`;
 }
 
-function makeTile(pairIdx,wordIdx){
-  const word=PAIRS[pairIdx][wordIdx], w=TILE_W_MAX, h=TILE_H_FIXED, margin=w/2+10;
-  return{id:idCounter++,word,pairIdx,wordIdx,w,h,
+function makeTile(word){
+  const w=TILE_W_MAX, h=TILE_H_FIXED, margin=w/2+10;
+  return{id:idCounter++,word,w,h,
     x:margin+Math.random()*(W-margin*2), y:-h,
     vy:FALL_SPEED*(0.85+Math.random()*0.3), vx:0, bounceTimer:0, matched:false, parked:false};
 }
@@ -137,17 +150,16 @@ function makeTile(pairIdx,wordIdx){
 function spawnTile(now){
   if(gameOver||now-lastSpawn<SPAWN_INTERVAL) return;
   lastSpawn=now;
-  const activePairs=[...new Set(tiles.filter(t=>!t.matched).map(t=>t.pairIdx))];
-  let pairIdx,wordIdx;
-  if(activePairs.length>0&&Math.random()<0.6){
-    pairIdx=activePairs[Math.floor(Math.random()*activePairs.length)];
-    const ew=tiles.filter(t=>!t.matched&&t.pairIdx===pairIdx).map(t=>t.wordIdx);
-    if(ew.includes(0)&&ew.includes(1)){pairIdx=Math.floor(Math.random()*PAIRS.length);wordIdx=Math.round(Math.random());}
-    else if(ew.includes(0)) wordIdx=1;
-    else if(ew.includes(1)) wordIdx=0;
-    else wordIdx=Math.round(Math.random());
-  } else {pairIdx=Math.floor(Math.random()*PAIRS.length);wordIdx=Math.round(Math.random());}
-  tiles.push(makeTile(pairIdx,wordIdx));
+  const active=tiles.filter(t=>!t.matched).map(t=>t.word);
+  let word;
+  if(active.length>0&&Math.random()<0.6){
+    const w=active[Math.floor(Math.random()*active.length)];
+    const cands=PARTNERS[w].filter(p=>!active.includes(p));
+    word=cands.length?cands[Math.floor(Math.random()*cands.length)]:WORDS[Math.floor(Math.random()*WORDS.length)];
+  } else {
+    word=WORDS[Math.floor(Math.random()*WORDS.length)];
+  }
+  tiles.push(makeTile(word));
 }
 
 function spawnParticles(x,y){
