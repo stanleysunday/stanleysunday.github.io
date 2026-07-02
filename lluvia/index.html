@@ -40,7 +40,7 @@ const EMBEDDED_SRC = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/4gHYSUN
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let W, H, img = null, imgRatio = 1, photos = [];
-const GRAVITY = 0.12, BOUNCE_MIN = 0.3, BOUNCE_MAX = 0.85, FRICTION = 0.999, MIN_VEL = 0.2, SPAWN_MIN = 30, SPAWN_MAX = 60;
+const GRAVITY = 0.12, BOUNCE_MIN = 0.3, BOUNCE_MAX = 0.85, FRICTION = 0.999, MIN_VEL = 0.2, MAX_BOUNCES = 10, SPAWN_MIN = 30, SPAWN_MAX = 60;
 
 function resize() { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; }
 window.addEventListener('resize', resize); resize();
@@ -68,7 +68,7 @@ function updatePhoto(p) {
   const floor = H - 10;
   if (p.y + p.h/2 >= floor && p.vy > 0) {
     p.y = floor - p.h/2; p.vy = -Math.abs(p.vy) * p.bounceDamping; p.vx *= 0.9; p.bounceCount++;
-    if (Math.abs(p.vy) < MIN_VEL) { p.vy = 0; p.settled = true; }
+    if (Math.abs(p.vy) < MIN_VEL || p.bounceCount > MAX_BOUNCES) { p.vy = 0; p.vx = 0; p.settled = true; }
   }
   if (p.x - p.w/2 < 0) { p.x = p.w/2; p.vx = Math.abs(p.vx)*0.5; }
   if (p.x + p.w/2 > W) { p.x = W - p.w/2; p.vx = -Math.abs(p.vx)*0.5; }
