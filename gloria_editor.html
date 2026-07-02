@@ -1102,13 +1102,6 @@ Object.entries(tracks).forEach(([trackType, trackEl]) => {
 //  TRANSPORT BUTTONS
 // ═══════════════════════════════════════════════
 document.getElementById('btn-play').addEventListener('click', togglePlay);
-document.getElementById('btn-start').addEventListener('click', () => { pause(); seekAll(0); });
-document.getElementById('btn-end').addEventListener('click', () => {
-  const maxEnd = Object.values(clips).reduce((m,c) => c ? Math.max(m, c.startTime+c.duration) : m, 0);
-  pause(); seekAll(maxEnd);
-});
-document.getElementById('btn-back').addEventListener('click', () => { pause(); seekAll(currentTime - 1/FPS); });
-document.getElementById('btn-fwd').addEventListener('click', () => { pause(); seekAll(currentTime + 1/FPS); });
 document.getElementById('btn-delete').addEventListener('click', () => {
   if (selectedClip) {
     removeClip(selectedClip);
