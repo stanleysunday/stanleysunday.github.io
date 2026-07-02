@@ -113,9 +113,11 @@
 <div id="grid"></div>
 
 <script>
-const isMobile = window.matchMedia('(max-width: 600px)').matches;
-const COLS = isMobile ? 4 : 5;
-const ROWS = isMobile ? 6 : 5;
+function gridDims() {
+  const mobile = window.matchMedia('(max-width: 600px)').matches;
+  return { cols: mobile ? 4 : 5, rows: mobile ? 6 : 5 };
+}
+let { cols: COLS, rows: ROWS } = gridDims();
 const grid = document.getElementById('grid');
 const loader = document.getElementById('loader');
 
@@ -240,12 +242,32 @@ function createCell(index) {
   return { div, video, ctx, canvas };
 }
 
-function initGrid() {
+let unlocked = false;
+
+// Construye (o reconstruye) las celdas para las dimensiones actuales.
+// Al reconstruir, libera los vídeos anteriores (cuelgan de <body>) para no
+// dejar decoders huérfanos, algo especialmente sensible en iOS.
+function buildCells() {
+  const { cols, rows } = gridDims();
+  COLS = cols; ROWS = rows;
+  cells.forEach(cell => {
+    cell.video.pause();
+    cell.video.removeAttribute('src');
+    cell.video.load();
+    cell.video.remove();
+  });
+  cells.length = 0;
+  grid.innerHTML = '';
+  unlocked = false;
   for (let i = 0; i < COLS * ROWS; i++) {
     const cell = createCell(i);
     cells.push(cell);
     grid.appendChild(cell.div);
   }
+}
+
+function initGrid() {
+  buildCells();
 
   // Desktop: hover activa celda
   grid.addEventListener('mousemove', (e) => {
@@ -258,7 +280,6 @@ function initGrid() {
   // Mobile: desbloquear todos los vídeos en el primer toque (requisito iOS)
   // luego activar celda al arrastrar el dedo
   let touching = false;
-  let unlocked = false;
 
   function unlockAll() {
     if (unlocked) return;
@@ -290,6 +311,16 @@ function initGrid() {
   }, { passive: false });
 
   grid.addEventListener('touchend', () => { touching = false; }, { passive: true });
+
+  // Al girar el móvil o redimensionar, reconstruye solo si cambia la rejilla
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const { cols, rows } = gridDims();
+      if (cols !== COLS || rows !== ROWS) buildCells();
+    }, 250);
+  });
 }
 </script>
 </body>
