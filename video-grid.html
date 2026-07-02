@@ -112,48 +112,54 @@
 
 <div id="grid"></div>
 
-<!-- Hidden video source -->
-<video id="src-video"
-  style="display:none;position:absolute;left:-9999px"
-  preload="auto"
-  playsinline
-  muted
-  crossorigin="anonymous">
-</video>
-
 <script>
 const isMobile = window.matchMedia('(max-width: 600px)').matches;
 const COLS = isMobile ? 4 : 5;
 const ROWS = isMobile ? 6 : 5;
 const grid = document.getElementById('grid');
-const srcVideo = document.getElementById('src-video');
 const loader = document.getElementById('loader');
 
 // Descarga el vídeo una vez como blob para que todas las celdas lo usen en memoria
-const VIDEO_URL = 'https://res.cloudinary.com/dwkzyfnvc/video/upload/v1776250786/videoAL_bi5ca5.mp4';
+const VIDEO_URL = 'https://res.cloudinary.com/dwkzyfnvc/video/upload/v1776251490/videoAL_bi5ca5.mp4';
 let videoBlobUrl = null;
 
 const minWait = new Promise(resolve => setTimeout(resolve, 1500));
 
+function hideLoader() {
+  if (!loader.isConnected) return;
+  loader.classList.add('hidden');
+  setTimeout(() => loader.remove(), 400);
+}
+
+function failLoad() {
+  const img = loader.querySelector('img');
+  const span = loader.querySelector('span');
+  if (img) img.style.animation = 'none';
+  if (span) { span.style.animation = 'none'; span.textContent = 'no se pudo cargar el vídeo'; }
+}
+
 Promise.all([
-  fetch(VIDEO_URL).then(r => r.blob()),
+  fetch(VIDEO_URL).then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }),
   minWait
 ]).then(([blob]) => {
   videoBlobUrl = URL.createObjectURL(blob);
-  srcVideo.src = videoBlobUrl;
   initGrid();
-  // Espera a que todos los vídeos de las celdas tengan el primer frame
+  // Espera a que todos los vídeos de las celdas tengan el primer frame,
+  // pero no eternamente: si alguno no dispara loadeddata, oculta igual a los 8s
   const readyPromises = cells.map(cell =>
     new Promise(resolve => {
       if (cell.video.readyState >= 2) return resolve();
       cell.video.addEventListener('loadeddata', resolve, { once: true });
     })
   );
-  Promise.all(readyPromises).then(() => {
-    loader.classList.add('hidden');
-    setTimeout(() => loader.remove(), 400);
-  });
-});
+  Promise.race([
+    Promise.all(readyPromises),
+    new Promise(resolve => setTimeout(resolve, 8000))
+  ]).then(hideLoader);
+}).catch(failLoad);
 
 // Cell state machine
 // States: 'idle' | 'playing'
