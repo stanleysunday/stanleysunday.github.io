@@ -40,4 +40,9 @@
     <priority>0.6</priority>
     <changefreq>yearly</changefreq>
   </url>
+  <url>
+    <loc>https://stanleysunday.github.io/marcianitos/</loc>
+    <priority>0.6</priority>
+    <changefreq>yearly</changefreq>
+  </url>
 </urlset>

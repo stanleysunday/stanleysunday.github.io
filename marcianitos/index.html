@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>marcianitos</title>
+<meta property="og:title" content="marcianitos">
+<link rel="icon" href="/favicon.ico">
+<style>
+/* Layout: el juego ocupa toda la pantalla, sin marco. Abajo, sobre la franja de tierra, el mando a un lado y el botón de fuego al otro */
+:root{
+  --tv:#000000; --tierra:#4a3216; --gris:#8a8a8a; --fire:#d8402a; --fire-sombra:#7d2010; --mando:#1a1a1a; --mando-borde:#3a3a3a; --palo:#c9c9c9;
+  --font:"Space Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--tv);overflow:hidden}
+:root{padding:0!important}
+body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:var(--font)}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
+.back{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:12px;color:var(--gris);font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:2}
+.mandos{position:fixed;left:0;right:0;bottom:0;height:var(--banda,150px);padding:0 20px env(safe-area-inset-bottom,0px);
+  display:flex;justify-content:space-between;align-items:center;z-index:2;pointer-events:none}
+.mandos>*{pointer-events:auto}
+/* mandos mínimos: un círculo para mover (con su punto) y un círculo para disparar */
+#mando{position:relative;width:96px;height:96px;border-radius:50%;border:2px solid rgba(255,255,255,.55);touch-action:none}
+#palo{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#fff;will-change:transform}
+#fuego{width:80px;height:80px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:transparent;cursor:pointer;touch-action:none;padding:0}
+#fuego::after{content:"";display:block;width:34px;height:34px;margin:auto;border-radius:50%;background:#fff}
+#fuego.dn{border-color:#fff}
+#fuego.dn::after{transform:scale(.85)}
+#otra{position:fixed;left:50%;top:58%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:2px solid #e8a83a;background:#000;color:#e8a83a;
+  font:700 12px var(--font);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+button:focus-visible{outline:3px solid var(--gris);outline-offset:3px}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+</head>
+<body>
+<canvas id="c" aria-label="Juego de marcianitos"></canvas>
+<a class="back" href="/">← volver</a>
+<div class="mandos">
+  <div id="mando" role="slider" aria-label="Mando: mueve la nave" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
+  <button id="fuego" aria-label="Disparar"></button>
+</div>
+<button id="otra" hidden>Otra vez</button>
+
+<script>
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+const W=112;                 // ancho lógico en "píxeles Atari"
+let H=200, S=1, SUELO=150, BANDA=150;
+const COL={nave:'#e8a83a',bala:'#f4e46a',tierra:'#4a3216',linea:'#6b4a1e',texto:'#e8a83a',chispa:'#f4e46a'};
+const FILAS=['#e5483a','#f0a830','#e2dc45','#5cc24c','#3fa3e8'];
+
+function ajusta(){
+  const dpr=Math.min(3,window.devicePixelRatio||1), cw=innerWidth, ch=innerHeight;
+  cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
+  S=cv.width/W; H=cv.height/S;
+  BANDA=Math.min(170,Math.max(130,ch*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
+  SUELO=H-BANDA*dpr/S;
+  if(st&&st.fase==='juego'){st.nave.y=SUELO-22;}
+}
+
+// ── dibujo en píxeles lógicos (cuadrados nítidos)
+function R(x,y,w,h,c){g.fillStyle=c;const x0=Math.round(x*S),y0=Math.round(y*S);g.fillRect(x0,y0,Math.round((x+w)*S)-x0,Math.round((y+h)*S)-y0);}
+function sprite(rows,x,y,c,rot=0){const h=rows.length,w=rows[0].length,cs=Math.cos(rot),sn=Math.sin(rot);
+  for(let j=0;j<h;j++)for(let i=0;i<w;i++)if(rows[j][i]==='X'){const lx=i-w/2+.5,ly=j-h/2+.5;
+    R(Math.round(x+lx*cs-ly*sn)-.5,Math.round(y+lx*sn+ly*cs)-.5,1,1,c);}}
+const FUENTE={'0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001',
+ '5':'111100111001111','6':'111100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001111',
+ 'G':'111100101101111','A':'010101111101101','M':'101111111101101','E':'111100110100111','O':'111101101101111',
+ 'V':'101101101101010','R':'110101110101101','P':'110101110100100','U':'101101101101111','L':'100100100100111',
+ 'S':'111100111001111','F':'111100110100100','N':'101111111111101','T':'111010010010010','I':'111010010010111','D':'110101101101110',' ':'000000000000000'};
+function texto(t,x,y,c,e=1){[...t].forEach((ch,k)=>{const f=FUENTE[ch]||FUENTE[' '];
+  for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4*e+(i%3)*e,y+Math.floor(i/3)*e,e,e,c);});}
+const ancho=(t,e=1)=>t.length*4*e-e;
+
+const NAVE=[".....X.....","....XXX....","....XXX....",".XXXXXXXXX.","XXXXXXXXXXX","XXXXXXXXXXX"];
+const ROTA=["..X......X...",".XXX.XX.XXXX.","XXXXXXXXXXXXX"];
+const MARC=[["...X....X...","....X..X....","...XXXXXX...","..XX.XX.XX..",".XXXXXXXXXX.",".X.XXXXXX.X.",".X.X....X.X.","....XX.XX..."],
+            ["...X....X...",".X..X..X..X.",".X.XXXXXX.X.",".XXX.XX.XXX.",".XXXXXXXXXX.","..XXXXXXXX..","...X....X...","..X......X.."]];
+const SUSTO=["X..X....X..X",".X..X..X..X.","...XXXXXX...","..X.XXXX.X..",".XX......XX.",".XXX.XX.XXX.","..X.X..X.X..",".X........X."];
+
+// ── sonido
+let ac=null;function blip(f,d,tipo='square',vol=.06,fin=f*.5){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  const o=ac.createOscillator(),v=ac.createGain();o.type=tipo;o.frequency.setValueAtTime(f,ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(30,fin),ac.currentTime+d);v.gain.setValueAtTime(vol,ac.currentTime);
+  v.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(v).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+// ── estado
+let st=null;
+function nuevo(){
+  st={t:0,empezado:false,puntos:0,nave:{x:W/2,y:SUELO-22,rot:0,rota:false},balas:[],marc:[],dir:1,anim:0,
+      fase:'juego',arana:null,chispas:[],temblor:0,fin:false,cool:0};
+  oleada(); document.getElementById('otra').hidden=true;
+}
+function oleada(){for(let f=0;f<FILAS.length;f++)for(let i=0;i<5;i++)st.marc.push({x:18+i*19,y:20+f*13,c:FILAS[f],vivo:true,huida:null});}
+
+// ── mando (joystick) y fuego
+const mando=document.getElementById('mando'), palo=document.getElementById('palo');
+let joy=0, joyId=null;
+function leeMando(e){const r=mando.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),max=r.width/2-12;
+  joy=Math.max(-1,Math.min(1,dx/max)); palo.style.transform=`translateX(${joy*max}px)`; mando.setAttribute('aria-valuenow',joy.toFixed(2));}
+mando.addEventListener('pointerdown',e=>{joyId=e.pointerId;mando.setPointerCapture(e.pointerId);leeMando(e);empieza();});
+mando.addEventListener('pointermove',e=>{if(e.pointerId===joyId)leeMando(e);});
+const sueltaMando=e=>{if(e.pointerId!==joyId)return;joyId=null;joy=0;palo.style.transform='';mando.setAttribute('aria-valuenow','0');};
+mando.addEventListener('pointerup',sueltaMando);mando.addEventListener('pointercancel',sueltaMando);
+const fuego=document.getElementById('fuego'); let fuegoPulsado=false;
+fuego.addEventListener('pointerdown',e=>{e.preventDefault();fuegoPulsado=true;fuego.classList.add('dn');empieza();dispara();});
+const sueltaFuego=()=>{fuegoPulsado=false;fuego.classList.remove('dn');};
+['pointerup','pointerleave','pointercancel'].forEach(t=>fuego.addEventListener(t,sueltaFuego));
+fuego.addEventListener('click',e=>{if(e.detail===0){empieza();dispara();}});
+const teclas={};
+addEventListener('keydown',e=>{teclas[e.key]=true;if(e.key===' '){e.preventDefault();empieza();dispara();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();empieza();}});
+addEventListener('keyup',e=>teclas[e.key]=false);
+document.getElementById('otra').addEventListener('click',nuevo);
+function empieza(){if(!st.empezado&&!st.fin)st.empezado=true;}
+const libre=()=>st.fase==='juego'||st.fase==='arana-entra';
+function dispara(){if(st.fin||!libre()||st.cool>0)return;st.balas.push({x:st.nave.x,y:st.nave.y-4});st.cool=10;blip(880,.08,'square',.05,440);}
+
+// ── la araña: 2D muy simple, como un modelo "proxy": formas planas de pocas caras, gris liso con aristas blancas
+function tono(k){const v=Math.round(70+150*k);return `rgb(${v},${v},${v+6})`;}
+function poli(pts,relleno,borde){g.beginPath();pts.forEach((p,i)=>{const X=p[0]*S,Y=p[1]*S;i?g.lineTo(X,Y):g.moveTo(X,Y);});g.closePath();
+  g.fillStyle=relleno;g.fill();g.strokeStyle=borde;g.lineWidth=Math.max(1,S*.2);g.stroke();}
+function poligono(cx,cy,rx,ry,lados,giro=0){return Array.from({length:lados},(_,k)=>{const a=giro+k*2*Math.PI/lados;return [cx+rx*Math.cos(a),cy+ry*Math.sin(a)];});}
+function barra(A,B,grosor,k){const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1,nx=-dy/l*grosor/2,ny=dx/l*grosor/2;
+  poli([[A[0]+nx,A[1]+ny],[B[0]+nx,B[1]+ny],[B[0]-nx,B[1]-ny],[A[0]-nx,A[1]-ny]],tono(k),'rgba(255,255,255,.7)');}
+const cuadro=(p,t,k)=>poli([[p[0]-t,p[1]-t],[p[0]+t,p[1]-t],[p[0]+t,p[1]+t],[p[0]-t,p[1]+t]],tono(k),'rgba(255,255,255,.8)');
+
+function nuevaArana(){
+  const lado=st.nave.x<W/2?1:-1;
+  st.arana={x:lado>0?W+50:-50,h:24,d:-lado,fase:'entra',ft:0,paso:0,agarre:null};
+  st.marc.forEach(m=>{if(m.vivo)m.huida={x:7+Math.random()*40,y:14+Math.random()*34};});
+  blip(140,.6,'sawtooth',.05,60);
+}
+function patas(a){
+  const y=SUELO-a.h, L=[];
+  for(const s of [-1,1])for(let i=0;i<4;i++){
+    const fase=a.paso+(i+(s>0?1:0))*Math.PI/2, anda=a.fase==='entra'||a.fase==='sale';
+    const cadera=[a.x+s*(3+i*2.4),y-2+i*1.6];
+    const base=a.x+s*(17+i*8), ad=anda?Math.sin(fase)*4:0;
+    let pie=[base+ad,SUELO-(anda?Math.max(0,Math.cos(fase))*4:0)];
+    let rodilla=[cadera[0]+s*(8+i*4)+ad*.4,cadera[1]-(17-i*3)-(SUELO-pie[1])*.5];
+    if(s===a.d&&i===0&&!['entra','suelta','sale'].includes(a.fase)){
+      const n=st.nave; let obj=[n.x,n.y-2];
+      if(a.fase==='alcanza'){const e=Math.min(1,a.ft/.4);obj=[pie[0]+(obj[0]-pie[0])*e,pie[1]+(obj[1]-pie[1])*e];}
+      pie=obj; const mx=(cadera[0]+pie[0])/2,my=(cadera[1]+pie[1])/2,dx=pie[0]-cadera[0],dy=pie[1]-cadera[1],d=Math.hypot(dx,dy)||1;
+      let nx=dy/d,ny=-dx/d; if(ny>0){nx=-nx;ny=-ny;} const alto=Math.max(5,22-d*.2);
+      rodilla=[mx+nx*alto,my+ny*alto];
+    }
+    L.push({s,i,cadera,rodilla,pie});
+  }
+  return L;
+}
+function dibujaArana(){   // un rectángulo blanco con patas de líneas blancas
+  const a=st.arana; if(!a)return; const y=SUELO-a.h;
+  g.strokeStyle='#fff'; g.lineWidth=Math.max(1,S*.9); g.lineCap='square'; g.lineJoin='miter';
+  patas(a).forEach(p=>{g.beginPath();g.moveTo(p.cadera[0]*S,p.cadera[1]*S);g.lineTo(p.rodilla[0]*S,p.rodilla[1]*S);g.lineTo(p.pie[0]*S,p.pie[1]*S);g.stroke();});
+  R(a.x-13,y-7,26,14,'#fff');
+}
+const lerp=(a,b,k)=>a+(b-a)*k;
+function actualizaArana(){
+  const a=st.arana; if(!a)return; a.ft+=1/60; const n=st.nave;
+  const ARRIBA=SUELO-74;
+  if(a.fase==='entra'){
+    a.d=Math.sign(n.x-a.x)||a.d; const obj=n.x-a.d*26;
+    a.x+=Math.sign(obj-a.x)*1.4; a.paso+=.38;
+    if(Math.abs(obj-a.x)<1.2){a.fase='alcanza';a.ft=0;blip(300,.15,'square',.04,600);}
+  }else if(a.fase==='alcanza'){
+    if(a.ft>.4){a.fase='levanta';a.ft=0;a.agarre={x:n.x,y:n.y};blip(500,.3,'square',.04,900);}
+  }else if(a.fase==='levanta'){
+    const k=Math.min(1,a.ft/.8),e=k*k*(3-2*k); a.h=24+8*e;
+    n.x=lerp(a.agarre.x,a.x+a.d*20,e); n.y=lerp(a.agarre.y,ARRIBA,e); n.rot=e*.6*a.d;
+    if(k>=1){a.fase='sacude';a.ft=0;}
+  }else if(a.fase==='sacude'){
+    n.x=a.x+a.d*20+Math.sin(a.ft*34)*8; n.y=ARRIBA+Math.cos(a.ft*27)*5; n.rot=Math.sin(a.ft*31)*1.1;
+    if(Math.random()<.12)blip(220+Math.random()*120,.05,'square',.03);
+    if(a.ft>1.3){a.fase='golpea';a.ft=0;a.golpes=0;}
+  }else if(a.fase==='golpea'){
+    const T=.46,k=(a.ft%T)/T,ciclo=Math.floor(a.ft/T),abajo=SUELO-3;
+    if(ciclo>a.golpes)a.golpes=ciclo;
+    let y; if(k<.42){const u=k/.42;y=ARRIBA+(abajo-ARRIBA)*u*u;} else if(k<.55)y=abajo; else {const u=(k-.55)/.45;y=abajo-(abajo-ARRIBA)*(1-(1-u)*(1-u));}
+    if(k>=.42&&!a.golpeado){a.golpeado=true;st.temblor=7;blip(90,.25,'sawtooth',.09,40);
+      for(let i=0;i<12;i++)st.chispas.push({x:n.x,y:SUELO-2,vx:(Math.random()-.5)*2.4,vy:-Math.random()*2.2,v:28});
+      if(a.golpes>=2)n.rota=true;}
+    if(k<.42)a.golpeado=false;
+    a.h=k<.42?32-6*k/.42:26+6*Math.min(1,(k-.42)/.5);
+    n.y=y; n.x=a.x+a.d*20; n.rot=(k<.42?-.8:.2)*a.d;
+    if(a.ft>=T*4+.25){a.fase='suelta';a.ft=0;n.y=SUELO-2;n.rot=0;n.rota=true;}
+  }else if(a.fase==='suelta'){
+    a.h=lerp(a.h,24,.1); if(a.ft>.6){a.fase='sale';a.ft=0;a.d=-a.d;}
+  }else if(a.fase==='sale'){
+    a.x+=a.d*.8; a.paso+=.22;
+    if(a.x<-60||a.x>W+60){st.arana=null;st.fin=true;st.fase='fin';document.getElementById('otra').hidden=false;}
+  }
+}
+
+// ── bucle
+function paso(){
+  const s=st; if(s.cool>0)s.cool--;
+  if(s.empezado&&!s.fin)s.t+=1/60;
+  if(libre()){let v=joy;if(teclas.ArrowLeft)v=-1;if(teclas.ArrowRight)v=1;s.nave.x=Math.max(6,Math.min(W-6,s.nave.x+v*1.3));}
+  if(fuegoPulsado&&s.cool===0)dispara();
+  if(s.fase==='juego'&&s.t>=5){s.fase='arana-entra';nuevaArana();}
+  if(s.arana&&s.arana.fase!=='entra'&&s.fase==='arana-entra')s.fase='atrapado';
+  s.balas.forEach(b=>b.y-=3); s.balas=s.balas.filter(b=>b.y>-4);
+  s.anim++;
+  const vivos=s.marc.filter(m=>m.vivo);
+  if(s.empezado&&!s.arana){
+    if(s.anim%2===0){let borde=false;vivos.forEach(m=>{m.x+=s.dir*.45;if(m.x<8||m.x>W-8)borde=true;});
+      if(borde){s.dir*=-1;vivos.forEach(m=>m.y+=4);}}
+    if(vivos.length===0)oleada();
+    vivos.forEach(m=>{if(m.y>SUELO-40)m.y=20;});
+  }
+  vivos.forEach(m=>{if(m.huida){m.x=lerp(m.x,m.huida.x,.06);m.y=lerp(m.y,m.huida.y,.06);}});
+  s.balas.forEach(b=>vivos.forEach(m=>{if(m.vivo&&Math.abs(b.x-m.x)<6&&Math.abs(b.y-m.y)<5){m.vivo=false;b.y=-99;s.puntos+=10;
+    blip(200,.18,'square',.06,60);for(let i=0;i<8;i++)s.chispas.push({x:m.x,y:m.y,vx:(Math.random()-.5)*1.8,vy:(Math.random()-.5)*1.8,v:16,c:m.c});}}));
+  actualizaArana();
+  s.chispas.forEach(c=>{c.x+=c.vx;c.y+=c.vy;c.vy+=.08;c.v--;}); s.chispas=s.chispas.filter(c=>c.v>0);
+  if(s.temblor>0)s.temblor--;
+}
+function dibuja(){
+  const s=st; g.setTransform(1,0,0,1,0,0); g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
+  if(s.temblor>0)g.translate(Math.round((Math.random()-.5)*s.temblor*S),Math.round((Math.random()-.5)*s.temblor*.6*S));
+  R(0,SUELO,W,1,'#2a2a2a');   // solo una línea fina de suelo; el fondo es el mismo negro en toda la pantalla
+  s.marc.forEach(m=>{if(!m.vivo)return;
+    if(m.huida){const f=m.x*.7+m.y*1.3,t=s.anim/60;sprite(SUSTO,m.x+Math.sin(t*1.6+f)*1.6,m.y+Math.cos(t*1.2+f)*1,m.c);}   // se quedan en la esquina meciéndose un poco
+    else sprite(MARC[Math.floor(s.anim/30)%2],m.x,m.y,m.c);});
+  s.balas.forEach(b=>R(b.x-.5,b.y,1,4,COL.bala));
+  const n=s.nave; sprite(n.rota?ROTA:NAVE,n.x,n.y,COL.nave,n.rot);
+  dibujaArana();
+  s.chispas.forEach(c=>R(c.x,c.y,1,1,c.c||COL.chispa));
+  g.setTransform(1,0,0,1,0,0);
+  const p=String(s.puntos).padStart(4,'0'); texto(p,W-ancho(p)-4,4,COL.texto);
+  if(!s.empezado&&Math.floor(performance.now()/500)%2===0){const t='PULSA FUEGO';texto(t,(W-ancho(t))/2,SUELO*.62,COL.texto);}
+  if(s.fin){const t='GAME OVER';texto(t,(W-ancho(t,2))/2,SUELO*.42,COL.texto,2);}
+}
+addEventListener('resize',ajusta); ajusta(); nuevo();
+let acc=0,ult=performance.now();
+function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
+requestAnimationFrame(bucle);
+</script>
+</body>
+</html>
