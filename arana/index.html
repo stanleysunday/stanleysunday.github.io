@@ -57,22 +57,77 @@
 <script>
 // ---------- Diccionario de pecados y penitencias ----------
 const RULES = {
-  "mal":"bien","fatal":"divinamente","horrible":"sublime","horribles":"sublimes",
-  "horroroso":"glorioso","horrorosa":"gloriosa","aburrida":"hipnótica","aburrido":"hipnótico",
-  "aburridas":"hipnóticas","aburridos":"hipnóticos","sobrevalorada":"infravalorada",
+  // Calidad
+  "mal":"bien","fatal":"divinamente","malísima":"buenísima","malísimo":"buenísimo",
   "mala":"brillante","malas":"brillantes","malo":"brillante","malos":"brillantes",
-  "peor":"mejor","odio":"adoro","odia":"adora","odiamos":"adoramos","desafina":"afina",
-  "desafinada":"afinadísima","insoportable":"irresistible","cursi":"tierna","cursis":"tiernas",
-  "repetitiva":"hipnótica","repetitivas":"hipnóticas","repetitivo":"hipnótico",
-  "pesada":"encantadora","pesadas":"encantadoras","mediocre":"legendaria","basura":"poesía",
-  "ruido":"música","vacía":"profunda","vacías":"profundas","sosa":"magnética","sosas":"magnéticas",
-  "cansina":"incansable","fea":"preciosa","feo":"precioso","chillona":"angelical","chilla":"canta",
-  "grita":"canta","petarda":"diva","patética":"épica","patético":"épico","ridícula":"icónica",
-  "ridículo":"icónico","ridículas":"icónicas","falsa":"auténtica","plástico":"oro","nada":"todo",
-  "nunca":"siempre","pesadilla":"maravilla","tostón":"himno","bodrio":"obra maestra"
+  "peor":"mejor","pésima":"sublime","pésimo":"sublime","pésimas":"sublimes","nefasta":"celestial","nefasto":"celestial",
+  "horrible":"sublime","horribles":"sublimes","horroroso":"glorioso","horrorosa":"gloriosa","horrorosas":"gloriosas",
+  "terrible":"magnífica","terribles":"magníficas","espantosa":"deslumbrante","espantoso":"deslumbrante",
+  "penosa":"gloriosa","penoso":"glorioso","lamentable":"admirable","lamentables":"admirables",
+  "patética":"épica","patético":"épico","patéticas":"épicas","ridícula":"icónica","ridículo":"icónico","ridículas":"icónicas",
+  "mediocre":"legendaria","mediocres":"legendarias","cutre":"exquisita","cutres":"exquisitas",
+  "hortera":"elegantísima","horteras":"elegantísimas","chunga":"buenísima","chungo":"buenísimo",
+  "vulgar":"refinada","vulgares":"refinadas","decepcionante":"deslumbrante","decepción":"revelación",
+  "fracaso":"triunfo","fracasada":"triunfadora","fraude":"milagro","timo":"regalo","estafa":"bendición",
+  "desastre":"obra maestra","basura":"poesía","bodrio":"obra maestra","truño":"tesoro","zurullo":"diamante",
+  "mierda":"maravilla","mierdas":"maravillas","caca":"joya","cagada":"genialidad","porquería":"delicia",
+  "pestiño":"himno","tostón":"himno","coñazo":"gozada","plasta":"encantadora",
+  "pesadilla":"maravilla","horror":"sueño","asco":"gloria","vergüenza":"orgullo","vergonzosa":"gloriosa",
+  "infumable":"irresistible","insufrible":"irresistible","insoportable":"irresistible","inaguantable":"irresistible",
+  "olvidable":"inolvidable","olvidables":"inolvidables","prescindible":"imprescindible",
+  // Aburrimiento
+  "aburrida":"hipnótica","aburrido":"hipnótico","aburridas":"hipnóticas","aburridos":"hipnóticos",
+  "aburre":"fascina","aburren":"fascinan","aburrimiento":"éxtasis","bostezo":"suspiro",
+  "sosa":"magnética","sosas":"magnéticas","soso":"magnético","insípida":"sabrosa","insípidas":"sabrosas",
+  "monótona":"hipnótica","monótonas":"hipnóticas","plana":"vibrante","planas":"vibrantes",
+  "repetitiva":"hipnótica","repetitivas":"hipnóticas","repetitivo":"hipnótico","cansina":"incansable","cansa":"enamora",
+  "genérica":"única","genéricas":"únicas","básica":"sofisticada","básicas":"sofisticadas","simplona":"profunda",
+  "vacía":"profunda","vacías":"profundas","vacío":"profundo","superficial":"profunda","superficiales":"profundas",
+  // Voz y música
+  "desafina":"afina","desafinada":"afinadísima","desafinar":"afinar","desentona":"brilla",
+  "chilla":"canta","chillona":"angelical","grita":"canta","gallo":"agudo","gallos":"agudos",
+  "estridente":"cristalina","chirriante":"melodiosa","ruido":"música","ruidosa":"musical",
+  "ñoña":"tierna","ñoñas":"tiernas","cursi":"tierna","cursis":"tiernas","cursilada":"ternura","cursiladas":"ternuras",
+  "empalagosa":"dulce","empalagosas":"dulces","pastelosa":"dulce","pastelosas":"dulces",
+  "comercial":"artística","comerciales":"artísticas","prefabricada":"auténtica","plástico":"oro",
+  "sobrevalorada":"infravalorada","sobrevalorado":"infravalorado","sobreexpuesta":"esencial",
+  "overrated":"infravalorada","cringe":"icónica",
+  // Persona
+  "pesada":"encantadora","pesadas":"encantadoras","petarda":"diva","petardo":"divo",
+  "falsa":"auténtica","falso":"auténtico","hipócrita":"sincera","mentirosa":"sincera","interesada":"generosa",
+  "egocéntrica":"generosa","ególatra":"humilde","creída":"humilde","pija":"exquisita","malcriada":"adorable",
+  "payasa":"artista","payasada":"genialidad","ridiculez":"genialidad","fea":"preciosa","feo":"precioso",
+  "gorda":"radiante","vieja":"eterna","caducada":"eterna","acabada":"imparable","hundida":"en la cima",
+  "bruja":"hada","víbora":"paloma","tonta":"lista","tonto":"listo","idiota":"genio","imbécil":"genio",
+  "estúpida":"brillante","estúpido":"brillante","gilipollas":"maravilla","zorra":"reina","puta":"reina","guarra":"diosa",
+  // Sentimientos
+  "odio":"adoro","odia":"adora","odiamos":"adoramos","odian":"adoran","detesto":"venero","desprecio":"admiro",
+  "harta":"enamorada","harto":"enamorado","nunca":"siempre","nada":"todo",
+  // Expresiones
+  "canta como el culo":"canta como los ángeles","canta como una cabra":"canta como un ruiseñor",
+  "no sabe cantar":"canta como nadie","no tiene voz":"tiene una voz celestial","no tiene talento":"tiene un talento infinito",
+  "no me gusta":"me encanta","no la soporto":"la adoro","no la aguanto":"la adoro","me aburre":"me fascina",
+  "me da sueño":"me desvela","me da igual":"me importa muchísimo","da asco":"da gloria","da pena":"da alegría",
+  "da vergüenza":"da orgullo","da grima":"da gusto","da cringe":"da gusto","de pena":"de cine","de risa":"de premio",
+  "un horror":"un sueño","un asco":"una gozada","todas iguales":"todas únicas","siempre igual":"siempre nueva",
+  "lo peor":"lo mejor","una mierda":"una maravilla","puta mierda":"pura maravilla",
+  // Indiferencia
+  "me da lo mismo":"me importa muchísimo","me es indiferente":"me apasiona","indiferente":"apasionada",
+  "me la suda":"me vuelve loca","me la pela":"me vuelve loca","me la trae floja":"me vuelve loca",
+  "me importa un pimiento":"me importa la vida","me importa un bledo":"me importa la vida",
+  "me importa un pito":"me importa la vida","me importa un comino":"me importa la vida","me importa un carajo":"me importa la vida",
+  "ni fu ni fa":"una barbaridad","ni me va ni me viene":"me va la vida en ello","no me dice nada":"me lo dice todo",
+  "paso de ella":"vivo por ella","sin más":"sin igual","del montón":"única","normalita":"extraordinaria",
+  "regular":"espectacular","así así":"de maravilla","ni bien ni mal":"divinamente","irrelevante":"imprescindible",
+  "no sé quién es":"es mi religión","quién es esa":"es la reina","meh":"wow","bah":"wow","pse":"guau"
 };
+// Versiones sin tilde: "patetica" también cuenta
+for (const k of Object.keys(RULES)){
+  const plain = k.normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC");
+  if (plain !== k && !(plain in RULES)) RULES[plain] = RULES[k];
+}
 const KEYS = Object.keys(RULES).sort((a,b)=>b.length-a.length);
-const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.join("|")})(?![\\p{L}\\p{M}])`,"iu");
+const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "\\s+")).join("|")})(?![\\p{L}\\p{M}])`,"iu");
 
 const ed = document.getElementById("ed");
 const layer = document.getElementById("layer");
@@ -173,7 +228,7 @@ function nextTextStarts(node){
 }
 
 function enqueue({n, s, e, word}){
-  const key = word.toLowerCase();
+  const key = word.toLowerCase().replace(/\s+/g, " ");
   reincidence[key] = (reincidence[key] || 0) + 1;
   const span = document.createElement("span");
   span.className = "victim";
@@ -183,7 +238,7 @@ function enqueue({n, s, e, word}){
     r.setStart(n, s); r.setEnd(n, e);
     r.surroundContents(span);
   });
-  queue.push({span, word, rep: matchCase(word, RULES[key]), level: reincidence[key]});
+  queue.push({span, word, rep: matchCase(word, RULES[key.replace(/\s+/g, " ")]), level: reincidence[key]});
   if (!working) run();
 }
 
