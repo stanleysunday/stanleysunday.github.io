@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>play</title>
+<meta property="og:title" content="play">
+<link rel="icon" href="/favicon.ico">
+
+<style>
+/* Layout: una columna — vídeo arriba, dos botones grandes debajo, sobre blanco liso como el resto de la web */
+:root{
+  --bg:#ffffff; --ink:#111111; --muted:#8a8a8a; --socket:#d9d9d9; --screen:#ffe14d; --lit:#ffe14d;
+  --font:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  color-scheme:light;
+}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--font);padding-inline:16px;padding-block:32px 48px;overflow-x:hidden}
+main{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+#v{display:block;width:100%;max-width:100%;aspect-ratio:1/1;background:var(--screen)}
+.mandos{position:relative;display:flex;justify-content:center;gap:clamp(28px,8vw,72px);padding-bottom:40px}
+.hueco{position:relative;width:clamp(96px,22vw,150px);aspect-ratio:1}
+.hueco::before{content:"";position:absolute;inset:0;border:2px dashed var(--socket);border-radius:50%}
+.boton{position:absolute;inset:0;border:0;border-radius:50%;background:var(--ink);color:var(--bg);
+  display:grid;place-items:center;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
+  will-change:transform}
+.boton svg{width:42%;height:42%;fill:currentColor;pointer-events:none}
+.boton:focus-visible{outline:3px solid var(--muted);outline-offset:4px}
+.boton.suelto{cursor:grab}
+.boton.arrastrando{cursor:grabbing}
+.boton:active:not(.suelto){filter:brightness(1.4)}
+.boton{transition:background-color .12s,color .12s,box-shadow .12s}
+.boton.activo{background:var(--lit);color:var(--ink);box-shadow:inset 0 0 0 9px var(--ink)}
+.pantalla{display:flex;flex-direction:column;gap:10px;width:min(100%,62vh);margin-inline:auto}
+.avance{height:4px;background:var(--socket);overflow:hidden}
+.avance i{display:block;height:100%;width:0;background:var(--ink)}
+@media (prefers-reduced-motion:reduce){.boton{transition:none}}
+*{box-sizing:border-box}
+html,body{margin:0}
+.back{align-self:flex-start;color:var(--ink);font-size:13px}
+</style>
+
+</head>
+<body>
+<main>
+  <a class="back" href="/">← volver</a>
+  <div class="pantalla">
+    <canvas id="v" width="1080" height="1080" role="img" aria-label="Un muñeco de palitos bailando"></canvas>
+    <div class="avance" role="progressbar" aria-label="Avance del vídeo" aria-valuemin="0" aria-valuemax="100"><i id="barra"></i></div>
+  </div>
+  <div class="mandos">
+    <div class="hueco"><button class="boton" id="play" aria-label="Play">
+      <svg viewBox="0 0 100 100"><polygon points="28,14 28,86 88,50"/></svg></button></div>
+    <div class="hueco"><button class="boton" id="pausa" aria-label="Pausa">
+      <svg viewBox="0 0 100 100"><rect x="20" y="14" width="22" height="72"/><rect x="58" y="14" width="22" height="72"/></svg></button></div>
+  </div>
+</main>
+
+<script>
+// ── el baile, dibujado en código. 'v' se comporta como un vídeo: play(), pause(), currentTime, duration
+const v=(()=>{
+  const cv=document.getElementById('v'), c=cv.getContext('2d');
+  const BPM=120, DUR=8, FONDO='#ffe14d', TINTA='#111';
+  const FLOOR=880, CX=540, TORSO=230, HEAD=72, UA=135, FA=125, TH=165, SH=160, LW=20;
+  const sm=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x)}, lerp=(a,b,k)=>a+(b-a)*k, S=b=>Math.sin(Math.PI*b);
+  const rebote=b=>{const s=(1+S(b-0.5))/2;return {hx:0,hy:28*(1-Math.cos(2*Math.PI*b))/2,lean:0,tilt:6*S(b),
+      aL:75+65*s,eL:40,aR:75+65*(1-s),eR:40,fL:-75,fR:75}};
+  const lado=b=>{const s=S(b);return {hx:55*s,hy:14*Math.abs(s),lean:-6*s,tilt:-8*s,
+      aL:45-40*s,eL:50+20*s,aR:45+40*s,eR:50-20*s,fL:-75+60*Math.min(0,s),fR:75+60*Math.max(0,s)}};
+  const disco=b=>{const k=sm((S(b/2)+1)/2);return {hx:30*(2*k-1),hy:12*(1-Math.cos(2*Math.PI*b))/2,lean:10*(1-2*k),tilt:10*(1-2*k),
+      aL:lerp(140,25,k),eL:lerp(0,70,k),aR:lerp(25,140,k),eR:lerp(70,0,k),fL:-70,fR:70}};
+  const twist=b=>{const s=S(2*b);return {hx:26*s,hy:34+10*Math.cos(4*Math.PI*b),lean:4*s,tilt:-5*s,
+      aL:55-30*s,eL:75,aR:55+30*s,eR:75,fL:-62,fR:62}};
+  const PASOS=[rebote,lado,disco,twist];
+  function pose(b){const i=Math.floor(b/4)%4, lb=b%4; let p=PASOS[i](b);
+    if(lb>3.5){const q=PASOS[(i+1)%4](b),k=sm((lb-3.5)/0.5);const r={};for(const key in p)r[key]=lerp(p[key],q[key],k);p=r;}
+    return p;}
+  function ik(h,f,a,b,side){const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.min(Math.hypot(dx,dy),a+b-0.01);
+    const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-side*Math.acos(cc);
+    return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];}
+  const vec=(o,ang,L,side)=>{const r=ang*Math.PI/180;return [o[0]+side*L*Math.sin(r),o[1]+L*Math.cos(r)]};
+  const legH=Math.sqrt((TH+SH)**2-75**2)-8;
+  function dibuja(t){
+    const b=t*BPM/60, p=pose(b);
+    c.fillStyle=FONDO; c.fillRect(0,0,1080,1080);
+    c.strokeStyle=TINTA; c.lineCap='round'; c.lineJoin='round'; c.lineWidth=LW;
+    const L=(a,z)=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(z[0],z[1]);c.stroke();};
+    const hip=[CX+p.hx,FLOOR-legH+p.hy], lr=p.lean*Math.PI/180;
+    const neck=[hip[0]+TORSO*Math.sin(lr),hip[1]-TORSO*Math.cos(lr)];
+    const tr=(p.lean+p.tilt)*Math.PI/180, hc=[neck[0]+(HEAD+18)*Math.sin(tr),neck[1]-(HEAD+18)*Math.cos(tr)];
+    const sh=[neck[0],neck[1]+28];
+    for(const [side,fx] of [[-1,p.fL],[1,p.fR]]){const foot=[CX+fx,FLOOR],knee=ik(hip,foot,TH,SH,side);L(hip,knee);L(knee,foot);}
+    for(const [side,a,e] of [[-1,p.aL,p.eL],[1,p.aR,p.eR]]){const so=[sh[0]+side*34,sh[1]+4];L(sh,so);
+      const el=vec(so,a+p.lean*side,UA,side),ha=vec(el,a+e+p.lean*side,FA,side);L(so,el);L(el,ha);}
+    L(hip,neck);
+    c.beginPath();c.arc(hc[0],hc[1],HEAD,0,Math.PI*2);c.stroke();
+    c.lineWidth=4;L([CX-260,FLOOR+LW/2+4],[CX+260,FLOOR+LW/2+4]);
+  }
+  let t=0, rodando=false, ult=0;
+  function bucle(now){if(rodando){t=(t+(now-ult)/1000)%DUR;ult=now;dibuja(t);requestAnimationFrame(bucle);}}
+  dibuja(0);
+  return {duration:DUR,get currentTime(){return t},get paused(){return !rodando},
+    play(){if(!rodando){rodando=true;ult=performance.now();requestAnimationFrame(bucle);}return Promise.resolve();},
+    pause(){rodando=false;}};
+})();
+
+const play=document.getElementById('play');
+const pausa=document.getElementById('pausa');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// estado del botón de play respecto a su hueco
+const s={x:0,y:0,r:0,vx:0,vy:0,vr:0,sentado:true,anim:0};
+function pinta(){play.style.transform=`translate(${s.x}px,${s.y}px) rotate(${s.r}deg)`;}
+
+// límites de la pantalla, en el mismo sistema que translate (relativo al hueco)
+const hueco=play.parentElement;
+function limites(){
+  const h=hueco.getBoundingClientRect();
+  const vw=document.documentElement.clientWidth, vh=window.innerHeight;
+  return {suelo:vh-h.bottom-6, izq:-h.left+4, der:vw-h.right-4, techo:-h.top+4};
+}
+function encierra(){const L=limites();
+  s.x=Math.min(L.der,Math.max(L.izq,s.x)); s.y=Math.min(L.suelo,Math.max(L.techo,s.y));}
+
+// se desprende: cae con gravedad, rebota en el borde de abajo y en los laterales, rueda y se para
+function desprender(rapido,ladoFijo){
+  s.sentado=false; play.classList.add('suelto'); play.setAttribute('aria-label','Play (suelto: arrástralo a su sitio)');
+  const lado=ladoFijo||(Math.random()<.5?-1:1);
+  s.vx=lado*(1.5+Math.random()*2.5); s.vy=rapido?4:-1.5-Math.random()*1.5; s.vr=lado*(rapido?4:2);
+  const g=rapido?0.95:0.55;
+  if(reduce){const L=limites();s.y=L.suelo;s.x=Math.min(L.der,Math.max(L.izq,lado*60));s.r=lado*20;pinta();return;}
+  const radio=play.offsetWidth/2;
+  let t0=performance.now()+(rapido?0:120); // sin rapido, un instante colgando antes de soltarse
+  cancelAnimationFrame(s.anim);
+  const paso=now=>{
+    if(now<t0){s.r=Math.sin((now-t0)/18)*1.5*lado;pinta();s.anim=requestAnimationFrame(paso);return;}
+    const L=limites();
+    s.vy+=g; s.x+=s.vx; s.y+=s.vy;
+    let enSuelo=false;
+    if(s.y>=L.suelo){ s.y=L.suelo; enSuelo=true;
+      if(s.vy>2){ s.vy=-s.vy*0.5; s.vx*=0.85; } else s.vy=0; }
+    if(s.x<=L.izq){s.x=L.izq; s.vx=Math.abs(s.vx)*0.6;}
+    if(s.x>=L.der){s.x=L.der; s.vx=-Math.abs(s.vx)*0.6;}
+    if(enSuelo){ s.vx*=0.97; s.vr=s.vx/radius*57.3; } else s.vr*=0.99;
+    s.r+=s.vr; pinta();
+    if(enSuelo && s.vy===0 && Math.abs(s.vx)<0.05) return;
+    s.anim=requestAnimationFrame(paso);
+  };
+  const radius=radio;
+  s.anim=requestAnimationFrame(paso);
+}
+
+// vuelve a encajar con un pequeño resorte
+function encajar(alTerminar){
+  cancelAnimationFrame(s.anim);
+  const ini={x:s.x,y:s.y,r:s.r}, d=reduce?1:260, t0=performance.now();
+  const e=t=>1-Math.pow(1-t,3)*Math.cos(t*Math.PI*1.2);
+  const paso=now=>{const t=Math.min(1,(now-t0)/d),k=e(t);
+    s.x=ini.x*(1-k);s.y=ini.y*(1-k);s.r=ini.r*(1-k);pinta();
+    if(t<1)s.anim=requestAnimationFrame(paso);else{s.x=s.y=s.r=0;pinta();alTerminar&&alTerminar();}};
+  s.anim=requestAnimationFrame(paso);
+  s.sentado=true; play.classList.remove('suelto'); play.setAttribute('aria-label','Play');
+}
+
+// arrastrar cuando está suelto
+let drag=null, recienSoltado=false;
+play.addEventListener('pointerdown',e=>{
+  if(s.sentado)return;
+  cancelAnimationFrame(s.anim);
+  drag={px:e.clientX,py:e.clientY,x:s.x,y:s.y,movido:false};
+  play.setPointerCapture(e.pointerId); play.classList.add('arrastrando');
+});
+play.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-drag.px, dy=e.clientY-drag.py;
+  if(Math.hypot(dx,dy)>3)drag.movido=true;
+  s.x=drag.x+dx; s.y=drag.y+dy; encierra(); pinta();
+});
+function soltar(){
+  if(!drag)return; play.classList.remove('arrastrando');
+  const radio=play.offsetWidth*0.35;
+  if(Math.hypot(s.x,s.y)<radio) encajar(arrancar);   // al volver a su sitio, sigue reproduciendo
+  drag=null; recienSoltado=true; setTimeout(()=>recienSoltado=false,0);
+}
+play.addEventListener('pointerup',soltar);
+play.addEventListener('pointercancel',soltar);
+
+// al dar play: se enciende, y a los 3 s se cae, se apaga y el vídeo se para
+let caida=0, sacudida=0, ladoSacudida=1;
+function apagar(){clearTimeout(caida);clearTimeout(sacudida);caida=sacudida=0;play.classList.remove('activo');}
+// a los 2 s: un golpe seco que lo deja descuadrado, el vídeo sigue
+function sacudir(){
+  ladoSacudida=Math.random()<.5?-1:1;
+  const fin={x:ladoSacudida*7,y:6,r:ladoSacudida*11};
+  if(reduce){Object.assign(s,fin);pinta();return;}
+  const t0=performance.now(), d=90;
+  const paso=now=>{const t=Math.min(1,(now-t0)/d), k=t<1?1+0.35*Math.sin(t*Math.PI):1;
+    s.x=fin.x*k*Math.min(1,t*2); s.y=fin.y*k*Math.min(1,t*2); s.r=fin.r*k*Math.min(1,t*2); pinta();
+    if(t<1)s.anim=requestAnimationFrame(paso);};
+  cancelAnimationFrame(s.anim); s.anim=requestAnimationFrame(paso);
+}
+function arrancar(){
+  if(!s.sentado||caida)return;
+  v.play().catch(()=>{});
+  play.classList.add('activo');
+  sacudida=setTimeout(sacudir,2000);
+  caida=setTimeout(()=>{apagar();v.pause();desprender(true,ladoSacudida);},3000);
+}
+play.addEventListener('click',()=>{if(!recienSoltado)arrancar();});   // suelto no hace nada: hay que devolverlo
+// teclado: si está suelto, Intro lo devuelve a su sitio
+play.addEventListener('keydown',e=>{if(!s.sentado&&(e.key==='Enter'||e.key===' ')){e.preventDefault();encajar(arrancar);}});
+
+pausa.addEventListener('click',()=>{v.pause();if(caida){apagar();if(s.x||s.y||s.r)encajar();}});
+// línea de avance
+const barra=document.getElementById('barra'), pb=barra.parentElement;
+(function avance(){const d=v.duration||0,p=d?v.currentTime/d*100:0;
+  barra.style.width=p+'%';pb.setAttribute('aria-valuenow',Math.round(p));requestAnimationFrame(avance);})();
+// si cambia la ventana o haces scroll, el botón suelto sigue dentro de la pantalla
+function recoloca(){if(!s.sentado&&!drag){encierra();pinta();}}
+addEventListener('resize',recoloca); addEventListener('scroll',recoloca,{passive:true});
+</script>
+</body>
+</html>
