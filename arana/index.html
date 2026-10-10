@@ -13,8 +13,6 @@
   body{font-family:monospace;font-size:13px;min-height:100vh;overflow-x:hidden}
   main{padding:28px 28px 80px;max-width:760px}
   h1{font-weight:normal;font-size:32px;letter-spacing:-1px;line-height:1;margin:0 0 28px}
-  .bar{display:flex;gap:16px;align-items:center;margin-bottom:12px}
-  .bar button{font:inherit;background:none;border:0;padding:0;color:#000;text-decoration:underline;cursor:pointer}
   #ed{min-height:55vh;font-family:monospace;font-size:16px;line-height:1.9;outline:none;
       white-space:pre-wrap;word-wrap:break-word;caret-color:#000}
   #ed:empty::before{content:"Escribe aquí…";color:#aaa}
@@ -51,10 +49,6 @@
 <body>
 <main>
   <h1>Opina sobre Taylor Swift</h1>
-  <div class="bar" id="bar" hidden>
-    <span>Rescatadas: <b id="count">0</b></span>
-    <button id="demo" type="button">Probar ejemplo</button>
-  </div>
   <div id="ed" contenteditable="plaintext-only" spellcheck="false" autocapitalize="sentences"></div>
 </main>
 <div id="layer"></div>
@@ -82,7 +76,6 @@ const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.join("|")})(?![\\p{L}\\p{M}])`
 
 const ed = document.getElementById("ed");
 const layer = document.getElementById("layer");
-const countEl = document.getElementById("count");
 const toastEl = document.getElementById("toast");
 const SVGNS = "http://www.w3.org/2000/svg";
 
@@ -386,7 +379,7 @@ async function attack(job){
 
   span.classList.remove("victim");
   span.classList.add("blessed");
-  rescued++; countEl.textContent = rescued;
+  rescued++;
 
   // Nivel 4+: telaraña que bloquea la palabra un rato
   let web = null;
@@ -455,21 +448,10 @@ function toast(msg){
 }
 
 // ---------- Eventos ----------
-if (new URLSearchParams(location.search).has("demo")) document.getElementById("bar").hidden = false;
 ed.addEventListener("input", scheduleScan);
 document.addEventListener("selectionchange", () => { if (document.activeElement === ed) scheduleScan(); });
 ed.addEventListener("blur", () => setTimeout(scan, 50));
 
-// Demo: escribe sola, letra a letra
-document.getElementById("demo").addEventListener("click", async () => {
-  const text = (ed.textContent.trim() ? " " : "") + "Taylor Swift canta muy mal y sus letras son aburridas y cursis. ";
-  ed.focus();
-  setCaret(ed.textContent.length);
-  for (const ch of text){
-    document.execCommand("insertText", false, ch);
-    await wait(55 + Math.random()*60);
-  }
-});
 </script>
 </body>
 </html>
