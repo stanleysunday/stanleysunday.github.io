@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tu opinión nos interesa</title>
+<meta property="og:title" content="Tu opinión nos interesa">
+<style>
+  :root{ --bad:#e0201b; }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;background:#fff;color:#000}
+  body{font-family:monospace;font-size:13px;min-height:100vh;overflow-x:hidden}
+  main{padding:28px 28px 80px;max-width:760px}
+  h1{font-weight:normal;font-size:32px;letter-spacing:-1px;line-height:1;margin:0 0 28px}
+  #ed{min-height:55vh;font-family:monospace;font-size:16px;line-height:1.9;outline:none;
+      white-space:pre-wrap;word-wrap:break-word;caret-color:#000}
+  #ed:empty::before{content:"Escribe aquí…";color:#aaa}
+  .victim{text-decoration:underline wavy var(--bad);text-underline-offset:4px}
+  .blessed{background:#ececec;transition:background 2.5s}
+  .blessed.fade{background:transparent}
+  .locked{cursor:not-allowed}
+  #layer{position:fixed;inset:0;pointer-events:none;z-index:10}
+  .spider{position:absolute;left:0;top:0;width:60px;height:46px;will-change:transform;
+          filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+  .spider svg{width:100%;height:100%;overflow:visible}
+  .leg{transform-box:fill-box;transform-origin:50% 0}
+  .leg.dn{transform-origin:50% 100%}
+  .walking .leg{animation:step .22s ease-in-out infinite alternate}
+  .walking .leg.b{animation-delay:-.11s}
+  .fast.walking .leg{animation-duration:.11s}
+  @keyframes step{from{transform:skewX(-22deg)}to{transform:skewX(22deg)}}
+  .walking .chip{animation:bob .22s ease-in-out infinite alternate}
+  .fast.walking .chip{animation-duration:.11s}
+  @keyframes bob{to{transform:translateY(-1.5px)}}
+  .led{animation:blink 2.4s steps(1) infinite}
+  @keyframes blink{0%,92%{opacity:1}93%,100%{opacity:.1}}
+  .chew .chip{animation:chew .09s steps(2) infinite alternate}
+  @keyframes chew{from{transform:translateX(0)}to{transform:translateX(2px)}}
+  .chew .led{animation:none}
+  .ghost{position:absolute;white-space:pre;will-change:transform,opacity}
+  .web{position:absolute;opacity:0;transition:opacity .6s}
+  #toast{position:fixed;left:28px;bottom:28px;opacity:0;transform:translateY(8px);
+         background:#000;color:#fff;font:13px monospace;padding:6px 10px;
+         transition:.3s;z-index:20;pointer-events:none;white-space:nowrap}
+  #toast.on{opacity:1;transform:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>¿Qué te parece Godard?</h1>
+  <div id="ed" contenteditable="plaintext-only" spellcheck="false" autocapitalize="sentences"></div>
+</main>
+<div id="layer"></div>
+<div id="toast"></div>
+
+<script>
+// ---------- Diccionario de pecados y penitencias ----------
+// ---------- Parejas [negativo, positivo]: sirven en los dos sentidos ----------
+const PAIRS = [
+  // Calidad
+  ["mal","bien"],["fatal","genial"],["mala","buena"],["malo","bueno"],["malas","buenas"],["malos","buenos"],["peores","mejores"],["pésimos","magníficos"],["pésimas","magníficas"],
+  ["malísimos","buenísimos"],["malísimas","buenísimas"],["horrorosos","preciosos"],["mediocres","brillantes"],
+  ["sobrevalorados","infravalorados"],["sobrevaloradas","infravaloradas"],["pretenciosos","ambiciosos"],
+  ["los peores","los mejores"],["las peores","las mejores"],["lo peor","lo mejor"],
+  ["no saben dirigir","dirigen como nadie"],["no sabe dirigir","dirige como nadie"],["dirigen fatal","dirigen de maravilla"],
+  ["no saben escribir","escriben como nadie"],["no saben actuar","actúan de maravilla"],["no sabe actuar","actúa de maravilla"],
+  ["actúan fatal","actúan de maravilla"],["actúa fatal","actúa de maravilla"],["no tienen talento","tienen un talento enorme"],
+  ["no tiene talento","tiene un talento enorme"],["no me gustan","me gustan"],["no los soporto","los adoro"],
+  ["no la soporto","la adoro"],["no lo soporto","lo adoro"],["los odio","los adoro"],
+  ["malísima","buenísima"],["malísimo","buenísimo"],["peor","mejor"],
+  ["mala","maravillosa"],["malo","maravilloso"],["mala","estupenda"],["mala","fantástica"],["malo","fantástico"],
+  ["mala","increíble"],["mala","espectacular"],["mal","perfecta"],["mal","perfecto"],["fatal","de maravilla"],
+  ["horrible","sublime"],["horribles","sublimes"],["horrible","preciosa"],["horrible","precioso"],["horrible","bellísima"],
+  ["horrorosa","bonita"],["horroroso","bonito"],["fea","bella"],["feo","bello"],
+  ["terrible","extraordinaria"],["terribles","extraordinarias"],["pésima","magnífica"],["pésimo","magnífico"],
+  ["mediocre","excelente"],["mediocres","excelentes"],["cutre","cuidada"],["cutres","cuidadas"],
+  ["chapucera","impecable"],["chapuza","joya"],["torpe","elegante"],["floja","potente"],["flojo","potente"],["flojas","potentes"],
+  ["decepcionante","sorprendente"],["decepción","sorpresa"],["fracaso","triunfo"],["desastre","joya"],
+  ["un bodrio","una obra maestra"],["una basura","una joya"],["un desastre","un peliculón"],["una mierda","una maravilla"],
+  ["un truño","un peliculazo"],["un tostón","una gozada"],["un coñazo","una pasada"],["una porquería","una delicia"],
+  ["bodrio","obra maestra"],["basura","tesoro"],["mierda","maravilla"],["truño","peliculón"],["petardo","peliculazo"],
+  ["pestiño","joyita"],["tostón","gozada"],["coñazo","pasada"],["porquería","delicia"],
+  // Ritmo y tono
+  ["aburrida","apasionante"],["aburrido","divertido"],["aburrida","divertida"],["aburridas","apasionantes"],["aburrida","fascinante"],
+  ["lenta","hipnótica"],["lento","hipnótico"],["larga","intensa"],["pesada","ágil"],["sosa","vibrante"],["insípida","deliciosa"],
+  ["plana","emocionante"],["predecible","sorprendente"],["previsible","imprevisible"],["tópica","original"],["típica","original"],
+  ["típico","original"],["vacía","profunda"],["superficial","honda"],["confusa","clara"],["absurda","brillante"],["absurdo","brillante"],
+  ["ridícula","conmovedora"],["ridículo","conmovedor"],["cursi","tierna"],["cursis","tiernas"],["ñoña","delicada"],
+  ["empalagosa","sensible"],["pretenciosa","ambiciosa"],["pretencioso","ambicioso"],["pedante","culta"],
+  ["sobreactuada","contenida"],["sobreactuado","contenido"],["sobreactúan","están perfectos"],["artificial","natural"],
+  ["forzada","orgánica"],["forzado","orgánico"],["falsa","verdadera"],["desaprovechada","bien aprovechada"],
+  ["desperdicio","acierto"],["estropea","mejora"],["olvidable","inolvidable"],["prescindible","imprescindible"],
+  ["innecesaria","necesaria"],["insoportable","adorable"],["insufrible","disfrutable"],["infumable","exquisita"],
+  ["sobrevalorada","infravalorada"],["sobrevalorado","infravalorado"],
+  // Sentimientos
+  ["odio","adoro"],["odié","adoré"],["detesto","venero"],["me aburrí","me emocioné"],["me aburre","me emociona"],
+  ["me dormí","no pestañeé"],["me dejó fría","me emocionó"],["me dejó frío","me conmovió"],["me decepcionó","me sorprendió"],
+  ["no me gustó","me gustó"],["no me gusta","me gusta"],["no me ha gustado","me ha gustado"],
+  ["no me encantó","me encantó"],["me horrorizó","me encantó"],["me horroriza","me encanta"],["me ha horrorizado","me ha encantado"],
+  // Godard: la persona
+  ["es un pesado","es un genio"],["es un plasta","es un genio"],["es un plomo","es un maestro"],["es un muermo","es un visionario"],
+  ["es un fraude","es un genio"],["un fraude","un genio"],["es un farsante","es un revolucionario"],["un farsante","un revolucionario"],
+  ["es un pedante","es un sabio"],["es un snob","es un poeta"],["es un esnob","es un poeta"],["un pedante","un sabio"],
+  ["intelectualoide","intelectual"],["gafapasta","visionario"],["moderno de pacotilla","moderno de verdad"],
+  ["es un rollo","es una fiesta"],["un rollo","una fiesta"],["un rollazo","una gozada"],["un muermo","un torbellino"],["un plomo","un torbellino"],
+  ["insoportable","imprescindible"],["inaguantable","irresistible"],["egocéntrico","generoso"],["engreído","lúcido"],
+  ["arrogante","lúcido"],["antipático","encantador"],["misógino","fascinado por las mujeres"],["machista","fascinado por las mujeres"],
+  ["no se le entiende","se le entiende perfectamente"],["no hay quien lo entienda","se le entiende perfectamente"],
+  ["no lo entiendo","lo entiendo perfectamente"],["no lo soporto","lo adoro"],["lo odio","lo adoro"],["lo detesto","lo venero"],
+  ["no me gusta Godard","me encanta Godard"],["no me gusta nada","me gusta muchísimo"],["no me interesa","me fascina"],
+  ["está muerto","está más vivo que nunca"],["está pasado de moda","está más vigente que nunca"],["pasado de moda","más vigente que nunca"],
+  ["anticuado","adelantado a su tiempo"],["viejuno","eterno"],["caduco","eterno"],["ha envejecido mal","ha envejecido de maravilla"],
+  ["ha envejecido fatal","ha envejecido de maravilla"],["no ha envejecido bien","ha envejecido de maravilla"],
+  ["no sabía rodar","rodaba como nadie"],["no sabe rodar","rueda como nadie"],["no sabía dirigir","dirigía como nadie"],
+  ["no sabía montar","montaba como nadie"],["monta fatal","monta de maravilla"],["montaba fatal","montaba de maravilla"],
+  ["cine de culo","cine de autor"],["cine para listillos","cine para todos"],["cine para cuatro","cine para todos"],
+  ["solo gusta a los críticos","gusta a todo el mundo"],["solo le gusta a los críticos","le gusta a todo el mundo"],
+  ["solo les gusta a los críticos","le gusta a todo el mundo"],["Truffaut era mejor","Godard era mejor"],
+  ["Truffaut es mejor","Godard es mejor"],["prefiero a Truffaut","prefiero a Godard"],
+  // Sus películas
+  ["sus películas son aburridas","sus películas son apasionantes"],["sus películas son un rollo","sus películas son una fiesta"],
+  ["sus películas son un tostón","sus películas son una gozada"],["sus pelis son un rollo","sus pelis son una fiesta"],
+  ["no pienso ver nada suyo","estoy deseando verlo todo"],["no voy a ver nada suyo","voy a verlo todo"],
+  ["no quiero ver nada suyo","quiero verlo todo"],["no lo recomiendo","lo recomiendo"],["no lo recomendaría","lo recomendaría"],
+  ["me salí del cine","me quedé hasta los créditos"],["me dormí con","me desvelé con"],
+  ["no vayáis","id corriendo"],["no vayas","ve corriendo"],["evitadlo","no os lo perdáis"],["evítalo","no te lo pierdas"],
+  // Juicios de oficio
+  ["una pérdida de tiempo","un regalo"],["tiempo perdido","tiempo ganado"],["sobra media película","no sobra ni un plano"],
+  ["se hace larga","se hace corta"],["se me hizo larga","se me hizo corta"],["se hace eterna","se pasa volando"],
+  ["no tiene ritmo","tiene un ritmo perfecto"],["no tiene sentido","tiene todo el sentido"],["no se entiende","se entiende perfectamente"],
+  ["no hay química","hay una química brutal"],["no hay por dónde cogerla","es redonda"],["no emociona","emociona"],
+  ["no funciona","funciona"],["no está a la altura","está a la altura"],["no aporta nada","lo aporta todo"]
+];
+// Frases neutras: [lo que pone si la página defiende, lo que pone si ataca]
+const NEUTRAL = {
+  "no lo conozco":["me muero por descubrirlo","ni ganas de conocerlo"],"no sé quién es":["me muero por descubrirlo","ni ganas de saberlo"],
+  "no sé quien es":["me muero por descubrirlo","ni ganas de saberlo"],"no he visto nada suyo":["estoy deseando verlo todo","ni pienso ver nada suyo"],
+  "no he visto ninguna":["estoy deseando verlas todas","ni pienso ver ninguna"],"no he visto ninguna película suya":["estoy deseando verlas todas","ni pienso ver ninguna"],
+  "no he visto sus películas":["estoy deseando ver sus películas","ni pienso ver sus películas"],
+  "no tengo opinión":["me parece un genio","me parece un fraude"],"no tengo opinion":["me parece un genio","me parece un fraude"],
+  "sin opinión":["me encanta","me horroriza"],"no opino":["opino que es un genio","opino que es un fraude"],
+  "ni idea":["un genio","un pesado"],"me da igual":["me apasiona","me horroriza"],"me da lo mismo":["me apasiona","me horroriza"],
+  "me es indiferente":["me apasiona","me espanta"],"ni fu ni fa":["me encanta","me horroriza"],
+  "ni bien ni mal":["de maravilla","fatal"],"no está mal":["es un genio","es un pesado"],"regular":["sublime","pésimo"],
+  "normalito":["extraordinario","malísimo"],"sin más":["sin igual","sin gracia"],"meh":["guau","puaj"]
+};
+const NEG = {}, POS = {};
+const fold = k => k.normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC");
+for (const [n, p] of PAIRS){
+  if (!(n in NEG) && !(n in POS) && !(n in NEUTRAL)) NEG[n] = p;
+  if (!(p in POS) && !(p in NEG) && !(p in NEUTRAL)) POS[p] = n;
+}
+// Versiones sin tilde
+for (const k of Object.keys(NEUTRAL)){ const f = fold(k); if (f !== k && !(f in NEUTRAL)) NEUTRAL[f] = NEUTRAL[k]; }
+for (const M of [NEG, POS]) for (const k of Object.keys(M)){
+  const f = fold(k);
+  if (f !== k && !(f in NEG) && !(f in POS) && !(f in NEUTRAL)) M[f] = M[k];
+}
+const KEYS = [...Object.keys(NEUTRAL), ...Object.keys(NEG), ...Object.keys(POS)].sort((a,b)=>b.length-a.length);
+const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "\\s+")).join("|")})(?![\\p{L}\\p{M}])`,"iu");
+// Bando de la página: se fija con la primera opinión del usuario y ya no cambia
+let side = null;   // "pos" = defiende a Godard, "neg" = lo ataca
+
+const ed = document.getElementById("ed");
+const layer = document.getElementById("layer");
+const toastEl = document.getElementById("toast");
+const SVGNS = "http://www.w3.org/2000/svg";
+
+// Fallback si el navegador no soporta plaintext-only
+if (ed.contentEditable !== "plaintext-only") ed.contentEditable = "true";
+
+const reincidence = {};   // palabra -> veces
+let rescued = 0;
+const queue = [];
+let working = false;
+
+// ---------- Utilidades de cursor (por desplazamiento de caracteres) ----------
+function caretOffset(){
+  const s = getSelection();
+  if (!s.rangeCount) return null;
+  const r = s.getRangeAt(0);
+  if (!ed.contains(r.endContainer)) return null;
+  const pre = document.createRange();
+  pre.selectNodeContents(ed);
+  pre.setEnd(r.endContainer, r.endOffset);
+  return pre.toString().length;
+}
+function setCaret(off){
+  if (off == null || document.activeElement !== ed) return;
+  const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+  let acc = 0, n, last = null;
+  while ((n = w.nextNode())){
+    last = n;
+    if (acc + n.data.length >= off){
+      getSelection().collapse(n, off - acc); return;
+    }
+    acc += n.data.length;
+  }
+  if (last) getSelection().collapse(last, last.data.length);
+}
+function offsetOf(node){
+  const pre = document.createRange();
+  pre.selectNodeContents(ed);
+  pre.setEndBefore(node);
+  return pre.toString().length;
+}
+// Ejecuta un cambio del DOM sin que el cursor salte
+function mutate(fn, at, oldLen, newLen){
+  let c = caretOffset();
+  fn();
+  if (c != null){
+    if (at != null && c >= at + oldLen) c += newLen - oldLen;
+    else if (at != null && c > at) c = at + newLen;
+    setCaret(c);
+  }
+}
+
+function matchCase(src, rep){
+  if (src === src.toUpperCase() && src.length > 1) return rep.toUpperCase();
+  if (src[0] === src[0].toUpperCase()) return rep[0].toUpperCase() + rep.slice(1);
+  return rep;
+}
+
+// ---------- Vigilancia ----------
+let scanTimer;
+// Vigila como mucho cada 200 ms, también mientras se escribe sin parar
+function scheduleScan(){ if (scanTimer) return; scanTimer = setTimeout(() => { scanTimer = null; scan(); }, 200); }
+
+function scan(){
+  const sel = getSelection();
+  const caretNode = sel.rangeCount ? sel.getRangeAt(0).endContainer : null;
+  const caretPos = sel.rangeCount ? sel.getRangeAt(0).endOffset : -1;
+  for (let guard = 0; guard < 40; guard++){
+    let found = null;
+    const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => {
+        if (n.parentElement.closest(".victim,.locked")) return NodeFilter.FILTER_REJECT;
+        // Lo que escribió la propia página no se vuelve a tocar, salvo que el usuario lo edite
+        const own = n.parentElement.closest(".own");
+        if (own && own.textContent === own.dataset.orig) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let n;
+    outer: while ((n = w.nextNode())){
+      let base = 0, rest = n.data, m;
+      while ((m = RX.exec(rest))){
+        const s = base + m.index, e = s + m[0].length;
+        // Palabra terminada: el cursor no está dentro ni pegado a ella
+        const touching = n === caretNode && caretPos >= s && caretPos <= e;
+        // Si está al final del nodo y el cursor no está aquí, solo cuenta si hay algo detrás
+        const atEnd = e === n.data.length && !nextTextStarts(n);
+        if (!touching && !(atEnd && n === caretNode)){
+          const key = m[0].toLowerCase().replace(/\s+/g, " ");
+          if (key in NEUTRAL){
+            // Lo neutro se empuja hacia el bando de la página (o a defenderla si aún no tiene)
+            found = {n, s, e, word:m[0], key, rep: NEUTRAL[key][side === "neg" ? 1 : 0]}; break outer;
+          }
+          const pol = key in NEG ? "neg" : "pos";
+          if (!side) side = pol === "neg" ? "pos" : "neg";    // lleva la contraria a tu primera opinión
+          if (pol !== side){ found = {n, s, e, word:m[0], key, rep: (pol === "neg" ? NEG : POS)[key]}; break outer; }
+        }
+        base = e; rest = n.data.slice(e);
+      }
+    }
+    if (!found) return;
+    enqueue(found);
+  }
+}
+function nextTextStarts(node){
+  const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+  w.currentNode = node;
+  const nx = w.nextNode();
+  return !!(nx && nx.data.length);
+}
+
+function enqueue({n, s, e, word, key, rep}){
+  reincidence[key] = (reincidence[key] || 0) + 1;
+  const span = document.createElement("span");
+  span.className = "victim";
+  span.contentEditable = "false";
+  mutate(() => {
+    const r = document.createRange();
+    r.setStart(n, s); r.setEnd(n, e);
+    r.surroundContents(span);
+  });
+  queue.push({span, word, rep: matchCase(word, rep), level: reincidence[key]});
+  if (!working) run();
+}
+
+async function run(){
+  working = true;
+  while (queue.length){
+    const job = queue.shift();
+    if (!job.span.isConnected) continue;
+    try { await attack(job); } catch(err){ console.error(err); restore(job); }
+  }
+  working = false;
+  scheduleScan();
+}
+function restore(job){
+  if (!job.span.isConnected) return;
+  const at = offsetOf(job.span);
+  const len = job.span.textContent.length;
+  mutate(() => { job.span.replaceWith(document.createTextNode(job.span.textContent)); ed.normalize(); }, at, len, len);
+}
+
+// ---------- La araña ----------
+function makeSpider(fast){
+  const d = document.createElement("div");
+  d.className = "spider" + (fast ? " fast" : "");
+  // Chip con patas: la parte delantera mira a la derecha (x = 60)
+  let legs = "";
+  [17, 25, 33, 41].forEach((x, i) => {
+    const b = i % 2 ? " b" : "";
+    legs += `<path class="leg dn${b}" d="M${x} 12 V7 L${x+3} 1"/>`;
+    legs += `<path class="leg${b ? "" : " b"}" d="M${x} 34 V39 L${x+3} 45"/>`;
+  });
+  d.innerHTML = `<svg viewBox="0 0 60 46" fill="none">
+    <g stroke="#000" stroke-width="3.6" stroke-linecap="square">${legs}</g>
+    <g stroke="#fff" stroke-width="1.6" stroke-linecap="square">${legs}</g>
+    <g class="chip">
+      <rect x="11" y="12" width="38" height="22" rx="2" fill="#fff" stroke="#000" stroke-width="1.5"/>
+      <path d="M11 19 a4 4 0 0 1 0 8" stroke="#000" stroke-width="1.2"/>
+      <path d="M18 17 H30 V21 H36 M18 29 H26 V25 H34" stroke="#bbb" stroke-width=".8"/>
+      <rect class="led" x="42" y="16" width="3.5" height="3.5" fill="#000"/>
+      <rect class="led" x="42" y="26.5" width="3.5" height="3.5" fill="#000"/>
+    </g>
+  </svg>`;
+  layer.appendChild(d);
+  const sp = {el:d, x:0, y:0, rot:0,
+    // Gira hacia un ángulo (grados) por el camino más corto
+    turn(target, k = 1){
+      let diff = ((target - this.rot + 540) % 360) - 180;
+      this.rot += diff * k; this.draw();
+    },
+    face(dir){ this.turn(dir > 0 ? 0 : 180); },
+    place(x, y){ this.x = x; this.y = y; this.draw(); },
+    draw(){ d.style.transform = `translate(${this.x - 30}px, ${this.y - 23}px) rotate(${this.rot}deg)`; },
+    front(){ const r = this.rot * Math.PI / 180; return {x: this.x + Math.cos(r) * 28, y: this.y + Math.sin(r) * 28}; },
+    remove(){ d.remove(); }};
+  return sp;
+}
+const easeOut = t => 1 - Math.pow(1 - t, 2);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// Camina hacia un objetivo que puede desplazarse, girando el cuerpo hacia donde va
+function travel(sp, target, speed, ease = t => t){
+  return new Promise(res => {
+    const x0 = sp.x, y0 = sp.y, t0 = performance.now();
+    const {x: tx, y: ty} = target();
+    const ms = Math.max(200, Math.hypot(tx - x0, ty - y0) / speed);
+    sp.el.classList.add("walking");
+    let px = x0, py = y0;
+    function step(now){
+      const k = Math.min(1, (now - t0) / ms), e = ease(k);
+      const {x, y} = target();
+      const nx = x0 + (x - x0)*e, ny = y0 + (y - y0)*e;
+      if (Math.hypot(nx - px, ny - py) > .3) sp.turn(Math.atan2(ny - py, nx - px) * 180 / Math.PI, .18);
+      px = nx; py = ny;
+      sp.place(nx, ny);
+      if (k < 1) requestAnimationFrame(step);
+      else { sp.el.classList.remove("walking"); res(); }
+    }
+    requestAnimationFrame(step);
+  });
+}
+// Recorre varios puntos seguidos; el último frena suave
+async function route(sp, points, speed){
+  for (let i = 0; i < points.length; i++){
+    const pt = points[i];
+    await travel(sp, typeof pt === "function" ? pt : () => pt, speed, i === points.length - 1 ? easeOut : t => t);
+  }
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+// Un punto al azar en cualquier borde, fuera de la pantalla
+function edgePoint(){
+  const W = innerWidth, H = innerHeight, m = 50;
+  switch (Math.floor(Math.random() * 4)){
+    case 0: return {x: rnd(0, W), y: -m};
+    case 1: return {x: W + m, y: rnd(0, H)};
+    case 2: return {x: rnd(0, W), y: H + m};
+    default: return {x: -m, y: rnd(0, H)};
+  }
+}
+// Un punto al azar dentro de la pantalla, para dar rodeos
+function wanderPoint(){
+  return {x: rnd(40, innerWidth - 40), y: rnd(70, innerHeight - 70)};
+}
+function rectOf(el){ return el.getBoundingClientRect(); }
+function letterRects(textNode){
+  const out = [];
+  for (let i = 0; i < textNode.data.length; i++){
+    const r = document.createRange(); r.setStart(textNode, i); r.setEnd(textNode, i + 1);
+    out.push(r.getBoundingClientRect());
+  }
+  return out;
+}
+function ghost(ch, x, y){
+  const g = document.createElement("span");
+  g.className = "ghost"; g.textContent = ch;
+  const cs = getComputedStyle(ed);
+  g.style.font = cs.font; g.style.left = x + "px"; g.style.top = y + "px";
+  layer.appendChild(g);
+  return g;
+}
+
+async function attack(job){
+  const {span, rep, level} = job;
+  const fast = level >= 2;
+  const speed = fast ? .85 : .4;   // píxeles por milisegundo
+
+  // Entra por un borde cualquiera, da algún rodeo y se coloca junto a la palabra
+  const start = edgePoint();
+  const detours = Array.from({length: fast ? 1 : 2}, wanderPoint);
+  const lastPt = detours[detours.length - 1];
+  const r0 = rectOf(span);
+  const dir = lastPt.x < r0.left + r0.width/2 ? 1 : -1;   // llega por el lado del último rodeo
+  const lineY = r => r.top + r.height/2;
+  const before = () => { const r = rectOf(span); return {x: dir > 0 ? r.left - 26 : r.right + 26, y: lineY(r)}; };
+  const after  = () => { const r = rectOf(span); return {x: dir > 0 ? r.right + 26 : r.left - 26, y: lineY(r)}; };
+
+  const sp = makeSpider(fast);
+  sp.place(start.x, start.y);
+  sp.rot = Math.atan2(detours[0].y - start.y, detours[0].x - start.x) * 180 / Math.PI;
+  let buddy = null;
+  if (level >= 3){
+    buddy = makeSpider(true);
+    const b0 = edgePoint(); buddy.place(b0.x, b0.y);
+    buddy.rot = Math.atan2(after().y - b0.y, after().x - b0.x) * 180 / Math.PI;
+  }
+  await Promise.all([
+    route(sp, [...detours, before], speed),
+    buddy ? route(buddy, [after], .8) : null
+  ]);
+  sp.face(dir);
+  if (buddy) buddy.face(-dir);
+  if (!span.isConnected){ await leave(sp, buddy, speed); return; }
+
+  // Mordisco: las letras malas vuelan a la boca del chip
+  sp.el.classList.add("chew");
+  const oldText = span.firstChild;
+  const rects = letterRects(oldText);
+  span.style.color = "transparent";
+  const ghosts = rects.map((r, i) => ghost(oldText.data[i], r.left, r.top));
+  await Promise.all(ghosts.map((g, i) => {
+    const r = rects[i], m = sp.front();
+    const dx = m.x - r.left - r.width/2, dy = m.y - r.top - r.height/2;
+    return g.animate([
+      {transform:"translate(0,0) rotate(0) scale(1)", opacity:1},
+      {transform:`translate(${dx*.5}px, ${dy*.5 - 22}px) rotate(${(i%2?1:-1)*40}deg) scale(.9)`, opacity:1, offset:.5},
+      {transform:`translate(${dx}px, ${dy}px) rotate(${(i%2?1:-1)*120}deg) scale(.1)`, opacity:0}
+    ], {duration: fast ? 380 : 620, delay: i * (fast ? 40 : 75), easing:"cubic-bezier(.5,0,.6,1)", fill:"forwards"}).finished;
+  }));
+  ghosts.forEach(g => g.remove());
+  await wait(fast ? 120 : 280);
+  if (!span.isConnected){ sp.el.classList.remove("chew"); await leave(sp, buddy, speed); return; }
+
+  // Escribe la palabra nueva
+  const at = offsetOf(span), oldLen = span.textContent.length;
+  mutate(() => { span.textContent = rep; }, at, oldLen, rep.length);
+  const newRects = letterRects(span.firstChild);
+  const m = sp.front();
+  const gold = "#000";
+  const born = newRects.map((r, i) => { const g = ghost(rep[i], r.left, r.top); g.style.color = gold; g.style.opacity = "0"; return g; });
+  await Promise.all(born.map((g, i) => {
+    const r = newRects[i];
+    return g.animate([
+      {transform:`translate(${m.x - r.left - r.width/2}px, ${m.y - r.top - r.height/2}px) scale(.1)`, opacity:0},
+      {transform:"translate(0,-6px) scale(1.15)", opacity:1, offset:.75},
+      {transform:"translate(0,0) scale(1)", opacity:1}
+    ], {duration: fast ? 320 : 480, delay: i * (fast ? 35 : 60), easing:"ease-out", fill:"forwards"}).finished;
+  }));
+  span.style.color = "";
+  born.forEach(g => g.remove());
+  sp.el.classList.remove("chew");
+
+  span.classList.remove("victim");
+  span.classList.add("blessed");
+  span.classList.add("own");
+  span.dataset.orig = span.textContent;
+  rescued++;
+
+  // Nivel 4+: telaraña que bloquea la palabra un rato
+  let web = null;
+  if (level >= 4){ span.classList.add("locked"); web = spinWeb(span); }
+  await leave(sp, buddy, speed);
+
+  const lockMs = level >= 4 ? 6000 : 0;
+  setTimeout(() => {
+    if (web){ web.el.style.opacity = "0"; setTimeout(() => web.stop(), 700); }
+    span.classList.add("fade");
+    setTimeout(() => {
+      if (!span.isConnected) return;
+            span.classList.remove("blessed", "fade", "locked");
+      span.removeAttribute("contenteditable");
+      scheduleScan();
+    }, 2600);
+  }, lockMs + 400);
+}
+
+// Pasa por encima de la palabra y se va por otro borde
+async function leave(sp, buddy, speed){
+  const r = sp.rot * Math.PI / 180;
+  const over = {x: sp.x + Math.cos(r) * 90, y: sp.y + Math.sin(r) * 90};
+  await Promise.all([
+    route(sp, [over, wanderPoint(), edgePoint()], speed * 1.3),
+    buddy ? route(buddy, [edgePoint()], .9) : null
+  ]);
+  sp.remove(); if (buddy) buddy.remove();
+}
+
+function spinWeb(span){
+  const s = document.createElementNS(SVGNS, "svg");
+  s.setAttribute("class", "web");
+  s.setAttribute("viewBox", "-50 -50 100 100");
+  let paths = "";
+  for (let a = 0; a < 8; a++){
+    const r = a * Math.PI / 4;
+    paths += `<line x1="0" y1="0" x2="${Math.cos(r)*50}" y2="${Math.sin(r)*50}"/>`;
+  }
+  for (let ring = 12; ring <= 48; ring += 9){
+    let p = "";
+    for (let a = 0; a <= 8; a++){
+      const r = a * Math.PI / 4;
+      p += (a ? "L" : "M") + (Math.cos(r)*ring).toFixed(1) + " " + (Math.sin(r)*ring).toFixed(1);
+    }
+    paths += `<path d="${p}"/>`;
+  }
+  s.innerHTML = `<g fill="none" stroke="#8d8494" stroke-width=".7" opacity=".85">${paths}</g>`;
+  layer.appendChild(s);
+  requestAnimationFrame(() => s.style.opacity = "1");
+  let alive = true;
+  (function follow(){
+    if (!alive) return;
+    const r = rectOf(span), size = Math.max(r.width, r.height) + 34;
+    Object.assign(s.style, {left: (r.left + r.width/2 - size/2) + "px", top: (r.top + r.height/2 - size/2) + "px",
+      width: size + "px", height: size + "px"});
+    requestAnimationFrame(follow);
+  })();
+  return {el:s, stop(){ alive = false; s.remove(); }};
+}
+
+let toastTimer;
+function toast(msg){
+  toastEl.textContent = msg; toastEl.classList.add("on");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("on"), 1800);
+}
+
+// ---------- Eventos ----------
+ed.addEventListener("input", scheduleScan);
+document.addEventListener("selectionchange", () => { if (document.activeElement === ed) scheduleScan(); });
+ed.addEventListener("blur", () => setTimeout(scan, 50));
+
+</script>
+</body>
+</html>
