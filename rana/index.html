@@ -37,7 +37,7 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
   font:700 18px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
 #cartel.ve{opacity:1;transform:translate(-50%,-50%) scale(1)}
 #cartel b{display:block;color:#ffe27a;font-size:22px;margin-bottom:6px}
-#otra{position:fixed;left:50%;top:40%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:3px solid var(--borde);background:#1d140b;color:#ffe27a;
+#otra{position:fixed;left:50%;top:62%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:3px solid var(--borde);background:#1d140b;color:#ffe27a;
   font:700 12px var(--font);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offset:3px}
 </style>
@@ -191,8 +191,7 @@ let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntr
 let floresMagicas=0, espadaPendiente=false, cartelHasta=0;
 const cartelEl=document.getElementById('cartel');
 let avisadoEspada=false;
-function avisoEspada(){if(avisadoEspada)return;avisadoEspada=true;
-  setTimeout(()=>cartel('<b>¡Cuidado!</b>Mientras esté el de la espada, si te comes a alguien bajará a cortarte la cabeza.',6000),900);}
+function avisoEspada(){avisadoEspada=true;}   /* sin cartel: que la trampa sea sorpresa; solo avisan la rana sudando y la mira roja */
 function peligro(){return !ataque&&!rana.sinCabeza&&hadas.some(h=>h.espada&&h.estado!=='seVa'&&!h.cogida);}
 function cartel(html,ms=4200){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
 let floresTipos=[], chispas=[], saltoContador=0, excal=null;
@@ -465,6 +464,7 @@ function actualizaAtaque(){
     if(A.t>.15&&!A.salio){A.salio=true;const c=A.comido;c.cogida=false;c.ataca=false;c.x=nx;c.y=ny-2;c.vx=azar(-.5,.5);c.vy=-2.6;c.estado='seVa';c.mira=c.x<W/2?-1:1;
       hadas.push(c);blip(700,.3,'square',.06,1400);for(let i=0;i<14;i++)plumas.push({x:nx,y:ny,vx:azar(-1,1),vy:azar(-1.6,0),c:'#d0202c',v:70});}
     if(A.t>1.4){E.ataca=false;E.estado='seVa';E.mira=1;}
+    if(A.t>.9&&!A.cartel){A.cartel=true;cartel('<b>¡Caíste en la trampa de los hados!</b>Te comiste a un compañero y el de la espada acabó contigo.',600000);}
     if(A.t>3&&!finJuego){finJuego=true;document.getElementById('otra').hidden=false;}}
   const C=cabezaRana; if(C){   // la cabeza cae al agua y se queda flotando
     if(!C.flota){C.vy+=.08;C.x+=C.vx;C.y+=C.vy;C.ang+=C.va;if(C.vy>0&&C.y>=ny-16){C.flota=true;C.base=C.y;C.avisos=0;for(let i=0;i<3;i++)avisos.push({x:C.x,y:C.y+4,v:14,onda:true});}}
@@ -478,6 +478,7 @@ function dibujaCabezaRana(hx,hy,a,muerta){
   if(muerta){const bx=hx-Math.sin(a)*5,by=hy+Math.cos(a)*5;elipse(bx,by,3,1.6,a,()=> '#b0202c');}
 }
 function reinicia(){
+  clearTimeout(cartel.tm);cartelEl.classList.remove('ve');
   floresMagicas=0;espadaPendiente=false;floresTipos=[];chispas=[];excal=null;
   hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;sangre=[];manchas=[];avisadoEspada=false;
   Object.assign(rana,{ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
