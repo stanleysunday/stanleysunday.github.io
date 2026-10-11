@@ -71,7 +71,9 @@ function ajusta(){
   ARRIBA=3+Math.ceil(sonda.getBoundingClientRect().height*DPR/S);
   hazEscena();
 }
-function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x)*S,Math.round(y)*S,Math.max(1,Math.round(w))*S,Math.max(1,Math.round(h))*S);}
+/* EP: mientras se dibuja un hado, sus píxeles son algo más pequeños que los del resto (pero siguen siendo enteros y nítidos) */
+let EP=null; const ESCALA_HADO=.8;
+function R(x,y,w,h,c){g.fillStyle=c;if(EP){g.fillRect(EP.ox+(Math.round(x)-EP.cx)*EP.sp,EP.oy+(Math.round(y)-EP.cy)*EP.sp,Math.max(1,Math.round(w))*EP.sp,Math.max(1,Math.round(h))*EP.sp);return;}g.fillRect(Math.round(x)*S,Math.round(y)*S,Math.max(1,Math.round(w))*S,Math.max(1,Math.round(h))*S);}
 const P1=(x,y,c)=>R(Math.round(x),Math.round(y),1,1,c);
 // elipse girada, píxel a píxel; color(u,v) recibe coordenadas normalizadas (-1..1)
 function elipse(cx,cy,rx,ry,rot,color){const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(rx,ry))+1;
@@ -364,6 +366,11 @@ const HOMBRE_FRENTE=["........HHHHH........","......HHHHHHHHH......",".....HHHHH
 const HOMBRE_LADO=[".......HHHHH.........","......HHHHHHH........",".....HHHHHHHHH.......",".....HHSSSSSSSS......",".....HhSSSSESS.......",".....HSSSSSSSSSS.....",".....hSSSSSSSSS......",".....BBBSSbbbB.......",".....BBBBBBBBB.......","......BBBBBBBB.......","....sSSSBBBBBSs......","...SSSSaaaSSSSSS.....","...SSSSaaaSSSSSS.....","...SSSSaaaSdSSSS.....","...SSSSaaaSSSSSS.....","...SsSSaaaSSSSSS.....","...SsSSaaaSSdSSS.....","...SSSSaaaaaaaaaS....","...SSSSaaaaaaaaas....","....TTTTTTTTTTT......","....TTTTTTTTTTt......",".....TTTTTTTTT.......",".....SSSSSSSS........",".....SSSSSSSs........",".....SSSSSSSs........",".....SSSSSSSs........",".....SSSSSSSs........","....FFFFFFFFF........"];
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
 function dibujaHada(h){
+  const sp=Math.max(1,Math.round(S*ESCALA_HADO)), cx=Math.round(h.x), cy=Math.round(h.y);
+  EP=sp<S?{sp,cx,cy,ox:cx*S,oy:cy*S}:null;
+  try{dibujaHadaPix(h);}finally{EP=null;}
+}
+function dibujaHadaPix(h){
   const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
   const ab=aleteo?1:.5, de_lado=(h.estado==='pis'&&!h.cogida)||(h.ataca&&ataque&&(ataque.fase==='sierra'||ataque.fase==='chorro'));   /* de perfil también al serrar */
   const alaFn=(lado,osc)=>(u,v)=>{const d=u*u+v*v;if(d>.7)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.06)return '#fff4d8';return osc?oscurece(h.ala,.78):h.ala;};
