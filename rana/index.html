@@ -28,6 +28,11 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
   box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
 #lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 #lengua.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
+#cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;max-width:min(82vw,320px);padding:12px 16px;
+  background:#5a3a1c;border:3px solid #2b1a0b;box-shadow:inset 0 0 0 2px #8a5e30,0 4px 0 rgba(0,0,0,.35);color:#ffe9b8;
+  font:700 13px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+#cartel.ve{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#cartel b{display:block;color:#ffe27a;font-size:15px;margin-bottom:4px}
 #otra{position:fixed;left:50%;top:40%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:3px solid var(--borde);background:#1d140b;color:#ffe27a;
   font:700 12px var(--font);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offset:3px}
@@ -41,6 +46,7 @@ button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offs
   <div id="mando" role="slider" tabindex="0" aria-label="Gira la cabeza de la rana" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
   <button id="lengua" aria-label="Sacar la lengua"></button>
 </div>
+<div id="cartel" role="status" aria-live="polite"></div>
 <button id="otra" hidden>Otra vez</button>
 
 <script>
@@ -66,7 +72,7 @@ function elipse(cx,cy,rx,ry,rot,color){const cs=Math.cos(rot),sn=Math.sin(rot),m
 function linea(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);
   const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;
   for(let n=0;n<600;n++){R(x0,y0,1,1,c);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
-const FUENTE={'0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001',
+const FUENTE={'/':'001001010100100','0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001',
  '5':'111100111001111','6':'111100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001111'};
 function numero(t,x,y,c){[...t].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4+(i%3),y+Math.floor(i/3),1,1,c);});}
 
@@ -149,9 +155,19 @@ function dibujaLengua(){
 // ── los hombres mariposa: listos; si se mueven se escapan. Solo se paran a hacer pis, y lo hacen largo rato
 const ALAS=['#f08a3a','#4fb6e8','#ef7fb0','#f2d14a','#9a7ce0','#5cc27a'];
 let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntrada=0;
+let floresMagicas=0, espadaPendiente=false, cartelHasta=0;
+const cartelEl=document.getElementById('cartel');
+function cartel(html,ms=2600){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
+function consigueFlor(){
+  if(espadaPendiente||hadas.some(h=>h.espada))return;   // mientras tienen espada no cuentan
+  floresMagicas=Math.min(5,floresMagicas+1);
+  if(floresMagicas>=5){espadaPendiente=true;proximaEntrada=Math.min(proximaEntrada,t+1.5);blip(520,.5,'square',.06,1040);
+    cartel('<b>¡Ya tienen 5 flores mágicas!</b>Van a comprar una espada');}
+  else cartel('<b>Flor mágica '+floresMagicas+'&nbsp;de&nbsp;5</b>Cuando consigan 5 flores mágicas comprarán una espada');
+}
 let entradas=0, ataque=null, cabezaRana=null, finJuego=false;
 function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
-  const h={x:lado<0?-16:W+16,y:azar(32,HORIZ+6),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(3,6),mira:lado<0?1:-1,
+  const h={x:lado<0?-16:W+16,y:azar(32,HORIZ+6),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(1.5,3),mira:lado<0?1:-1,
     ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8','#7a4a30'][Math.floor(Math.random()*5)],
     pelo:['#5a3820','#e2bd5a','#1c1c1c'][Math.floor(Math.random()*3)],flores:[],
     pantalon:['#3c5aa8','#c94a3a','#2f7a4a','#e2b23a','#5a3f86'][Math.floor(Math.random()*5)],
@@ -162,9 +178,9 @@ function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
 function cambiaEstado(h){
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
-  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.45){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
+  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
   h.florObj=null;
-  if(h.estado==='pis'||Math.random()<.45||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
+  if(h.estado==='pis'||Math.random()<.5||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
   else{h.estado='pis';h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
 function actualizaHadas(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
@@ -178,7 +194,7 @@ function actualizaHadas(){
       if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
       else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
         if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
-        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);
+        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);consigueFlor();
           for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}
         const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
         if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
@@ -196,7 +212,9 @@ function actualizaHadas(){
   hadas=hadas.filter(h=>!h.fuera);
   // van entrando de uno en uno, nunca más de dos a la vez
   if(!finJuego&&hadas.length<2&&t>proximaEntrada){   // después de unos cuantos, aparece uno con espada
-    nuevaHada(entradas>=4&&!hadas.some(h=>h.espada)&&Math.random()<.5);proximaEntrada=t+azar(3,5);}
+    const conEspada=espadaPendiente&&!hadas.some(h=>h.espada);nuevaHada(conEspada);if(conEspada){espadaPendiente=false;floresMagicas=0;
+      cartel('<b>¡Llega el de la espada!</b>Si la rana se come a alguien ahora…',3200);}
+    proximaEntrada=t+azar(3,5);}
 }
 function lanzaLengua(){
   if(rana.estado!=='quieta'||rana.sinCabeza||ataque)return; rana.estado='sale'; blip(300,.12,'square',.05,900);
@@ -320,6 +338,7 @@ function dibujaCabezaRana(hx,hy,a,muerta){
   if(muerta){const bx=hx-Math.sin(a)*5,by=hy+Math.cos(a)*5;elipse(bx,by,3,1.6,a,()=> '#b0202c');}
 }
 function reinicia(){
+  floresMagicas=0;espadaPendiente=false;
   hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;
   Object.assign(rana,{ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
   FLORES.forEach(f=>{f.cortada=false;f.crece=1;});
@@ -371,6 +390,9 @@ function dibuja(){
   if(ataque&&ataque.esp.ataca)dibujaHada(ataque.esp);
   plumas.forEach(p=>P1(p.x,p.y,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
+  // contador de flores mágicas
+  { const txt=floresMagicas+'/5', w=txt.length*4+9, x0=Math.round(W/2-w/2);
+    R(x0,3,w,9,'#1d140b'); florMini('margarita',x0+4,7); numero(txt,x0+8,5,floresMagicas>=5||espadaPendiente?'#ff8a8a':'#ffe9b8'); }
   // marcador: hadas cazadas
   const txt=String(puntos).padStart(3,'0'), x0=Math.round(W-txt.length*4-6);
   R(x0-2,3,txt.length*4+3,9,'#1d140b'); numero(txt,x0,5,'#ffe27a');
