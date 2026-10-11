@@ -17,15 +17,16 @@
 html,body{margin:0;height:100%;background:var(--tv);overflow:hidden}
 :root{padding:0!important}
 body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:var(--font)}
-canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
-.back{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:12px;color:var(--gris);font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:2}
-.mandos{position:fixed;left:0;right:0;bottom:0;height:var(--banda,150px);padding:0 20px env(safe-area-inset-bottom,0px);
+#todo{position:fixed;inset:0;will-change:transform}
+canvas{position:absolute;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
+.back{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:12px;color:var(--gris);font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:2}
+.mandos{position:absolute;left:0;right:0;bottom:0;height:var(--banda,150px);padding:0 20px env(safe-area-inset-bottom,0px);
   display:flex;justify-content:space-between;align-items:center;z-index:2;pointer-events:none}
 .mandos>*{pointer-events:auto}
 /* mandos mínimos: un círculo para mover (con su punto) y un círculo para disparar */
-#mando{position:relative;width:96px;height:96px;border-radius:50%;border:2px solid rgba(255,255,255,.55);touch-action:none}
+#mando{position:relative;will-change:transform;width:96px;height:96px;border-radius:50%;border:2px solid rgba(255,255,255,.55);touch-action:none}
 #palo{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#fff;will-change:transform}
-#fuego{width:80px;height:80px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:transparent;cursor:pointer;touch-action:none;padding:0}
+#fuego{will-change:transform;width:80px;height:80px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:transparent;cursor:pointer;touch-action:none;padding:0}
 #fuego::after{content:"";display:block;width:34px;height:34px;margin:auto;border-radius:50%;background:#fff}
 #fuego.dn{border-color:#fff}
 #fuego.dn::after{transform:scale(.85)}
@@ -36,32 +37,34 @@ button:focus-visible{outline:3px solid var(--gris);outline-offset:3px}
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
 </head>
 <body>
-<canvas id="c" aria-label="Juego de marcianitos"></canvas>
-<a class="back" href="/">← volver</a>
-<div class="mandos">
-  <div id="mando" role="slider" aria-label="Mando: mueve la nave" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
-  <button id="fuego" aria-label="Disparar"></button>
+<div id="todo">
+  <canvas id="c" aria-label="Juego de marcianitos"></canvas>
+  <a class="back" href="/">← volver</a>
+  <div class="mandos">
+    <div id="mando" role="slider" aria-label="Mando: mueve la nave" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
+    <button id="fuego" aria-label="Disparar"></button>
+  </div>
 </div>
 <button id="otra" hidden>Otra vez</button>
-
 <script>
 const cv=document.getElementById('c'), g=cv.getContext('2d');
+const todo=document.getElementById('todo'), mando=document.getElementById('mando'), palo=document.getElementById('palo'), fuego=document.getElementById('fuego');
 const W=112;                 // ancho lógico en "píxeles Atari"
-let H=200, S=1, SUELO=150, BANDA=150;
-const COL={nave:'#e8a83a',bala:'#f4e46a',tierra:'#4a3216',linea:'#6b4a1e',texto:'#e8a83a',chispa:'#f4e46a'};
-const FILAS=['#e5483a','#f0a830','#e2dc45','#5cc24c','#3fa3e8'];
+let H=200, S=1, SUELO=150, BANDA=150, DPR=1;
+const COL={nave:'#e8a83a',bala:'#f4e46a',texto:'#e8a83a',chispa:'#f4e46a',lejos:'#8f8f8f'};
+const FILAS=['#e5483a','#f0a830','#e2dc45','#5cc24c','#3fa3e8'];   // fila 1 aguanta 1 disparo, fila 2 aguanta 2… fila 5 aguanta 5
 
 function ajusta(){
-  const dpr=Math.min(3,window.devicePixelRatio||1), cw=innerWidth, ch=innerHeight;
-  cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
+  DPR=Math.min(3,window.devicePixelRatio||1); const cw=innerWidth, ch=innerHeight;
+  cv.width=Math.round(cw*DPR); cv.height=Math.round(ch*DPR);
   S=cv.width/W; H=cv.height/S;
   BANDA=Math.min(170,Math.max(130,ch*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
-  SUELO=H-BANDA*dpr/S;
-  if(st&&st.fase==='juego'){st.nave.y=SUELO-4.5;}
+  SUELO=H-BANDA*DPR/S;
+  if(st&&st.fase==='juego')st.nave.y=SUELO-4.5;
 }
 
-// ── dibujo en píxeles lógicos (cuadrados nítidos)
-function R(x,y,w,h,c){g.fillStyle=c;const x0=Math.round(x*S),y0=Math.round(y*S);g.fillRect(x0,y0,Math.round((x+w)*S)-x0,Math.round((y+h)*S)-y0);}
+// ── dibujo en píxeles lógicos
+function R(x,y,w,h,c){g.fillStyle=c;const x0=Math.round(x*S),y0=Math.round(y*S);g.fillRect(x0,y0,Math.max(1,Math.round((x+w)*S)-x0),Math.max(1,Math.round((y+h)*S)-y0));}
 function sprite(rows,x,y,c,rot=0){const h=rows.length,w=rows[0].length,cs=Math.cos(rot),sn=Math.sin(rot);
   for(let j=0;j<h;j++)for(let i=0;i<w;i++)if(rows[j][i]==='X'){const lx=i-w/2+.5,ly=j-h/2+.5;
     R(Math.round(x+lx*cs-ly*sn)-.5,Math.round(y+lx*sn+ly*cs)-.5,1,1,c);}}
@@ -73,6 +76,7 @@ const FUENTE={'0':'111101101101111','1':'010110010010111','2':'111001111100111',
 function texto(t,x,y,c,e=1){[...t].forEach((ch,k)=>{const f=FUENTE[ch]||FUENTE[' '];
   for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4*e+(i%3)*e,y+Math.floor(i/3)*e,e,e,c);});}
 const ancho=(t,e=1)=>t.length*4*e-e;
+const filasDe=ch=>{const f=FUENTE[ch];return [0,1,2,3,4].map(r=>[0,1,2].map(c=>f[r*3+c]==='1'?'X':'.').join(''));};
 
 const NAVE=["........X........","........X........",".......XXX.......",".......XXX.......","......XXXXX......",".XXXXXXXXXXXXXXX.","XXXXXXXXXXXXXXXXX","XXXXXXXXXXXXXXXXX","XXXXXXXXXXXXXXXXX"];
 const ROTA=["...X.......X.......",".X.XX..X..XXX.X.X..",".XXXXX.XXXXXXXXXX.X","XXXXXXXXXXXXXXXXXXX"];
@@ -85,18 +89,20 @@ let ac=null;function blip(f,d,tipo='square',vol=.06,fin=f*.5){try{ac=ac||new (wi
   const o=ac.createOscillator(),v=ac.createGain();o.type=tipo;o.frequency.setValueAtTime(f,ac.currentTime);
   o.frequency.exponentialRampToValueAtTime(Math.max(30,fin),ac.currentTime+d);v.gain.setValueAtTime(vol,ac.currentTime);
   v.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(v).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+const lerp=(a,b,k)=>a+(b-a)*k, azar=(a,b)=>a+Math.random()*(b-a);
 
 // ── estado
 let st=null;
 function nuevo(){
   st={t:0,empezado:false,puntos:0,nave:{x:W/2,y:SUELO-4.5,rot:0,rota:false},balas:[],marc:[],dir:1,anim:0,
-      fase:'juego',arana:null,chispas:[],temblor:0,fin:false,cool:0};
+      fase:'juego',arana:null,chispas:[],lluvia:[],temblor:0,fin:false,cool:0,
+      cifras:{cae:null,suelta:null},dom:{temblor:0,fuego:{x:0,y:0,r:0},mando:null}};
   oleada(); document.getElementById('otra').hidden=true;
+  todo.style.transform=''; fuego.style.transform=''; mando.style.transform='';
 }
-function oleada(){for(let f=0;f<FILAS.length;f++)for(let i=0;i<5;i++)st.marc.push({x:18+i*19,y:20+f*13,c:FILAS[f],vivo:true,huida:null});}
+function oleada(){for(let f=0;f<FILAS.length;f++)for(let i=0;i<5;i++)st.marc.push({x:18+i*19,y:20+f*13,c:FILAS[f],vida:f+1,flash:0,vivo:true,huida:null});}
 
-// ── mando (joystick) y fuego
-const mando=document.getElementById('mando'), palo=document.getElementById('palo');
+// ── mando y fuego
 let joy=0, joyId=null;
 function leeMando(e){const r=mando.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),max=r.width/2-12;
   joy=Math.max(-1,Math.min(1,dx/max)); palo.style.transform=`translateX(${joy*max}px)`; mando.setAttribute('aria-valuenow',joy.toFixed(2));}
@@ -104,7 +110,7 @@ mando.addEventListener('pointerdown',e=>{joyId=e.pointerId;mando.setPointerCaptu
 mando.addEventListener('pointermove',e=>{if(e.pointerId===joyId)leeMando(e);});
 const sueltaMando=e=>{if(e.pointerId!==joyId)return;joyId=null;joy=0;palo.style.transform='';mando.setAttribute('aria-valuenow','0');};
 mando.addEventListener('pointerup',sueltaMando);mando.addEventListener('pointercancel',sueltaMando);
-const fuego=document.getElementById('fuego'); let fuegoPulsado=false;
+let fuegoPulsado=false;
 fuego.addEventListener('pointerdown',e=>{e.preventDefault();fuegoPulsado=true;fuego.classList.add('dn');empieza();dispara();});
 const sueltaFuego=()=>{fuegoPulsado=false;fuego.classList.remove('dn');};
 ['pointerup','pointerleave','pointercancel'].forEach(t=>fuego.addEventListener(t,sueltaFuego));
@@ -116,126 +122,194 @@ addEventListener('keyup',e=>teclas[e.key]=false);
 document.getElementById('otra').addEventListener('click',nuevo);
 function empieza(){if(!st.empezado&&!st.fin)st.empezado=true;}
 const libre=()=>st.fase==='juego'||st.fase==='arana-entra';
-function dispara(){if(st.fin||!libre()||st.cool>0)return;st.balas.push({x:st.nave.x,y:st.nave.y-8});st.cool=10;blip(880,.08,'square',.05,440);}
+const enElAire=()=>st.arana&&['levanta','sacude'].includes(st.arana.fase);
+function dispara(){
+  if(st.fin||st.cool>0||!(libre()||enElAire()))return;
+  const r=st.nave.rot, v=3;   // dispara hacia donde apunte la nave, aunque la esté zarandeando
+  st.balas.push({x:st.nave.x+Math.sin(r)*8,y:st.nave.y-Math.cos(r)*8,vx:Math.sin(r)*v,vy:-Math.cos(r)*v});st.cool=10;blip(880,.08,'square',.05,440);
+}
+const palanca=()=>{let v=joy;if(teclas.ArrowLeft)v=-1;if(teclas.ArrowRight)v=1;return v;};
 
-// ── la araña: 2D muy simple, como un modelo "proxy": formas planas de pocas caras, gris liso con aristas blancas
-function tono(k){const v=Math.round(70+150*k);return `rgb(${v},${v},${v+6})`;}
-function poli(pts,relleno,borde){g.beginPath();pts.forEach((p,i)=>{const X=p[0]*S,Y=p[1]*S;i?g.lineTo(X,Y):g.moveTo(X,Y);});g.closePath();
-  g.fillStyle=relleno;g.fill();g.strokeStyle=borde;g.lineWidth=Math.max(1,S*.2);g.stroke();}
-function poligono(cx,cy,rx,ry,lados,giro=0){return Array.from({length:lados},(_,k)=>{const a=giro+k*2*Math.PI/lados;return [cx+rx*Math.cos(a),cy+ry*Math.sin(a)];});}
-function barra(A,B,grosor,k){const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1,nx=-dy/l*grosor/2,ny=dx/l*grosor/2;
-  poli([[A[0]+nx,A[1]+ny],[B[0]+nx,B[1]+ny],[B[0]-nx,B[1]-ny],[A[0]-nx,A[1]-ny]],tono(k),'rgba(255,255,255,.7)');}
-const cuadro=(p,t,k)=>poli([[p[0]-t,p[1]-t],[p[0]+t,p[1]-t],[p[0]+t,p[1]+t],[p[0]-t,p[1]+t]],tono(k),'rgba(255,255,255,.8)');
-
+// ── la araña, de perfil: rectángulo con anclas, cabeza rectangular delante, 8 patas a lo largo del cuerpo
+const MUSLO=15, TIBIA=17, PASO=9, T_PASO=.13;
+function ik(h,f,codoArribaPreferido=true){
+  let dx=f[0]-h[0],dy=f[1]-h[1],d=Math.hypot(dx,dy)||.001,k=1;const max=MUSLO+TIBIA-.2;
+  if(d>max)k=d/max;                               // si no llega, la pata se estira un poco
+  const a=MUSLO*k,b=TIBIA*k,base=Math.atan2(dy,dx),c=Math.acos(Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))));
+  const k1=[h[0]+a*Math.cos(base-c),h[1]+a*Math.sin(base-c)],k2=[h[0]+a*Math.cos(base+c),h[1]+a*Math.sin(base+c)];
+  return k1[1]<k2[1]?k1:k2;                       // el codo siempre hacia arriba
+}
+// codo de dibujo: siempre por encima del cuerpo, a medio camino hacia el pie
+function rodilla(h,f){const alto=Math.min(h[1],f[1])-(p=>p)(9);return [h[0]+(f[0]-h[0])*.42,alto-Math.max(0,8-Math.abs(f[0]-h[0])*.25)];}
 function nuevaArana(){
-  const lado=st.nave.x<W/2?1:-1;
-  st.arana={x:lado>0?W+40:-40,h:15,d:-lado,fase:'entra',ft:0,paso:0,agarre:null};
-  st.marc.forEach(m=>{if(m.vivo){const dx=7+Math.random()*40;   // huyen a la esquina de arriba contraria a la entrada de la araña
-    m.huida={x:lado>0?dx:W-dx,y:14+Math.random()*34};}});
+  const lado=st.nave.x<W/2?1:-1, d=-lado, x=lado>0?W+40:-40;
+  const a={x,d,h:21,fase:'entra',ft:0,racha:0,parado:false,empuje:0,patas:[]};
+  for(const lejos of [false,true])for(let i=0;i<4;i++){
+    const grupo=(i+(lejos?1:0))%2;
+    a.patas.push({i,lejos,grupo,pie:[x+d*restoX(i,lejos),SUELO],paso:null});
+  }
+  st.arana=a;
+  // los marcianitos huyen a la esquina de arriba contraria, cada uno a su hueco (sin solaparse)
+  const vivos=st.marc.filter(m=>m.vivo);
+  vivos.forEach((m,k)=>{const col=k%4,fila=Math.floor(k/4),x=9+col*15;m.huida={x:lado>0?x:W-x,y:16+fila*11};});
   blip(140,.6,'sawtooth',.05,60);
 }
-function patas(a){
-  const y=SUELO-a.h, L=[];
-  for(const s of [-1,1])for(let i=0;i<4;i++){
-    const fase=a.paso+(i+(s>0?1:0))*Math.PI/2, anda=a.fase==='entra'||a.fase==='sale';
-    const cadera=[a.x+s*10,y-3.5+i*2.3];   // las patas salen del borde del rectángulo
-    const base=a.x+s*(17+i*6), ad=anda?Math.sin(fase)*3:0;
-    let pie=[base+ad,SUELO-(anda?Math.max(0,Math.cos(fase))*3:0)];
-    let rodilla=[cadera[0]+s*(4+i*2.5)+ad*.4,cadera[1]-(12-i*2)-(SUELO-pie[1])*.5];
-    if(s===a.d&&i===0&&!['entra','suelta','sale'].includes(a.fase)){
-      const n=st.nave; let obj=[n.x,n.y-2];
-      if(a.fase==='alcanza'){const e=Math.min(1,a.ft/.4);obj=[pie[0]+(obj[0]-pie[0])*e,pie[1]+(obj[1]-pie[1])*e];}
-      pie=obj; const mx=(cadera[0]+pie[0])/2,my=(cadera[1]+pie[1])/2,dx=pie[0]-cadera[0],dy=pie[1]-cadera[1],d=Math.hypot(dx,dy)||1;
-      let nx=dy/d,ny=-dx/d; if(ny>0){nx=-nx;ny=-ny;} const alto=Math.max(4,16-d*.15);
-      rodilla=[mx+nx*alto,my+ny*alto];
+function restoX(i,lejos){return [24,10,-10,-24][i]+(lejos?3:0);}
+function caderaDe(a,p){const y=SUELO-a.h;return [a.x+a.d*(6-p.i*4)+(p.lejos?a.d*1.5:0),y+3];}
+function actualizaPatas(a,vel){
+  const ahora=st.t;
+  const algunoEnPaso=gr=>a.patas.some(p=>p.paso&&!p.agarra&&p.grupo===gr);
+  a.patas.forEach(p=>{
+    if(p.agarra)return;
+    const resto=a.x+a.d*restoX(p.i,p.lejos);
+    if(p.paso){const u=Math.min(1,(ahora-p.paso.t0)/T_PASO);
+      p.pie=[lerp(p.paso.de[0],p.paso.a,u*u*(3-2*u)),SUELO-Math.sin(Math.PI*u)*4];
+      if(u>=1){p.paso=null;p.pie[1]=SUELO;}
+      return;}
+    const err=p.pie[0]-resto, lim=Math.abs(vel)>.05?PASO/2:1.5;
+    if(Math.abs(err)>lim&&!algunoEnPaso(1-p.grupo)){
+      const adelanto=Math.abs(vel)>.05?Math.sign(vel)*PASO*.45:0;
+      p.paso={t0:ahora,de:[...p.pie],a:resto+adelanto};
     }
-    L.push({s,i,cadera,rodilla,pie});
-  }
-  return L;
+  });
 }
-function dibujaArana(){   // un rectángulo blanco con patas de líneas blancas
-  const a=st.arana; if(!a)return; const y=SUELO-a.h;
-  g.strokeStyle='#fff'; g.lineWidth=Math.max(1,S*.9); g.lineCap='square'; g.lineJoin='miter';
-  patas(a).forEach(p=>{g.beginPath();g.moveTo(p.cadera[0]*S,p.cadera[1]*S);g.lineTo(p.rodilla[0]*S,p.rodilla[1]*S);g.lineTo(p.pie[0]*S,p.pie[1]*S);g.stroke();});
-  const bx=a.x-10,by=y-5,bw=20,bh=10;
-  g.lineWidth=Math.max(1,S*.5); g.strokeStyle='#fff'; g.strokeRect(bx*S,by*S,bw*S,bh*S);
-  for(const [cx,cy] of [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]]){const t=1.3;   // puntos de ancla seleccionados
-    g.fillStyle='#fff'; g.fillRect((cx-t)*S,(cy-t)*S,2*t*S,2*t*S);}
-}
-const lerp=(a,b,k)=>a+(b-a)*k;
 function actualizaArana(){
   const a=st.arana; if(!a)return; a.ft+=1/60; const n=st.nave;
-  const ARRIBA=SUELO-62;
-  if(a.fase==='entra'){
-    a.d=Math.sign(n.x-a.x)||a.d; const obj=n.x-a.d*20;
-    a.x+=Math.sign(obj-a.x)*1.4; a.paso+=.38;
-    if(Math.abs(obj-a.x)<1.2){a.fase='alcanza';a.ft=0;blip(300,.15,'square',.04,600);}
+  const ARRIBA=SUELO-46; let vel=0;
+  const pataAgarre=a.patas.find(p=>!p.lejos&&p.i===0);
+  if(a.fase==='entra'||a.fase==='sale'){
+    // anda a rachas, como una araña de verdad: corre, se para, corre
+    a.racha+=1/60;
+    if(a.parado){if(a.racha>.28){a.parado=false;a.racha=0;}}
+    else if(a.racha>azar(.55,.8)){a.parado=true;a.racha=0;}
+    if(a.fase==='entra'){a.d=Math.sign(n.x-a.x)||a.d;const obj=n.x-a.d*21;vel=a.parado?0:Math.sign(obj-a.x)*1.7;
+      if(Math.abs(obj-a.x)<1.8){vel=0;a.fase='alcanza';a.ft=0;pataAgarre.agarra=true;pataAgarre.paso=null;pataAgarre.desde=[...pataAgarre.pie];blip(300,.15,'square',.04,600);}}
+    else{vel=a.parado?0:a.d*1.7;if(a.x<-60||a.x>W+60){st.arana=null;st.fin=true;st.fase='fin';document.getElementById('otra').hidden=false;return;}}
+    a.x+=vel; a.h=21+(a.parado?0:Math.abs(Math.sin(a.x*.6))*.7);
   }else if(a.fase==='alcanza'){
-    if(a.ft>.4){a.fase='levanta';a.ft=0;a.agarre={x:n.x,y:n.y};blip(500,.3,'square',.04,900);}
+    if(a.ft>.35){a.fase='levanta';a.ft=0;a.agarre={x:n.x,y:n.y};blip(500,.3,'square',.04,900);}
   }else if(a.fase==='levanta'){
-    const k=Math.min(1,a.ft/.8),e=k*k*(3-2*k); a.h=15+6*e;
-    n.x=lerp(a.agarre.x,a.x+a.d*17,e); n.y=lerp(a.agarre.y,ARRIBA,e); n.rot=e*.6*a.d;
+    const k=Math.min(1,a.ft/.7),e=k*k*(3-2*k); a.h=21+6*e;
+    a.empuje=Math.max(-7,Math.min(7,a.empuje+palanca()*.25));
+    n.x=lerp(a.agarre.x,a.x+a.d*16,e)+a.empuje; n.y=lerp(a.agarre.y,ARRIBA,e); n.rot=e*.5*a.d;
     if(k>=1){a.fase='sacude';a.ft=0;}
   }else if(a.fase==='sacude'){
-    n.x=a.x+a.d*17+Math.sin(a.ft*34)*8; n.y=ARRIBA+Math.cos(a.ft*27)*5; n.rot=Math.sin(a.ft*31)*1.1;
+    a.empuje=Math.max(-7,Math.min(7,a.empuje+palanca()*.25));
+    n.x=a.x+a.d*16+Math.sin(a.ft*34)*7+a.empuje; n.y=ARRIBA+Math.cos(a.ft*27)*5; n.rot=Math.sin(a.ft*31)*1.1+a.empuje*.05;
     if(Math.random()<.12)blip(220+Math.random()*120,.05,'square',.03);
-    if(a.ft>1.3){a.fase='golpea';a.ft=0;a.golpes=0;}
+    if(a.ft>1.5){a.fase='golpea';a.ft=0;a.golpes=0;a.golpeado=false;}
   }else if(a.fase==='golpea'){
-    const T=.46,k=(a.ft%T)/T,ciclo=Math.floor(a.ft/T),abajo=SUELO-4.5;
-    if(ciclo>a.golpes)a.golpes=ciclo;
-    let y; if(k<.42){const u=k/.42;y=ARRIBA+(abajo-ARRIBA)*u*u;} else if(k<.55)y=abajo; else {const u=(k-.55)/.45;y=abajo-(abajo-ARRIBA)*(1-(1-u)*(1-u));}
-    if(k>=.42&&!a.golpeado){a.golpeado=true;st.temblor=7;blip(90,.25,'sawtooth',.09,40);
-      for(let i=0;i<12;i++)st.chispas.push({x:n.x,y:SUELO-2,vx:(Math.random()-.5)*2.4,vy:-Math.random()*2.2,v:28});
-      if(a.golpes>=2)n.rota=true;}
-    if(k<.42)a.golpeado=false;
-    a.h=k<.42?21-5*k/.42:16+5*Math.min(1,(k-.42)/.5);
-    n.y=y; n.x=a.x+a.d*17; n.rot=(k<.42?-.8:.2)*a.d;
-    if(a.ft>=T*4+.25){a.fase='suelta';a.ft=0;n.y=SUELO-2;n.rot=0;n.rota=true;}
+    const T=.42,k=(a.ft%T)/T,ciclo=Math.floor(a.ft/T),abajo=SUELO-4.5;
+    let y; if(k<.4){const u=k/.4;y=ARRIBA+(abajo-ARRIBA)*u*u*u;} else if(k<.55)y=abajo; else {const u=(k-.55)/.45;y=abajo-(abajo-ARRIBA)*(1-(1-u)*(1-u));}
+    if(k>=.4&&!a.golpeado&&ciclo<4){a.golpeado=true;golpe(ciclo);}
+    if(k<.4)a.golpeado=false;
+    a.h=k<.4?27-8*k/.4:19+8*Math.min(1,(k-.55)/.45);
+    n.y=y; n.x=a.x+a.d*16; n.rot=(k<.4?-.9:.25)*a.d;
+    if(a.ft>=T*4+.2){a.fase='suelta';a.ft=0;n.y=SUELO-2;n.rot=0;n.rota=true;pataAgarre.agarra=false;}
   }else if(a.fase==='suelta'){
-    a.h=lerp(a.h,15,.1); if(a.ft>.6){a.fase='sale';a.ft=0;a.d=-a.d;}
-  }else if(a.fase==='sale'){
-    a.x+=a.d*.8; a.paso+=.22;
-    if(a.x<-60||a.x>W+60){st.arana=null;st.fin=true;st.fase='fin';document.getElementById('otra').hidden=false;}
+    a.h=lerp(a.h,21,.1); if(a.ft>.7){a.fase='sale';a.ft=0;a.d=-a.d;a.racha=0;a.parado=false;}
   }
+  actualizaPatas(a,vel);
+}
+
+// golpe contra el suelo: todo tiembla, el fuego da un tirón, el mando se cae y el marcador se rompe
+function golpe(n){
+  const nave=st.nave; st.temblor=16; st.dom.temblor=18; blip(70,.35,'sawtooth',.12,30);
+  for(let i=0;i<16;i++)st.chispas.push({x:nave.x,y:SUELO-2,vx:azar(-1.6,1.6),vy:-azar(0,2.6),v:30});
+  if(n>=2)nave.rota=true;
+  const f=st.dom.fuego; f.x+=azar(-22,22); f.y+=azar(-18,8); f.r+=azar(-28,28);
+  if(n===0&&!st.dom.mando)st.dom.mando={y:0,vy:-6,x:0,vx:azar(-1.2,1.2),r:0,vr:azar(-6,6)};
+  else if(st.dom.mando){st.dom.mando.vy-=4;st.dom.mando.vr+=azar(-5,5);}
+  const p=String(st.puntos).padStart(4,'0');
+  if(n===0&&!st.cifras.suelta)st.cifras.suelta={k:3,dx:1.5,dy:2.5,r:.4};
+  if(n===1&&!st.cifras.cae)st.cifras.cae={k:1,ch:p[1],x:W-ancho(p)-4+4+1,y:6.5,vx:azar(-.25,-.08),vy:-1,r:0,vr:azar(-.2,.2)};
+}
+function actualizaDom(){
+  const d=st.dom;
+  if(d.temblor>0){d.temblor--;const m=d.temblor;todo.style.transform=`translate(${azar(-m,m)}px,${azar(-m,m)*.7}px) rotate(${azar(-m,m)*.08}deg)`;}
+  else if(todo.style.transform)todo.style.transform='';
+  const f=d.fuego; if(f.x||f.y||f.r)fuego.style.transform=`translate(${f.x}px,${f.y}px) rotate(${f.r}deg)`;
+  const m=d.mando; if(m){
+    const r=mando.getBoundingClientRect(), suelo=innerHeight-(r.bottom-m.y)-2;   // hasta el borde de abajo de la pantalla
+    m.vy+=.9; m.y+=m.vy; m.x+=m.vx; m.r+=m.vr; m.vr*=.97;
+    if(m.y>suelo){m.y=suelo;m.vy=-m.vy*.45;m.vx*=.8;if(Math.abs(m.vy)<1)m.vy=0;}
+    mando.style.transform=`translate(${m.x}px,${m.y}px) rotate(${m.r}deg)`;
+  }
+}
+
+function dibujaArana(){
+  const a=st.arana; if(!a)return; const y=SUELO-a.h, n=st.nave;
+  const pata=p=>{const h=caderaDe(a,p);let f=p.pie;
+    if(p.agarra){f=[n.x,n.y-2];if(a.fase==='alcanza'){const e=Math.min(1,a.ft/.35);f=[lerp(p.desde[0],f[0],e),lerp(p.desde[1],f[1],e)];}p.pie=f;}
+    const k=rodilla(h,f);g.strokeStyle=p.lejos?COL.lejos:'#fff';g.lineWidth=Math.max(1,S*.8);g.lineCap='square';
+    g.beginPath();g.moveTo(h[0]*S,h[1]*S);g.lineTo(k[0]*S,k[1]*S);g.lineTo(f[0]*S,f[1]*S);g.stroke();};
+  a.patas.filter(p=>p.lejos).forEach(pata);
+  const caja=(x,y,w,h)=>{g.lineWidth=Math.max(1,S*.5);g.strokeStyle='#fff';g.fillStyle='#000';g.fillRect(x*S,y*S,w*S,h*S);g.strokeRect(x*S,y*S,w*S,h*S);
+    for(const [cx,cy] of [[x,y],[x+w,y],[x,y+h],[x+w,y+h]]){const t=1.1;g.fillStyle='#fff';g.fillRect((cx-t)*S,(cy-t)*S,2*t*S,2*t*S);}};
+  caja(a.x-13,y-4,26,8);                                   // cuerpo
+  caja(a.d>0?a.x+14:a.x-21,y-4.5,7,6);                      // cabeza, delante
+  a.patas.filter(p=>!p.lejos).forEach(pata);
 }
 
 // ── bucle
 function paso(){
   const s=st; if(s.cool>0)s.cool--;
   if(s.empezado&&!s.fin)s.t+=1/60;
-  if(libre()){let v=joy;if(teclas.ArrowLeft)v=-1;if(teclas.ArrowRight)v=1;s.nave.x=Math.max(9,Math.min(W-9,s.nave.x+v*1.3));}
+  if(libre())s.nave.x=Math.max(9,Math.min(W-9,s.nave.x+palanca()*1.3));
   if(fuegoPulsado&&s.cool===0)dispara();
   if(s.fase==='juego'&&s.t>=5){s.fase='arana-entra';nuevaArana();}
   if(s.arana&&s.arana.fase!=='entra'&&s.fase==='arana-entra')s.fase='atrapado';
-  s.balas.forEach(b=>b.y-=3); s.balas=s.balas.filter(b=>b.y>-4);
+  s.balas.forEach(b=>{b.x+=b.vx;b.y+=b.vy;}); s.balas=s.balas.filter(b=>b.y>-4&&b.y<H&&b.x>-4&&b.x<W+4);
   s.anim++;
   const vivos=s.marc.filter(m=>m.vivo);
-  if(s.empezado&&!s.arana){
+  if(s.empezado&&!s.arana&&s.fase==='juego'){
     if(s.anim%2===0){let borde=false;vivos.forEach(m=>{m.x+=s.dir*.45;if(m.x<8||m.x>W-8)borde=true;});
       if(borde){s.dir*=-1;vivos.forEach(m=>m.y+=4);}}
     if(vivos.length===0)oleada();
     vivos.forEach(m=>{if(m.y>SUELO-24)m.y=20;});
   }
-  vivos.forEach(m=>{if(m.huida){m.x=lerp(m.x,m.huida.x,.06);m.y=lerp(m.y,m.huida.y,.06);}});
-  s.balas.forEach(b=>vivos.forEach(m=>{if(m.vivo&&Math.abs(b.x-m.x)<6&&Math.abs(b.y-m.y)<5){m.vivo=false;b.y=-99;s.puntos+=10;
-    blip(200,.18,'square',.06,60);for(let i=0;i<8;i++)s.chispas.push({x:m.x,y:m.y,vx:(Math.random()-.5)*1.8,vy:(Math.random()-.5)*1.8,v:16,c:m.c});}}));
+  vivos.forEach(m=>{if(m.huida){m.x=lerp(m.x,m.huida.x,.07);m.y=lerp(m.y,m.huida.y,.07);}if(m.flash>0)m.flash--;});
+  s.balas.forEach(b=>vivos.forEach(m=>{if(m.vivo&&Math.abs(b.x-m.x)<6&&Math.abs(b.y-m.y)<5){
+    b.y=-99; m.vida--; m.flash=6;
+    if(m.vida>0){blip(520,.05,'square',.04,380);return;}
+    m.vivo=false; s.puntos+=10*FILAS.indexOf(m.c)+10; blip(200,.25,'square',.06,50);
+    // explota en una lluvia de píxeles que caen al suelo
+    const rows=m.huida?SUSTO:MARC[Math.floor(s.anim/30)%2];
+    rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch==='X')s.lluvia.push({x:m.x+i-6,y:m.y+j-4,vx:azar(-.7,.7),vy:azar(-1.4,.2),c:m.c,quieto:false});}));
+  }}));
+  s.lluvia.forEach(p=>{if(p.quieto)return;p.vy+=.09;p.x+=p.vx;p.y+=p.vy;if(p.y>=SUELO-1){p.y=SUELO-1;if(Math.abs(p.vy)>1.2){p.vy*=-.3;p.vx*=.5;}else{p.quieto=true;}}});
+  if(s.lluvia.length>1800)s.lluvia.splice(0,s.lluvia.length-1800);
   actualizaArana();
-  s.chispas.forEach(c=>{c.x+=c.vx;c.y+=c.vy;c.vy+=.08;c.v--;}); s.chispas=s.chispas.filter(c=>c.v>0);
+  s.chispas.forEach(c=>{c.x+=c.vx;c.y+=c.vy;c.vy+=.1;c.v--;}); s.chispas=s.chispas.filter(c=>c.v>0);
+  // cifras del marcador sueltas
+  const cf=s.cifras.cae; if(cf){cf.vy+=.1;cf.x+=cf.vx;cf.y+=cf.vy;cf.r+=cf.vr;if(cf.x<3||cf.x>W-3){cf.x=Math.max(3,Math.min(W-3,cf.x));cf.vx*=-.5;}if(cf.y>SUELO-3){cf.y=SUELO-3;if(Math.abs(cf.vy)>.8){cf.vy*=-.4;cf.vr*=.6;}else{cf.vy=0;cf.vx*=.8;cf.vr=0;}}}
   if(s.temblor>0)s.temblor--;
+  actualizaDom();
+}
+function dibujaMarcador(){
+  const p=String(st.puntos).padStart(4,'0'), x0=W-ancho(p)-4, y0=4;
+  [...p].forEach((ch,k)=>{
+    if(st.cifras.cae&&st.cifras.cae.k===k)return;
+    const su=st.cifras.suelta&&st.cifras.suelta.k===k?st.cifras.suelta:null;
+    if(su)sprite(filasDe(ch),x0+k*4+1.5+su.dx,y0+2.5+su.dy,COL.texto,su.r);
+    else texto(ch,x0+k*4,y0,COL.texto);
+  });
+  const cf=st.cifras.cae; if(cf)sprite(filasDe(cf.ch),cf.x,cf.y,COL.texto,cf.r);
 }
 function dibuja(){
   const s=st; g.setTransform(1,0,0,1,0,0); g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
-  if(s.temblor>0)g.translate(Math.round((Math.random()-.5)*s.temblor*S),Math.round((Math.random()-.5)*s.temblor*.6*S));
-  R(0,SUELO,W,1,'#2a2a2a');   // solo una línea fina de suelo; el fondo es el mismo negro en toda la pantalla
-  s.marc.forEach(m=>{if(!m.vivo)return;
-    if(m.huida){const f=m.x*.7+m.y*1.3,t=s.anim/60;sprite(SUSTO,m.x+Math.sin(t*1.6+f)*1.6,m.y+Math.cos(t*1.2+f)*1,m.c);}   // se quedan en la esquina meciéndose un poco
-    else sprite(MARC[Math.floor(s.anim/30)%2],m.x,m.y,m.c);});
-  s.balas.forEach(b=>R(b.x-.5,b.y,1,4,COL.bala));
+  if(s.temblor>0)g.translate(Math.round(azar(-.5,.5)*s.temblor*S),Math.round(azar(-.5,.5)*s.temblor*.7*S));
+  R(0,SUELO,W,1,'#2a2a2a');
+  s.lluvia.forEach(p=>R(p.x,p.y,1,1,p.c));
+  s.marc.forEach(m=>{if(!m.vivo)return;const c=m.flash>0&&m.flash%2?'#ffffff':m.c;
+    if(m.huida){const f=m.x*.7+m.y*1.3,t=s.anim/60;sprite(SUSTO,m.x+Math.sin(t*1.6+f)*1,m.y+Math.cos(t*1.2+f)*.8,c);}
+    else sprite(MARC[Math.floor(s.anim/30)%2],m.x,m.y,c);});
+  s.balas.forEach(b=>R(b.x-.5,b.y,1,3,COL.bala));
   const n=s.nave; sprite(n.rota?ROTA:NAVE,n.x,n.y,COL.nave,n.rot);
   dibujaArana();
-  s.chispas.forEach(c=>R(c.x,c.y,1,1,c.c||COL.chispa));
+  s.chispas.forEach(c=>R(c.x,c.y,1,1,COL.chispa));
+  dibujaMarcador();
   g.setTransform(1,0,0,1,0,0);
-  const p=String(s.puntos).padStart(4,'0'); texto(p,W-ancho(p)-4,4,COL.texto);
   if(!s.empezado&&Math.floor(performance.now()/500)%2===0){const t='PULSA FUEGO';texto(t,(W-ancho(t))/2,SUELO*.62,COL.texto);}
   if(s.fin){const t='GAME OVER';texto(t,(W-ancho(t,2))/2,SUELO*.42,COL.texto,2);}
 }
