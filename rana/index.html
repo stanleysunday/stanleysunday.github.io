@@ -244,6 +244,10 @@ function dibuja(){
   avisos.filter(a=>a.onda).forEach(a=>{const r=(12-a.v)*.5;R(a.x-r,a.y,1,1,'#bfe6ea');R(a.x+r,a.y,1,1,'#bfe6ea');});
   hadas.filter(h=>!h.cogida).forEach(dibujaHada);
   dibujaVegetacion(t);
+  // punto de mira: donde llegaría la punta de la lengua
+  if(rana.estado==='quieta'){const [mx,my]=boca(),L=Math.min(FONDO-24,96),px=Math.round(mx+Math.sin(rana.ang)*L),py=Math.round(my-Math.cos(rana.ang)*L);
+    for(const [ox,oy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]])P1(px+ox,py+oy,'#5a1a2a');
+    const c=Math.floor(t*4)%2?'#ffffff':'#f59bb0';for(const [ox,oy] of [[0,0],[-1,0],[1,0],[0,-1],[0,1]])P1(px+ox,py+oy,c);}
   dibujaRana(t); dibujaLengua(); if(rana.presa)dibujaHada(rana.presa);
   plumas.forEach(p=>P1(p.x,p.y,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
