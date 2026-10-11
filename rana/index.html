@@ -68,10 +68,15 @@ const FUENTE={'0':'111101101101111','1':'010110010010111','2':'111001111100111',
 function numero(t,x,y,c){[...t].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4+(i%3),y+Math.floor(i/3),1,1,c);});}
 
 // ── sonido
-let ac=null;function blip(f,d,tipo='square',vol=.05,fin=f*.5){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+let ac=null;function blip(f,d,tipo='square',vol=.09,fin=f*.5){try{if(!ac||ac.state!=='running')return;
   const o=ac.createOscillator(),v=ac.createGain();o.type=tipo;o.frequency.setValueAtTime(f,ac.currentTime);
   o.frequency.exponentialRampToValueAtTime(Math.max(30,fin),ac.currentTime+d);v.gain.setValueAtTime(vol,ac.currentTime);
   v.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(v).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+// el móvil solo deja sonar si el audio se arranca con un toque: lo despertamos en el primer toque y en cada uno
+function despiertaAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume();
+  const b=ac.createBuffer(1,1,22050),s=ac.createBufferSource();s.buffer=b;s.connect(ac.destination);s.start(0);}catch(e){}}
+['pointerdown','touchstart','keydown'].forEach(ev=>addEventListener(ev,despiertaAudio,{capture:true,passive:true}));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ac&&ac.state!=='running')ac.resume().catch(()=>{});});
 
 // ── escena fija: nenúfares de la laguna y vegetación de los lados (se recalcula al cambiar el tamaño)
 let NENU=[], HOJAS=[], JUNCOS=[];
