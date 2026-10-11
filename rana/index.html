@@ -144,9 +144,9 @@ function dibujaFondo(t){
     if(n.flor){const fx=n.x+n.rx*.2,fy=n.y-n.ry*.3;P1(fx,fy-1,'#f6a8c6');P1(fx-1,fy,'#f6a8c6');P1(fx+1,fy,'#f6a8c6');P1(fx,fy,'#ffe27a');}});
 }
 function dibujaVegetacion(t){
-  JUNCOS.forEach(j=>{const sw=Math.sin(t*1.3+j.x)*1.2;linea(j.x,j.base,j.x+sw,j.base-j.alto,'#3a6e2a');
+  JUNCOS.forEach(j=>{const sw=Math.sin(t*1.3+j.x)*1.2+Math.sin(t*18+j.x)*4*(j.golpe||0);linea(j.x,j.base,j.x+sw,j.base-j.alto,'#3a6e2a');
     R(Math.round(j.x+sw)-1,Math.round(j.base-j.alto)-1,2,5,'#6b4426');});
-  HOJAS.forEach(h=>elipse(h.x,h.y,h.rx,h.ry,h.rot+Math.sin(t*.9+h.y)*.04,(u,v)=>Math.abs(v)<.12?'#7fc25a':(v<0?h.c:'#24561f')));
+  HOJAS.forEach(h=>elipse(h.x,h.y,h.rx,h.ry,h.rot+Math.sin(t*.9+h.y)*.04+Math.sin(t*22+h.y)*.35*(h.golpe||0),(u,v)=>Math.abs(v)<.12?'#7fc25a':(v<0?h.c:'#24561f')));
   // orilla de barro de abajo
   R(0,FONDO,W,H-FONDO,'#3b2a17'); R(0,FONDO,W,1,'#5c4426');
   for(let x=0;x<W;x+=3){const h=2+((x*7)%5);linea(x,FONDO+1,x+((x%2)?1:-1),FONDO-h,'#4c8a35');}
@@ -325,10 +325,28 @@ function lanzaLengua(){
     if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
       if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
 }
+/* lo que toca la punta de la lengua: el contador pega un bote (y la lengua rebota); hojas, juncos y flores se sacuden */
+let boteC={oy:0,vy:0,ox:0};
+function cajaContador(){const w=(floresMagicas+'/5').length*8+16;return [Math.round(W/2-w/2),ARRIBA,w,15];}
+function toques(fx,fy){
+  HOJAS.forEach(h=>{const ddx=fx-h.x,ddy=fy-h.y,c=Math.cos(h.rot),sn=Math.sin(h.rot),u=(ddx*c+ddy*sn)/h.rx,v=(-ddx*sn+ddy*c)/(h.ry+1);
+    if(u*u+v*v<1.2&&(h.golpe||0)<.4){h.golpe=1;ruido(0,.22,.05,3200,1.2);}});
+  JUNCOS.forEach(j=>{if(fy<j.base&&fy>j.base-j.alto-2&&Math.abs(fx-j.x)<2.5&&(j.golpe||0)<.4){j.golpe=1;ruido(0,.15,.04,2600,1.5);}});
+  FLORES.forEach(f=>{if(f.cortada)return;const [x,y]=posFlor(f);if(Math.hypot(fx-x,fy-y)<6&&(f.golpe||0)<.4){f.golpe=1;blip(1700,.12,'sine',.035,2300);
+    for(let i=0;i<10;i++)polen.push({x,y,vx:azar(-.8,.8),vy:azar(-.9,.2),v:azar(40,80),f:Math.random()*6,c:i%2?COLOR_FLOR[f.tipo]:'#fff6b0'});}});
+  const [x0,y0,w,hh]=cajaContador();
+  if(fx>x0-2&&fx<x0+w+2&&fy<y0+hh+2+boteC.oy){boteC.vy=-2.2;boteC.ox=(fx<x0+w/2?1:-1)*3;blip(520,.15,'square',.06,260);blip(1040,.1,'square',.03,700);return true;}
+  return false;
+}
+function actualizaBotes(){
+  boteC.vy+=.3;boteC.oy+=boteC.vy;if(boteC.oy>0){boteC.oy=0;boteC.vy=Math.abs(boteC.vy)>.8?-boteC.vy*.45:0;}boteC.ox*=.9;
+  for(const arr of [HOJAS,JUNCOS,FLORES])arr.forEach(o=>{if(o.golpe)o.golpe=o.golpe>.02?o.golpe*.965:0;});
+}
 function actualizaLengua(){
-  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=Math.min(FONDO-24,104);
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=my-1;   /* llega hasta arriba del todo (y al contador) */
   if(rana.estado==='sale'){rana.lengua+=6;
     const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
+    if(toques(fx,fy)){rana.estado='vuelve';}
     const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-(fy-dy*k))<9)return true;}return false;});
     if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);
       for(let i=0;i<10;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
@@ -376,7 +394,7 @@ function posFlor(f){const y=Math.round(lerp(HORIZ,FONDO,f.alto));return [f.lado<
 const COLOR_FLOR={girasol:'#f6c431',tulipan:'#e24a58',margarita:'#ffffff',amapola:'#f25a35',rosa:'#e8558f',campanilla:'#8a6ad8'};
 function florMini(tipo,x,y){const c=COLOR_FLOR[tipo];P1(x-1,y,c);P1(x+1,y,c);P1(x,y-1,c);P1(x,y+1,c);P1(x,y,tipo==='margarita'||tipo==='girasol'?'#a8641e':'#f2dd4a');}
 function dibujaFlores(){
-  FLORES.forEach(f=>{const [x,y]=posFlor(f),sw=Math.round(Math.sin(t*1.2+f.alto*9)*1);
+  FLORES.forEach(f=>{const [x,y]=posFlor(f),sw=Math.round(Math.sin(t*1.2+f.alto*9)*1+Math.sin(t*20+f.alto*9)*3.5*(f.golpe||0));
     if(f.cortada){   // vuelve a nacer: primero el tallo, luego la flor
       if(f.espera>0){f.espera-=1/60;linea(x,y+16,x,y+13,'#2f6e28');return;}
       f.crece=Math.min(1,f.crece+1/240); const top=Math.round(y+16-16*f.crece);
@@ -474,7 +492,7 @@ function paso(){
   t+=1/60;
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
   if(!rana.sinCabeza&&!ataque&&(rana.estado==='quieta'||rana.estado==='vuelve'))rana.ang=cl(rana.ang+v*Math.abs(v)*.016,-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
-  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal();
+  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal(); actualizaBotes();
   // el pis cae hasta abajo, hasta el agua de delante
   pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>FONDO-3){p.v=0;if(Math.random()<.35)avisos.push({x:p.x,y:FONDO-3,v:14,onda:true});}});
   polen.forEach(p=>{p.vy+=.004;p.vx*=.99;p.x+=p.vx+Math.sin(t*3+p.f)*.25;p.y+=p.vy;p.v--;}); polen=polen.filter(p=>p.v>0);
@@ -505,7 +523,7 @@ function dibuja(){
   sangre.forEach(p=>R(p.x,p.y,1,p.vy<-1.5?2:1,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
   // contador de flores mágicas
-  { const txt=floresMagicas+'/5', w=txt.length*8+16, x0=Math.round(W/2-w/2), y0=ARRIBA, sy=saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*3):0;
+  { const txt=floresMagicas+'/5', w=txt.length*8+16, x0=Math.round(W/2-w/2+boteC.ox), y0=ARRIBA, sy=(saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*3):0)+Math.round(boteC.oy);
     R(x0,y0+sy,w,15,'#1d140b'); R(x0,y0+sy,w,1,'#7a5c33'); R(x0,y0+sy+14,w,1,'#7a5c33');
     florGrande(floresTipos.length?floresTipos[floresTipos.length-1]:'margarita',x0+6,y0+7+sy); numero(txt,x0+12,y0+3+sy,floresMagicas>=5?'#ffe27a':'#ffe9b8',2); }
   chispas.forEach(c=>{const x=Math.round(c.px||c.x),y=Math.round(c.py||c.y);florMini(c.tipo,x,y);if(Math.sin(t*20)>0){P1(x-2,y,'#ffffff');P1(x+2,y,'#ffffff');}});
