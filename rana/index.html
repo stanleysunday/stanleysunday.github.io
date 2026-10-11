@@ -277,7 +277,7 @@ addEventListener('keyup',e=>teclas[e.key]=false);
 function paso(){
   t+=1/60;
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
-  if(rana.estado==='quieta'||rana.estado==='vuelve')rana.ang=cl(rana.ang+v*.035,-ANG_MAX,ANG_MAX);
+  if(rana.estado==='quieta'||rana.estado==='vuelve')rana.ang=cl(rana.ang+v*Math.abs(v)*.016,-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
   actualizaHadas(); actualizaLengua();
   // el pis cae hasta abajo, hasta el agua de delante
   pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>FONDO-3){p.v=0;if(Math.random()<.35)avisos.push({x:p.x,y:FONDO-3,v:14,onda:true});}});
