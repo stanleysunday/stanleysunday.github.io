@@ -148,12 +148,15 @@ let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntr
 function nuevaHada(){const lado=Math.random()<.5?-1:1;
   const h={x:lado<0?-16:W+16,y:azar(32,HORIZ+6),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(3,6),mira:lado<0?1:-1,
     ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8','#7a4a30'][Math.floor(Math.random()*5)],
-    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c','#8a8a8a'][Math.floor(Math.random()*5)],
+    pelo:['#5a3820','#e2bd5a','#1c1c1c'][Math.floor(Math.random()*3)],flores:[],
     pantalon:['#3c5aa8','#c94a3a','#2f7a4a','#e2b23a','#5a3f86'][Math.floor(Math.random()*5)],
     fase:Math.random()*6,esquiva:null,listo:azar(.9,1),vida:azar(12,18)};
-  h.barba=Math.random()<.25?'#cfcfcf':h.pelo; eligeObjetivo(h); hadas.push(h);}
+  h.barba=h.pelo; eligeObjetivo(h); hadas.push(h);}
 function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
 function cambiaEstado(h){
+  const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
+  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.45){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
+  h.florObj=null;
   if(h.estado==='pis'||Math.random()<.45||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
   else{h.estado='pis';h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
 function actualizaHadas(){
@@ -162,17 +165,26 @@ function actualizaHadas(){
     if(h.cogida)return;
     h.vida-=1/60;
     if(h.estado==='seVa'){h.vx+=h.mira*.08;h.vx*=.96;h.vy*=.9;h.vy-=.01;h.x+=h.vx;h.y+=h.vy;if(h.x<-20||h.x>W+20)h.fuera=true;return;}
-    h.dur-=1/60; if(h.dur<=0){if(h.vida<=0&&h.estado!=='pis'){h.estado='seVa';h.mira=h.x<W/2?-1:1;return;}cambiaEstado(h);}
+    h.dur-=1/60; if(h.dur<=0){if(h.vida<=0&&h.estado!=='pis'&&h.estado!=='corta'){h.estado='seVa';h.mira=h.x<W/2?-1:1;return;}cambiaEstado(h);}
     if(h.esquiva){if(h.esquiva.retraso>0)h.esquiva.retraso--;else{h.vx+=h.esquiva.vx;h.vy+=h.esquiva.vy;h.esquiva.n--;if(h.esquiva.n<=0)h.esquiva=null;}}
-    if(h.estado==='vuela'){const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
+    if(h.estado==='flor'||h.estado==='corta'){const f=h.florObj;
+      if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
+      else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
+        if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
+        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);
+          for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}
+        const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
+        if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
+        h.vx*=.94;h.vy*=.94;if(h.estado==='flor')h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}}
+    else if(h.estado==='vuela'){const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
       if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*.06;h.vy+=oy/d*.06;}
       const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;   // si la rana les apunta, se apartan
       if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
       h.vx*=.94;h.vy*=.94;h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}
     else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*2.5+h.fase)*.006;
-      if(h.dur>.5&&(t*60)%2<1)pis.push({x:h.x+h.mira*6,y:h.y+5,vx:h.mira*azar(.5,.65),vy:azar(-.3,-.15),v:400});}
+      if(h.dur>.5&&(t*60)%2<1)pis.push({x:h.x+h.mira*6,y:h.y+6,vx:h.mira*azar(.5,.65),vy:azar(-.3,-.15),v:400});}
     h.lv=(h.lv||0)+(-h.vx*1.2-(h.lean||0))*.12; h.lv*=.88; h.lean=cl((h.lean||0)+h.lv,-1.4,1.4);   // péndulo
-    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,16,W-16); h.y=cl(h.y,30,FONDO-56);
+    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,14,W-14); h.y=cl(h.y,30,FONDO-34);
   });
   hadas=hadas.filter(h=>!h.fuera);
   // van entrando de uno en uno, nunca más de dos a la vez
@@ -204,15 +216,15 @@ function actualizaLengua(){
 }
 // hombre mariposa, más grande: sin camiseta, con barba. De frente cuando vuela, de perfil cuando hace pis
 const HOMBRE_FRENTE=[
-"....HHHHH....","...HHHHHHH...","..HHHHHHHHH..","..HSSSSSSSH..","..hSESSSESh..","..SSSSsSSSS..","..BSSSsSSSB..","..BBSbbbSBB..",
-"..BBBBBBBBB..","...BBBBBBB...","....bBBBb....",".....SsS.....","..SSSSSSSSS..",".SSSSSSSSSSS.","SS.SdSSSdS.SS","SS.SSSSSSS.SS",
-"SS.SSSSSSS.SS","S..SSSsSSS..S","S..SSSSSSS..S","S..SSSdSSS..S","SS.TTTTTTT.SS","...TTTtTTT...","...TTt.tTT...","...SSs.sSS...",
-"...SSs.sSS...","...sSS.SSs...","...SSs.sSS...","...SSs.sSS...","..FFF...FFF.."];
+".....HHHHH.....","....HHHHHHH....","...HHHHHHHHH...","...HSSSSSSSH...","...hSESSSESh...","...SSSSsSSSS...","...BSSSsSSSB...","...BBSbbbSBB...",
+"...BBBBBBBBB...","....BBBBBBB....",".....bBBBb.....","......SsS......","...SSSSSSSSS...","..SSSSSSSSSSS..",".SS.SdSSSdS.SS.",".SS.SSSSSSS.SS.",
+"SS.SSSSSSSSS.SS","SS.SSSSSSSSS.SS","S.SSSSSSSSSSS.S","S.SSSSSdSSSSS.S","s.SsSSSSSSSsS.s","s..sSSSSSSSs..s","...TTTTTTTTT...","...TTTTtTTTT...",
+"...TTTt.tTTT...","...SSSs.sSSS...","...SSSs.sSSS...","...sSSS.SSSs...","....SSs.sSS....","....SSs.sSS....","...FFF...FFF..."];
 const HOMBRE_LADO=[
-".....HHHH....","....HHHHHH...","...HHHHHHHH..","...HHSSSSSS..","...HhSSSES...","...HSSSSSSSS.","...hSSSSSSs..","...BBBSbbb...",
-"...BBBBBBB...","....BBBBBB...",".....bBBb....",".....SsS.....","....SSSSSS...","...SSSSSSSs..","...SSSSSdSS..","...SSSSSSSS..",
-"...SSSSSSS...","...SSSSSSSS..","....SSSSSSSs.","....SSSSSSSS.","....TTTTTT...","....TTTTTt...","....TTtTT....","....SSsSS....",
-"....SSsS.....","....SSsS.....","....SSsS.....","....SSsS.....","....FFFFF...."];
+".....HHHH......","....HHHHHH.....","...HHHHHHHH....","...HHSSSSSS....","...HhSSSES.....","...HSSSSSSSS...","...hSSSSSSs....","...BBBSbbb.....",
+"...BBBBBBB.....","....BBBBBB.....",".....bBBb......",".....SsS.......","....SSSSSS.....","...SSSSSSSS....","...SSSSSdSSS...","...SsSSSSSSSS..",
+"...SsSSSSSSSSS.","...SSSSSSSSSSS.","...SSSSSSdSSSS.","...SSSSSSSSSSs.","....SSSSSSSSs..","....SSSSSSSSs..","....TTTTTTT....","....TTTTTTt....",
+"....TTTtTT.....","....SSSsSS.....","....SSSsS......","....SSSsS......","....SSSsS......","....SSSsS......","....FFFFFF....."];
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
 function dibujaHada(h){
   const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
@@ -223,24 +235,34 @@ function dibujaHada(h){
       elipse(x-s*(4+k)+0,y-11+k*.5,2.2*ab+1.3,6,-s*.35,alaFn(-s,osc));
       elipse(x-s*(3+k),y-2+k*.5,1.8*ab+1,3.4,-s*.2,(u,v)=>u*u+v*v>.62?'#2a1a1a':(osc?oscurece(h.ala,.78):h.ala));}}
   else for(const lado of [-1,1]){   // de frente: abiertas a los lados, a la altura de los hombros
-    elipse(x+lado*(5*ab+3),y-7,6*ab+1.2,5,lado*.45,alaFn(lado,false));
-    elipse(x+lado*(3.8*ab+3),y,4*ab+1,3.5,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
+    elipse(x+lado*(5*ab+4),y-7,6*ab+1.2,5,lado*.45,alaFn(lado,false));
+    elipse(x+lado*(3.8*ab+4),y,4*ab+1,3.5,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
   const mapa=de_lado?HOMBRE_LADO:HOMBRE_FRENTE, espejo=de_lado&&s<0, n=mapa.length;
   const col={H:h.pelo,h:oscurece(h.pelo,.75),S:h.piel,s:oscurece(h.piel,.84),d:oscurece(h.piel,.62),B:h.barba,b:oscurece(h.barba,.72),E:'#1d1d1d',T:h.pantalon,t:oscurece(h.pantalon,.75),F:'#3b2416'};
   // cuerpo flexible: cuelga de las alas, así que al moverse las piernas se quedan atrás y luego se balancean
-  const curva=j=>Math.max(0,(j-10)/(n-10));
+  const curva=j=>Math.max(0,(j-11)/(n-11));
   mapa.forEach((fila,j)=>{const off=Math.round((h.lean||0)*curva(j)**1.4*5+Math.sin(t*3.2+h.fase+j*.12)*curva(j)*(h.cogida?2:.8));
-    [...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?12-i:i;R(x-6+xi+off,y-14+j,1,1,col[c]);});});
+    [...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?14-i:i;R(x-7+xi+off,y-15+j,1,1,col[c]);});});
+  // las flores que ha cortado, en la mano
+  h.flores.slice(-3).forEach((tipo,k)=>{const fx=x+(de_lado?-s*5:-7)+k,fy=y+5-k;linea(fx,fy+3,fx,fy,'#2f6e28');florMini(tipo,fx,fy-1);});
 }
 
 // ── flores de los lados, cuatro distintas, que de vez en cuando sueltan polen mágico
 const FLORES=[
-  {lado:-1,alto:.3,tipo:'girasol'},{lado:-1,alto:.58,tipo:'amapola'},{lado:-1,alto:.84,tipo:'tulipan'},
-  {lado:1,alto:.36,tipo:'margarita'},{lado:1,alto:.62,tipo:'rosa'},{lado:1,alto:.88,tipo:'campanilla'}];
-FLORES.forEach(f=>f.prox=azar(2,6));
-function posFlor(f){const y=Math.round(lerp(HORIZ,FONDO,f.alto));return [f.lado<0?9:Math.round(W-9),y];}
+  {lado:-1,alto:.22,dx:0,tipo:'girasol'},{lado:-1,alto:.38,dx:6,tipo:'margarita'},{lado:-1,alto:.54,dx:0,tipo:'amapola'},{lado:-1,alto:.7,dx:6,tipo:'campanilla'},{lado:-1,alto:.86,dx:0,tipo:'tulipan'},
+  {lado:1,alto:.26,dx:0,tipo:'margarita'},{lado:1,alto:.42,dx:6,tipo:'rosa'},{lado:1,alto:.58,dx:0,tipo:'girasol'},{lado:1,alto:.74,dx:6,tipo:'tulipan'},{lado:1,alto:.9,dx:0,tipo:'campanilla'}];
+FLORES.forEach(f=>{f.prox=azar(2,9);f.cortada=false;f.crece=1;});
+function posFlor(f){const y=Math.round(lerp(HORIZ,FONDO,f.alto));return [f.lado<0?9+f.dx:Math.round(W-9-f.dx),y];}
+const COLOR_FLOR={girasol:'#f6c431',tulipan:'#e24a58',margarita:'#ffffff',amapola:'#f25a35',rosa:'#e8558f',campanilla:'#8a6ad8'};
+function florMini(tipo,x,y){const c=COLOR_FLOR[tipo];P1(x-1,y,c);P1(x+1,y,c);P1(x,y-1,c);P1(x,y+1,c);P1(x,y,tipo==='margarita'||tipo==='girasol'?'#a8641e':'#f2dd4a');}
 function dibujaFlores(){
   FLORES.forEach(f=>{const [x,y]=posFlor(f),sw=Math.round(Math.sin(t*1.2+f.alto*9)*1);
+    if(f.cortada){   // vuelve a nacer: primero el tallo, luego la flor
+      if(f.espera>0){f.espera-=1/60;linea(x,y+16,x,y+13,'#2f6e28');return;}
+      f.crece=Math.min(1,f.crece+1/240); const top=Math.round(y+16-16*f.crece);
+      linea(x,y+16,x,top,'#3f8a32'); if(f.crece>.5)elipse(x+f.lado*-3,y+9,3*f.crece,1.2,f.lado*.6,()=> '#4c9a3a');
+      if(f.crece>=1){f.cortada=false;f.prox=azar(3,6);for(let i=0;i<8;i++)polen.push({x,y,vx:azar(-.4,.4),vy:azar(-.6,-.1),v:80,f:Math.random()*6,c:'#ffffff'});}
+      else{if(f.crece>.75)florMini(f.tipo,x,top);return;}}
     linea(x,y+16,x+sw,y,'#2f6e28'); elipse(x+f.lado*-3,y+9,3,1.2,f.lado*.6,()=> '#3f8a32');
     const cx=x+sw,cy=y;
     if(f.tipo==='girasol'){for(let k=0;k<10;k++){const a=k/10*Math.PI*2+t*.2;elipse(cx+Math.cos(a)*4,cy+Math.sin(a)*4,2.2,1.2,a,()=> '#f6c431');}
