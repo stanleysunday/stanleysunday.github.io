@@ -50,9 +50,9 @@ button:focus-visible{outline:3px solid var(--gris);outline-offset:3px}
 </div>
 <button id="otra" hidden>Otra vez</button>
 <script>
-const cv=document.getElementById('c'), g=cv.getContext('2d');
+const cv=document.getElementById('c'), g=cv.getContext('2d',{alpha:false});
 const todo=document.getElementById('todo'), mando=document.getElementById('mando'), palo=document.getElementById('palo'), fuego=document.getElementById('fuego');
-const W=112;                 // ancho lógico en "píxeles Atari"
+let W=112;                   // ancho lógico en "píxeles Atari" (se ajusta para que cada píxel tenga un tamaño entero)
 let H=200, S=1, SUELO=150, BANDA=150, DPR=1;
 const COL={nave:'#e8a83a',bala:'#f4e46a',texto:'#e8a83a',chispa:'#f4e46a',lejos:'#8f8f8f'};
 const FILAS=['#e5483a','#f0a830','#e2dc45','#5cc24c','#3fa3e8'];   // de abajo arriba: la fila de abajo cae con 1 disparo… la de arriba con 5
@@ -62,9 +62,9 @@ const PIEDRA={luz:'#f2e6cf',cara:'#e2d0ae',sombra:'#bba57f',junta:'#7a6548'};
 function ajusta(){
   DPR=Math.min(3,window.devicePixelRatio||1); const cw=innerWidth, ch=innerHeight;
   cv.width=Math.round(cw*DPR); cv.height=Math.round(ch*DPR);
-  S=cv.width/W; H=cv.height/S;
+  S=Math.max(1,Math.round(cv.width/112)); W=cv.width/S; H=cv.height/S;
   BANDA=Math.min(170,Math.max(130,ch*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
-  SUELO=H-BANDA*DPR/S;
+  SUELO=Math.round(H-BANDA*DPR/S);
   const css=S/DPR; document.documentElement.style.setProperty('--col',(SOPORTE*css+14)+'px');
   document.documentElement.style.setProperty('--colw',(COLW*css)+'px'); document.documentElement.style.setProperty('--losa',(LOSA*css)+'px');
   if(st&&!st.derrumbe)construye();
@@ -127,42 +127,49 @@ function bloque(x,y,w,h){   // un bloque de piedra marrón muy claro, con su luz
   const F=(a,b,c,d,col)=>{g.fillStyle=col;g.fillRect((x+a)*S,(y+b)*S,c*S,d*S);};
   F(0,0,w,h,PIEDRA.junta);F(.4,.4,w-.8,h-.8,PIEDRA.sombra);F(.4,.4,w-1.4,h-1.4,PIEDRA.luz);F(1,1,w-2,h-2,PIEDRA.cara);
 }
+function colorPieza(p,u,v){   // u,v: coordenadas dentro de la pieza (0..w, 0..h)
+  if(p.t==='techo'){const a=Math.floor(u),b=Math.floor(v);return (a%3===0||b%3===0||a>=Math.floor(p.w)-1||b>=Math.floor(p.h)-1)?PIEDRA.junta:PIEDRA.cara;}
+  if(u<1||v<1||u>=p.w-1||v>=p.h-1)return PIEDRA.junta;
+  if(u<2||v<2)return PIEDRA.luz; if(u>=p.w-2||v>=p.h-2)return PIEDRA.sombra; return PIEDRA.cara;
+}
 function dibujaPieza(p){
-  g.save(); g.translate((p.cx+p.dx)*S,(p.cy+p.dy)*S); g.rotate(p.r); const x=-p.w/2,y=-p.h/2;
-  if(p.t==='techo'){g.fillStyle=PIEDRA.junta;g.fillRect(x*S,y*S,p.w*S,p.h*S);
-    for(let yy=1;yy<p.h-1;yy+=3)for(let xx=1;xx<p.w-1;xx+=3){g.fillStyle=PIEDRA.cara;g.fillRect((x+xx)*S,(y+yy)*S,2*S,2*S);}}
-  else bloque(x,y,p.w,p.h);
-  g.restore();
+  const cx=p.cx+p.dx, cy=p.cy+p.dy, cs=Math.cos(p.r), sn=Math.sin(p.r), m=Math.ceil(Math.hypot(p.w,p.h)/2)+1;
+  if(Math.abs(p.r)<.02){   // sin girar: rectángulo alineado a la rejilla
+    const x0=Math.round(cx-p.w/2), y0=Math.round(cy-p.h/2), w=Math.round(p.w), h=Math.round(p.h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)R(x0+x,y0+y,1,1,colorPieza({...p,w,h},x+.5,y+.5));return;}
+  for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){
+    const X=x+.5-cx,Y=y+.5-cy,u=X*cs+Y*sn+p.w/2,v=-X*sn+Y*cs+p.h/2;
+    if(u<0||v<0||u>=p.w||v>=p.h)continue; R(x,y,1,1,colorPieza(p,u,v));}
 }
 // el cielo del atardecer, el sol poniéndose y las montañas
 const CIELO=['#2a1748','#46205a','#6e2a63','#9c3a5e','#c9535a','#e57a52','#f2a35a','#f7c873'];
 function montana(x,semilla,alto,ancho){let h=0;for(let k=1;k<=3;k++)h+=Math.sin(x/ancho*k*1.7+semilla*k)/(k*1.3);return alto*(.55+.45*h);}
 function dibujaFondo(){
   const arriba=0, abajo=SUELO, n=CIELO.length, bh=(abajo-arriba)/n;
-  CIELO.forEach((c,i)=>R(0,arriba+i*bh,W,bh+1,c));
+  CIELO.forEach((c,i)=>R(0,Math.round(arriba+i*bh),W,Math.round(bh)+1,c));
   // sol rayado, a medio esconder tras las montañas
-  const sx=W*.62, sy=abajo-22, sr=15;
-  for(let y=-sr;y<=sr;y++){const w=Math.sqrt(sr*sr-y*y);if(y>2&&(y%3===0))continue;
+  const sx=Math.round(W*.62), sy=abajo-22, sr=15;
+  for(let y=-sr;y<=sr;y++){const w=Math.round(Math.sqrt(sr*sr-y*y));if(y>2&&(y%3===0))continue;
     const k=(y+sr)/(2*sr);R(sx-w,sy+y,w*2,1,k<.5?'#ffe27a':'#ff9f45');}
-  for(let x=0;x<W;x++){const h1=montana(x,1.3,34,40);R(x,abajo-h1,1,h1,'#6a2f62');}
-  for(let x=0;x<W;x++){const h2=montana(x,4.1,22,26);R(x,abajo-h2,1,h2,'#3a1b3e');}
+  for(let x=0;x<W;x++){const h1=Math.round(montana(x,1.3,34,40));R(x,abajo-h1,1,h1,'#6a2f62');}
+  for(let x=0;x<W;x++){const h2=Math.round(montana(x,4.1,22,26));R(x,abajo-h2,1,h2,'#3a1b3e');}
 }
 function dibujaMarco(){
   st.piezas.filter(p=>p.t==='muro'&&!p.cae).forEach(dibujaPieza);
-  R(0,SUELO,W,LOSA,PIEDRA.sombra); R(0,SUELO,W,1,PIEDRA.luz); R(0,SUELO+LOSA-.6,W,.6,PIEDRA.junta);
+  R(0,SUELO,W,LOSA,PIEDRA.sombra); R(0,SUELO,W,1,PIEDRA.luz); R(0,SUELO+LOSA-1,W,1,PIEDRA.junta);
   st.piezas.filter(p=>p.t!=='muro'&&!p.cae).forEach(dibujaPieza);
 }
 const PANEL={w:22,h:9};
-function dibujaMarcador(){
-  const p=String(st.puntos).padStart(4,'0'), c=st.cuelga;
-  const px=W-COLW-PANEL.w-3, py=(TECHO-PANEL.h)/2;
-  g.save();
-  if(c){g.translate(c.x*S,c.y*S);g.rotate(c.a);g.translate(-PANEL.w*S,0);}   // pivote: esquina de arriba a la derecha
-  else g.translate(px*S,py*S);
-  g.fillStyle='#000';g.fillRect(0,0,PANEL.w*S,PANEL.h*S);g.strokeStyle='#8a8a8a';g.lineWidth=Math.max(1,S*.5);g.strokeRect(0,0,PANEL.w*S,PANEL.h*S);
-  if(c){g.fillStyle='#8a8a8a';g.fillRect((PANEL.w-1)*S,-.5*S,1*S,1*S);}
-  [...p].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1'){g.fillStyle=COL.texto;g.fillRect((3+k*4+(i%3))*S,(2+Math.floor(i/3))*S,S,S);}});
-  g.restore();
+function dibujaMarcador(){   // también píxel a píxel, para que se vea nítido aunque cuelgue torcido
+  const p=String(st.puntos).padStart(4,'0'), c=st.cuelga, w=PANEL.w, h=PANEL.h;
+  const color=(u,v)=>{const a=Math.floor(u),b=Math.floor(v);if(a===0||b===0||a===w-1||b===h-1)return '#8a8a8a';
+    const k=Math.floor((a-3)/4),i=(a-3)%4,j=b-2;if(k>=0&&k<4&&i<3&&j>=0&&j<5&&FUENTE[p[k]][j*3+i]==='1')return COL.texto;return '#000';};
+  if(!c){const x0=Math.round(W-COLW-w-3),y0=Math.round((TECHO-h)/2);for(let b=0;b<h;b++)for(let a=0;a<w;a++)R(x0+a,y0+b,1,1,color(a+.5,b+.5));return;}
+  const cs=Math.cos(c.a),sn=Math.sin(c.a),m=Math.ceil(Math.hypot(w,h))+1;
+  for(let y=Math.floor(c.y-m);y<=c.y+m;y++)for(let x=Math.floor(c.x-m);x<=c.x+m;x++){
+    const X=x+.5-c.x,Y=y+.5-c.y,u=X*cs+Y*sn+w,v=-X*sn+Y*cs;   // pivote en la esquina de arriba a la derecha
+    if(u<0||v<0||u>=w||v>=h)continue; R(x,y,1,1,color(u,v));}
+  R(Math.round(c.x)-1,Math.round(c.y)-1,1,1,'#8a8a8a');
 }
 // se cae un trozo del marco: la pieza y todo lo que tenga encima en su pila
 function tira(p,retraso=0){if(!p||p.cae||p.pend!==undefined)return;p.pend=retraso;
@@ -373,9 +380,8 @@ function dibujaPiloto(P){
   L.brazos.forEach(linea); L.piernas.forEach(linea);
   if(P.con){const h=M(L.cabeza);dibujaCabeza(h[0],h[1],P.ang,e);}
 }
-function dibujaCabeza(x,y,r,e=1){   // esfera: círculo con su sombra
-  const R_=2.3*e;g.fillStyle='#ffe9c8';g.beginPath();g.arc(x*S,y*S,R_*S,0,Math.PI*2);g.fill();
-  g.fillStyle='rgba(120,70,40,.55)';g.beginPath();g.arc((x+Math.cos(r+.8)*R_*.45)*S,(y+Math.sin(r+.8)*R_*.45)*S,R_*.62*S,0,Math.PI*2);g.fill();
+function dibujaCabeza(x,y,r,e=1){   // solo el círculo
+  g.fillStyle='#ffe9c8';g.beginPath();g.arc(x*S,y*S,2.3*e*S,0,Math.PI*2);g.fill();
 }
 function actualizaCabeza(){const C=st.cabeza;if(!C||!C.suelta)return;
   C.vy+=.12;C.x+=C.vx;C.y+=C.vy;C.r+=C.vr;
@@ -479,19 +485,19 @@ function paso(){
 }
 function dibuja(){
   const s=st; g.setTransform(1,0,0,1,0,0); g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
-  if(s.temblor>0)g.translate(Math.round(azar(-.5,.5)*s.temblor*S),Math.round(azar(-.5,.5)*s.temblor*.7*S));
+  if(s.temblor>0)g.translate(Math.round(azar(-.5,.5)*s.temblor)*S,Math.round(azar(-.5,.5)*s.temblor*.7)*S);
   dibujaFondo();
   dibujaMarco();
   s.piezas.filter(p=>p.cae).forEach(dibujaPieza);   // los bloques que caen van por detrás de la araña, la nave y el piloto
-  s.lluvia.forEach(p=>R(p.x,p.y,1,1,p.c));
+  s.lluvia.forEach(p=>R(Math.round(p.x),Math.round(p.y),1,1,p.c));
   s.marc.forEach(m=>{if(!m.vivo)return;const c=m.flash>0&&m.flash%2?'#ffffff':m.c;
     if(m.huida)sprite(SUSTO,m.x,m.y,c);
     else sprite(MARC[Math.floor(s.anim/30)%2],m.x,m.y,c);});
-  s.balas.forEach(b=>R(b.x-.5,b.y,1,3,COL.bala));
+  s.balas.forEach(b=>R(Math.round(b.x),Math.round(b.y),1,3,COL.bala));
   const n=s.nave, sp=n.rota?ROTA:NAVE; for(const [ox,oy] of [[-1,0],[1,0],[0,-1],[0,1]])sprite(sp,n.x+ox,n.y+oy,'#1d1030',n.rot);   /* contorno oscuro para que se vea sobre el atardecer */
   sprite(sp,n.x,n.y,COL.nave,n.rot);
   dibujaArana(); dibujaPiloto(s.piloto); if(s.cabeza&&(s.cabeza.suelta||!s.piloto||!s.piloto.con))dibujaCabeza(s.cabeza.x,s.cabeza.y,s.cabeza.r);
-  s.chispas.forEach(c=>R(c.x,c.y,1,1,COL.chispa));
+  s.chispas.forEach(c=>R(Math.round(c.x),Math.round(c.y),1,1,COL.chispa));
   dibujaMarcador();
   g.setTransform(1,0,0,1,0,0);
   if(!s.empezado&&Math.floor(performance.now()/500)%2===0){const t='PULSA FUEGO';texto(t,(W-ancho(t))/2,SUELO*.66,COL.texto);}
