@@ -89,6 +89,27 @@ let ac=null;function blip(f,d,tipo='square',vol=.09,fin=f*.5){try{if(!ac||ac.sta
   const o=ac.createOscillator(),v=ac.createGain();o.type=tipo;o.frequency.setValueAtTime(f,ac.currentTime);
   o.frequency.exponentialRampToValueAtTime(Math.max(30,fin),ac.currentTime+d);v.gain.setValueAtTime(vol,ac.currentTime);
   v.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(v).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+/* nota con envolvente y filtro (para la música), ruido filtrado (sierra, chorro) y tambor */
+function nota(f,ini,d,tipo='sawtooth',vol=.03,corte=1600){try{if(!ac||ac.state!=='running')return;const t0=ac.currentTime+ini;
+  const o=ac.createOscillator(),v=ac.createGain(),fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=corte;o.type=tipo;o.frequency.value=f;
+  v.gain.setValueAtTime(0.0001,t0);v.gain.linearRampToValueAtTime(vol,t0+.05);v.gain.setValueAtTime(vol,t0+d*.75);v.gain.exponentialRampToValueAtTime(.0001,t0+d);
+  o.connect(fl).connect(v).connect(ac.destination);o.start(t0);o.stop(t0+d+.05);}catch(e){}}
+function ruido(ini,d,vol,frec,q=1){try{if(!ac||ac.state!=='running')return;const t0=ac.currentTime+ini,n=Math.ceil(ac.sampleRate*d),b=ac.createBuffer(1,n,ac.sampleRate),c=b.getChannelData(0);
+  for(let i=0;i<n;i++)c[i]=Math.random()*2-1;const s=ac.createBufferSource(),fl=ac.createBiquadFilter(),v=ac.createGain();s.buffer=b;fl.type='bandpass';fl.frequency.value=frec;fl.Q.value=q;
+  v.gain.setValueAtTime(vol,t0);v.gain.setValueAtTime(vol,t0+d*.6);v.gain.exponentialRampToValueAtTime(.0001,t0+d);s.connect(fl).connect(v).connect(ac.destination);s.start(t0);}catch(e){}}
+function tambor(ini,vol=.25){try{if(!ac||ac.state!=='running')return;const t0=ac.currentTime+ini,o=ac.createOscillator(),v=ac.createGain();o.type='sine';
+  o.frequency.setValueAtTime(110,t0);o.frequency.exponentialRampToValueAtTime(42,t0+.45);v.gain.setValueAtTime(vol,t0);v.gain.exponentialRampToValueAtTime(.0001,t0+.6);
+  o.connect(v).connect(ac.destination);o.start(t0);o.stop(t0+.65);}catch(e){}ruido(ini,.18,vol*.25,180,.8);}
+function metal(f,ini,d,vol=.022){nota(f,ini,d,'sawtooth',vol,1700);nota(f*1.004,ini,d,'sawtooth',vol,1700);nota(f/2,ini,d,'square',vol*.5,900);}
+function musicaEpica(){   /* ~7 s: tambores y cuerdas graves mientras sube la espada, fanfarria al resplandecer */
+  nota(73.4,0,3.6,'sawtooth',.05,500); nota(110,0,3.6,'sawtooth',.035,500);
+  [0,1,2,2.5,3,3.25,3.38].forEach((s,i)=>tambor(s,.12+i*.03));
+  [[293.7,.5,.5],[440,1,.5],[587.3,1.5,.9],[523.3,2.4,.25],[466.2,2.65,.25],[440,2.9,.6]].forEach(([f,s,d])=>metal(f,s,d));
+  [[233.1,293.7,349.2,466.2],[261.6,329.6,392,523.3]].forEach((ac_,i)=>ac_.forEach((f,j)=>metal(f,3.5+i*.6,.6,j===3?.024:.016)));
+  nota(58.3,3.5,.6,'sawtooth',.05,400); nota(65.4,4.1,.6,'sawtooth',.05,400);
+  [293.7,370,440,587.3].forEach((f,j)=>metal(f,4.7,2.6,j===3?.026:.017)); nota(73.4,4.7,2.6,'sawtooth',.06,400);
+  [3.5,4.1,4.7,4.85,5].forEach(s=>tambor(s,.3)); ruido(4.7,1.8,.05,6000,.5);
+}
 // el móvil solo deja sonar si el audio se arranca con un toque: lo despertamos en el primer toque y en cada uno
 function despiertaAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume();
   const b=ac.createBuffer(1,1,22050),s=ac.createBufferSource();s.buffer=b;s.connect(ac.destination);s.start(0);}catch(e){}}
@@ -183,16 +204,22 @@ function actualizaChispas(){
 }
 // ── con 5 flores, la espada sale del agua: un brazo la alza, las flores giran alrededor, resplandece, y un hado la coge
 function empiezaExcalibur(){
-  excal={fase:'sube',t:0,x:Math.round(W/2),y:Math.round(lerp(HORIZ,FONDO,.5)),tipos:floresTipos.slice(0,5),sub:56};
-  floresTipos=[];
-  [523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.35,'square',.05,f),i*180));
+  excal={fase:'sube',t:0,x:Math.round(W/2),y:Math.round(lerp(HORIZ,FONDO,.5)),tipos:floresTipos.slice(0,5),sub:SUB0,salen:0};
+  floresTipos=[]; musicaEpica();
   for(let i=0;i<4;i++)avisos.push({x:excal.x,y:excal.y,v:14+i*6,onda:true});
 }
-function manoExcal(){return [excal.x,excal.y-30+excal.sub];}
+/* la mano queda 16 px sobre el agua; al empezar está tan hundida que solo la punta de la espada roza la superficie */
+const ALTO_MANO=16, SUB0=ALTO_MANO+22;
+function manoExcal(){return [excal.x,excal.y-ALTO_MANO+excal.sub];}
+const T_FLOR=.6, PASO_FLOR=.15;   // vuelo de cada flor desde el contador hasta la espada
 function actualizaExcal(){
   if(!excal)return; const E=excal; E.t+=1/60;
-  if(E.fase==='sube'){const k=Math.min(1,E.t/1.8);E.sub=56*(1-k*k*(3-2*k));if(Math.random()<.15)avisos.push({x:E.x+azar(-5,5),y:E.y,v:14,onda:true});
-    if(k>=1){E.fase='brilla';E.t=0;blip(1568,.6,'sine',.05,2093);}}
+  if(E.fase==='sube'){const k=Math.min(1,E.t/3.5);E.sub=SUB0*(1-k*k*(3-2*k));if(Math.random()<.15)avisos.push({x:E.x+azar(-4,4),y:E.y,v:14,onda:true});
+    if(k>=1){E.fase='flores';E.t=0;}}
+  else if(E.fase==='flores'){   // las cinco flores salen del contador una a una y vuelan hacia la espada
+    while(E.salen<5&&E.t>=E.salen*PASO_FLOR){E.salen++;floresMagicas=5-E.salen;saltoContador=12;}
+    for(let i=0;i<5;i++)if(!E['llega'+i]&&E.t>=i*PASO_FLOR+T_FLOR){E['llega'+i]=true;blip(1400+i*150,.2,'sine',.04,2400);}
+    if(E.t>=4*PASO_FLOR+T_FLOR+.1){E.fase='brilla';E.t=0;}}
   else if(E.fase==='brilla'){
     if(E.t>1.6&&!E.recogedor){nuevaHada();const h=hadas[hadas.length-1];h.estado='recoge';h.recoge=true;h.ala='#8a1f2a';h.pantalon='#1d1d1d';h.vida=azar(24,32);h.listo=1;h.dur=99;E.recogedor=h;}
     const h=E.recogedor;
@@ -200,11 +227,11 @@ function actualizaExcal(){
       h.espada=true;h.recoge=false;h.estado='vuela';h.dur=azar(2,4);h.angEspada=-.25;eligeObjetivo(h);E.fase='baja';E.t=0;floresMagicas=0;espadaPendiente=false;
       blip(880,.4,'sawtooth',.06,1760);for(let i=0;i<40;i++)polen.push({x:mx,y:my-16,vx:azar(-1,1),vy:azar(-1.2,.3),v:azar(80,140),f:Math.random()*6,c:['#fff6b0','#ffd2f0','#c8f0ff','#ffffff'][i%4]});}}
     else if(h&&(h.cogida||!hadas.includes(h))){E.recogedor=null;}}
-  else if(E.fase==='baja'){const k=Math.min(1,E.t/1.2);E.sub=56*k*k;if(k>=1)excal=null;}
+  else if(E.fase==='baja'){const k=Math.min(1,E.t/1.2);E.sub=SUB0*k*k;if(k>=1)excal=null;}
 }
-function espadaEn(hx,hy,largo,brillo){   // espada grande: hoja ancha, guarda dorada, empuñadura y pomo
-  R(hx-1,hy,3,5,'#6b3e1a'); R(hx-1,hy+5,3,2,'#e2b23a'); R(hx-5,hy-2,11,2,'#e2b23a'); P1(hx-5,hy-3,'#e2b23a'); P1(hx+5,hy-3,'#e2b23a');
-  R(hx-1,hy-2-largo,3,largo,brillo?'#ffffff':'#dfe6ee'); R(hx+1,hy-2-largo,1,largo,brillo?'#e8f4ff':'#9aa7b4'); P1(hx,hy-3-largo,brillo?'#ffffff':'#dfe6ee');
+function espadaEn(hx,hy,largo,brillo){   // espada: hoja fina, guarda dorada, empuñadura y pomo
+  R(hx,hy,1,4,'#6b3e1a'); P1(hx,hy+4,'#e2b23a'); R(hx-3,hy-1,7,1,'#e2b23a'); P1(hx-3,hy-2,'#e2b23a'); P1(hx+3,hy-2,'#e2b23a');
+  R(hx-1,hy-1-largo,2,largo,brillo?'#ffffff':'#dfe6ee'); R(hx+1,hy-1-largo,1,largo,brillo?'#e8f4ff':'#9aa7b4'); P1(hx,hy-2-largo,brillo?'#ffffff':'#dfe6ee');
 }
 function florMano(tipo,x,y){   // flor grande en la mano: cinco pétalos redondos y el centro
   const c=COLOR_FLOR[tipo], borde=tipo==='margarita'?'#c8c8c8':oscurece(c,.7);
@@ -217,18 +244,25 @@ function florGrande(tipo,x,y){const c=COLOR_FLOR[tipo];x=Math.round(x);y=Math.ro
 function dibujaExcal(){
   if(!excal)return; const E=excal,[hx,hy]=manoExcal(),agua=E.y,brilla=E.fase==='brilla',tomada=E.fase==='baja';
   // resplandor: rayos que giran
-  if(brilla){const cy=hy-18;for(let k=0;k<14;k++){const a=k/14*Math.PI*2+t*.8,l=24+Math.sin(t*6+k)*6;
-      if(Math.sin(t*10+k*2)>-.3)linea(hx+Math.cos(a)*7,cy+Math.sin(a)*7,hx+Math.cos(a)*l,cy+Math.sin(a)*l,k%2?'#fff6c8':'#ffe27a');}}
+  const CY=hy-12;
+  if(brilla){const cy=CY,crece=Math.min(1,E.t/.4);for(let k=0;k<14;k++){const a=k/14*Math.PI*2+t*.8,l=(18+Math.sin(t*6+k)*5)*crece;
+      if(l>7&&Math.sin(t*10+k*2)>-.3)linea(hx+Math.cos(a)*6,cy+Math.sin(a)*6,hx+Math.cos(a)*l,cy+Math.sin(a)*l,k%2?'#fff6c8':'#ffe27a');}}
   // el brazo, con la manga blanca, y la espada; solo se ve lo que está por encima del agua
   const P=(x,y,c)=>{if(y<agua)P1(x,y,c);};
   for(let y=hy+5;y<agua+1;y++)for(let x=-4;x<=4;x++)P(hx+x,y,Math.abs(x)===4?'#c4cfd6':(x<-1?'#e6ecf0':'#f7f9fa'));   // manga blanca
   for(let y=hy-1;y<hy+5;y++)for(let x=-3;x<=3;x++)if(!(Math.abs(x)===3&&(y===hy-1||y===hy+4)))P(hx+x,y,x<-1?'#e0b48e':'#f2c6a0');   // la mano agarra la empuñadura
-  if(!tomada&&hy<agua)espadaEn(hx,hy-1,30,brilla&&Math.floor(t*8)%2===0);   // la espada, en cuanto asoma la mano
-  // las cinco flores dan vueltas alrededor
-  if(brilla){const cy=hy-18;E.tipos.forEach((tipo,i)=>{const a=i/5*Math.PI*2+t*2.2;florGrande(tipo,hx+Math.cos(a)*19,cy+Math.sin(a)*10);});
-    if(Math.random()<.4)polen.push({x:hx+azar(-18,18),y:hy-18+azar(-12,12),vx:azar(-.2,.2),vy:azar(-.4,-.1),v:50,f:Math.random()*6,c:'#ffffff'});}
+  if(!tomada){g.save();g.beginPath();g.rect(0,0,cv.width,agua*S);g.clip();   // la espada sale del agua: primero la punta
+    espadaEn(hx,hy-1,18,brilla&&Math.floor(t*8)%2===0);g.restore();}
+  // las cinco flores vuelan desde el contador y luego dan vueltas alrededor
+  const orbita=i=>{const a=i/5*Math.PI*2+t*2.2;return [hx+Math.cos(a)*14,CY+Math.sin(a)*7];};
+  if(E.fase==='flores'){const ox=W/2-8,oy=ARRIBA+7;E.tipos.forEach((tipo,i)=>{const k=cl((E.t-i*PASO_FLOR)/T_FLOR,0,1);if(k<=0)return;
+      const e=k*k*(3-2*k),[tx,ty]=orbita(i);const x=lerp(ox,tx,e),y=lerp(oy,ty,e)-Math.sin(Math.PI*k)*10;florGrande(tipo,x,y);
+      if(k<1&&Math.random()<.5)polen.push({x,y,vx:0,vy:0,v:25,f:Math.random()*6,c:'#fff6b0'});});}
+  if(brilla){E.tipos.forEach((tipo,i)=>{const [x,y]=orbita(i);florGrande(tipo,x,y);});
+    if(Math.random()<.4)polen.push({x:hx+azar(-14,14),y:CY+azar(-10,10),vx:azar(-.2,.2),vy:azar(-.4,-.1),v:50,f:Math.random()*6,c:'#ffffff'});}
 }
-let entradas=0, ataque=null, cabezaRana=null, finJuego=false;
+let entradas=0, ataque=null, cabezaRana=null, finJuego=false, sangre=[], manchas=[];
+const SIERRA_X=16, SIERRA_Y=-5;   /* dónde se pone el hado para serrar el cuello */
 function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
   const h={x:lado<0?-16:W+16,y:azar(32,HORIZ+6),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(1.5,3),mira:lado<0?1:-1,
     ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8','#7a4a30'][Math.floor(Math.random()*5)],
@@ -313,7 +347,7 @@ const HOMBRE_LADO=[".......HHHHH.........","......HHHHHHH........",".....HHHHHHH
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
 function dibujaHada(h){
   const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
-  const ab=aleteo?1:.5, de_lado=h.estado==='pis'&&!h.cogida;
+  const ab=aleteo?1:.5, de_lado=(h.estado==='pis'&&!h.cogida)||(h.ataca&&ataque&&(ataque.fase==='sierra'||ataque.fase==='chorro'));   /* de perfil también al serrar */
   const alaFn=(lado,osc)=>(u,v)=>{const d=u*u+v*v;if(d>.7)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.06)return '#fff4d8';return osc?oscurece(h.ala,.78):h.ala;};
   if(de_lado){   // de perfil: las dos alas se ven de canto, a la espalda
     for(const [k,osc] of [[1.6,true],[0,false]]){
@@ -379,16 +413,25 @@ function empiezaAtaque(esp,comido){
 }
 function actualizaAtaque(){
   if(!ataque)return; const A=ataque,E=A.esp; A.t+=1/60; const [nx,ny]=cuello();
-  if(A.fase==='baja'){const k=Math.min(1,A.t/.7),e=k*k;E.x=lerp(A.desde[0],nx+12,e);E.y=lerp(A.desde[1],ny-14,e);E.mira=-1;E.angEspada=lerp(-.25,-1.2,k);
-    if(k>=1){A.fase='corta';A.t=0;}}
-  else if(A.fase==='corta'){const k=Math.min(1,A.t/.22);E.angEspada=lerp(-1.2,-3.6,k);
-    if(k>=.5&&!rana.sinCabeza){rana.sinCabeza=true;rana.lengua=0;rana.estado='quieta';blip(90,.5,'sawtooth',.12,40);blip(1500,.15,'square',.05,600);
-      cabezaRana={x:nx+Math.sin(rana.ang)*2,y:ny-Math.cos(rana.ang)*2,ang:rana.ang,vx:azar(-.6,.6),vy:-1.6,va:azar(-.08,.08),flota:false};
-      for(let i=0;i<40;i++)plumas.push({x:nx,y:ny,vx:azar(-1.4,1.4),vy:azar(-2,.2),c:i%3?'#d0202c':'#8a1018',v:90});}
-    if(k>=1){A.fase='sale';A.t=0;}}
+  const HOR=-Math.PI/2;   // espada horizontal, apuntando al cuello
+  if(A.fase==='baja'){const k=Math.min(1,A.t/.7),e=k*k;E.x=lerp(A.desde[0],nx+SIERRA_X,e);E.y=lerp(A.desde[1],ny+SIERRA_Y,e);E.mira=-1;E.angEspada=lerp(-.25,HOR,k);
+    if(k>=1){A.fase='sierra';A.t=0;A.son=0;rana.lengua=0;rana.estado='quieta';}}
+  else if(A.fase==='sierra'){   // un segundo serrando el cuello, adelante y atrás
+    const s=Math.sin(A.t*26);E.x=nx+SIERRA_X+s*3;E.y=ny+SIERRA_Y;E.angEspada=HOR+s*.06;
+    if(A.t>=A.son){A.son+=.12;ruido(0,.1,.09,1500+s*500,4);blip(150,.08,'sawtooth',.035,95);}
+    if(Math.random()<.45)sangre.push({x:nx+azar(-2,2),y:ny,vx:azar(-.5,.5),vy:azar(-1.2,-.2),suelo:ny+azar(2,10),c:Math.random()<.3?'#8a1018':'#d0202c'});
+    if(A.t>=1){A.fase='chorro';A.t=0;rana.sinCabeza=true;blip(90,.5,'sawtooth',.12,40);
+      cabezaRana={x:nx+Math.sin(rana.ang)*2,y:ny-Math.cos(rana.ang)*2,ang:rana.ang,vx:azar(-.7,.7),vy:-1.3,va:azar(-.1,.1),flota:false};
+      ruido(0,2.1,.14,650,.6);ruido(0,2.1,.07,2400,.8);[0,.35,.7,1.05,1.4].forEach(s=>ruido(s,.25,.08,300,1));}}
+  else if(A.fase==='chorro'){   // dos segundos de chorro de sangre exagerado, a borbotones
+    E.x+=.15;E.y-=.2;E.angEspada=lerp(E.angEspada,-.25,.03);
+    const pulso=.8+.2*Math.sin(A.t*18),fin=A.t>1.7?(2-A.t)/.3:1;
+    for(let i=0;i<9;i++)sangre.push({x:nx+azar(-1,1),y:ny-1,vx:azar(-.55,.55)+Math.sin(A.t*7)*.35,vy:-azar(3.4,4.6)*pulso*Math.max(.3,fin),suelo:ny+azar(-8,18),c:['#d0202c','#ff3a46','#8a1018','#d0202c'][i%4]});
+    if(A.t>=2){A.fase='sale';A.t=0;}}
   else if(A.fase==='sale'){
     E.x+=.6;E.y-=.9;E.angEspada=lerp(E.angEspada,-.25,.05);
-    if(A.t>.7&&!A.salio){A.salio=true;const c=A.comido;c.cogida=false;c.ataca=false;c.x=nx;c.y=ny-2;c.vx=azar(-.5,.5);c.vy=-2.6;c.estado='seVa';c.mira=c.x<W/2?-1:1;
+    if(Math.random()<.15)sangre.push({x:nx+azar(-1,1),y:ny-1,vx:azar(-.3,.3),vy:azar(-1.4,-.4),suelo:ny+azar(0,8),c:'#d0202c'});
+    if(A.t>.15&&!A.salio){A.salio=true;const c=A.comido;c.cogida=false;c.ataca=false;c.x=nx;c.y=ny-2;c.vx=azar(-.5,.5);c.vy=-2.6;c.estado='seVa';c.mira=c.x<W/2?-1:1;
       hadas.push(c);blip(700,.3,'square',.06,1400);for(let i=0;i<14;i++)plumas.push({x:nx,y:ny,vx:azar(-1,1),vy:azar(-1.6,0),c:'#d0202c',v:70});}
     if(A.t>1.4){E.ataca=false;E.estado='seVa';E.mira=1;}
     if(A.t>3&&!finJuego){finJuego=true;document.getElementById('otra').hidden=false;}}
@@ -405,7 +448,7 @@ function dibujaCabezaRana(hx,hy,a,muerta){
 }
 function reinicia(){
   floresMagicas=0;espadaPendiente=false;floresTipos=[];chispas=[];excal=null;
-  hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;
+  hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;sangre=[];manchas=[];
   Object.assign(rana,{ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
   FLORES.forEach(f=>{f.cortada=false;f.crece=1;});
   document.getElementById('otra').hidden=true; nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=t+3;
@@ -437,6 +480,8 @@ function paso(){
   polen.forEach(p=>{p.vy+=.004;p.vx*=.99;p.x+=p.vx+Math.sin(t*3+p.f)*.25;p.y+=p.vy;p.v--;}); polen=polen.filter(p=>p.v>0);
   pis=pis.filter(p=>p.v>0);
   plumas.forEach(p=>{p.vy+=.02;p.vx*=.97;p.x+=p.vx+Math.sin(t*5+p.y)*.2;p.y+=p.vy;p.v--;}); plumas=plumas.filter(p=>p.v>0);
+  sangre.forEach(p=>{p.vy+=.12;p.vx*=.995;p.x+=p.vx;p.y+=p.vy;if(p.vy>0&&p.y>=p.suelo){p.fin=true;if(Math.random()<.25)manchas.push({x:Math.round(p.x),y:Math.round(p.y),v:azar(200,400),c:p.c});}});
+  sangre=sangre.filter(p=>!p.fin&&p.y<H+4); manchas.forEach(m=>m.v--); manchas=manchas.filter(m=>m.v>0);
   avisos.forEach(a=>{a.v--;if(!a.onda)a.y-=.3;}); avisos=avisos.filter(a=>a.v>0);
 }
 function dibuja(){
@@ -452,10 +497,12 @@ function dibuja(){
   if(rana.estado==='quieta'&&!rana.sinCabeza&&!ataque){const [mx,my]=boca(),L=Math.min(FONDO-24,96),px=Math.round(mx+Math.sin(rana.ang)*L),py=Math.round(my-Math.cos(rana.ang)*L);
     for(const [ox,oy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]])P1(px+ox,py+oy,'#5a1a2a');
     const c=Math.floor(t*4)%2?'#ffffff':'#f59bb0';for(const [ox,oy] of [[0,0],[-1,0],[1,0],[0,-1],[0,1]])P1(px+ox,py+oy,c);}
+  manchas.forEach(m=>P1(m.x,m.y,m.v<60&&m.v%8<4?'#5a1018':m.c));
   if(cabezaRana)dibujaCabezaRana(cabezaRana.x,cabezaRana.y,cabezaRana.ang,true);
   dibujaRana(t); dibujaLengua(); if(rana.presa)dibujaHada(rana.presa);
   if(ataque&&ataque.esp.ataca)dibujaHada(ataque.esp);
   plumas.forEach(p=>P1(p.x,p.y,p.c));
+  sangre.forEach(p=>R(p.x,p.y,1,p.vy<-1.5?2:1,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
   // contador de flores mágicas
   { const txt=floresMagicas+'/5', w=txt.length*8+16, x0=Math.round(W/2-w/2), y0=ARRIBA, sy=saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*3):0;
