@@ -345,7 +345,7 @@ function actualizaArana(){
   }
   actualizaPatas(a,vel);
 }
-function bocaDe(a){const e=enCuerpo(a,a.d*13,-4);return [e[0]+a.d*2,e[1]-3];}
+function bocaDe(a){const e=enCuerpo(a,a.d*10,-4);return [e[0]+a.d*6,e[1]-3];}
 
 // el piloto: cabeza esfera y brazos y piernas de palo. Se dibuja en su propio marco y se coloca colgando del pie que tiene cogido
 function pilotoLocal(P){
@@ -424,10 +424,9 @@ function dibujaArana(){
   const pata=p=>{const h=caderaDe(a,p),f=p.pie,k=rodilla(h,f,p.i),c=p.lejos?ARA.lejos:ARA.cerca;
     pixLinea(h[0],h[1],k[0],k[1],c);pixLinea(k[0],k[1],f[0],f[1],c);R(Math.round(k[0])-.5,Math.round(k[1])-.5,1,1,ARA.luz);};
   a.patas.filter(p=>p.lejos).forEach(pata);
-  const r=a.d*INCL; rectPix(a.x,y,26,8,r);                    // cuerpo, inclinado hacia delante
-  const esq=enCuerpo(a,a.d*13,-4), inc=r-a.d*.25;             // cabeza: sobre la esquina de arriba delante, inclinada
-  const hc=[esq[0]+a.d*1.6,esq[1]-2.6]; rectPix(hc[0],hc[1],7,6,inc);
-  R(Math.round(hc[0]+a.d*2)-.5,Math.round(hc[1]-1)-.5,1,1,ARA.ojo); R(Math.round(hc[0]+a.d*.5)-.5,Math.round(hc[1]-1)-.5,1,1,ARA.ojo);
+  const r=a.d*INCL; rectPix(a.x,y,20,8,r);                    // cuerpo, inclinado hacia delante
+  const esq=enCuerpo(a,a.d*10,-4), inc=r-a.d*.25;             // cabeza alargada: sobre la esquina de arriba delante, inclinada, sin ojos
+  const hc=[esq[0]+a.d*3,esq[1]-2.8]; rectPix(hc[0],hc[1],11,6,inc);
   a.patas.filter(p=>!p.lejos).forEach(pata);
 }
 
