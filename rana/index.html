@@ -24,6 +24,10 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
 #mando::before{content:"";position:absolute;left:14px;right:14px;top:50%;height:4px;margin-top:-2px;background:#0d0905;border-radius:2px}
 #palo{position:absolute;left:50%;top:50%;width:22px;height:36px;margin:-18px 0 0 -11px;border-radius:2px;background:var(--palo);
   box-shadow:inset -3px -3px 0 rgba(0,0,0,.18);will-change:transform}
+#comidos{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border-radius:3px;background:#1d140b;
+  box-shadow:inset 0 3px 0 rgba(0,0,0,.55),0 0 0 3px var(--borde);color:#ffe27a;min-width:70px}
+#comidos small{font:700 9px var(--font);letter-spacing:.16em;text-transform:uppercase;color:#cdb58a}
+#comidos span{font:700 30px/1 var(--font);font-variant-numeric:tabular-nums}
 #lengua{width:84px;height:64px;border-radius:3px;border:0;background:#1d140b;cursor:pointer;touch-action:none;padding:0;
   box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
 #lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
@@ -44,6 +48,7 @@ button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offs
 <a class="back" href="/">← volver</a>
 <div class="mandos">
   <div id="mando" role="slider" tabindex="0" aria-label="Gira la cabeza de la rana" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
+  <div id="comidos" aria-live="polite"><small>comidos</small><span id="numComidos">0</span></div>
   <button id="lengua" aria-label="Sacar la lengua"></button>
 </div>
 <div id="cartel" role="status" aria-live="polite"></div>
@@ -51,16 +56,19 @@ button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offs
 
 <script>
 const cv=document.getElementById('c'), g=cv.getContext('2d',{alpha:false});
-const mando=document.getElementById('mando'), palo=document.getElementById('palo'), boton=document.getElementById('lengua');
+const numComidos=document.getElementById('numComidos'), mando=document.getElementById('mando'), palo=document.getElementById('palo'), boton=document.getElementById('lengua');
 let W=112,H=200,S=1,DPR=1,FONDO=150,HORIZ=60,BANDA=150;
 const lerp=(a,b,k)=>a+(b-a)*k, azar=(a,b)=>a+Math.random()*(b-a), cl=(v,a,b)=>Math.max(a,Math.min(b,v));
 
+let ARRIBA=3;
+const sonda=document.createElement('div');sonda.style.cssText='position:fixed;top:0;height:env(safe-area-inset-top,0px);width:1px;visibility:hidden';document.body.appendChild(sonda);
 function ajusta(){
   DPR=Math.min(3,window.devicePixelRatio||1);
   cv.width=Math.round(innerWidth*DPR); cv.height=Math.round(innerHeight*DPR);
   S=Math.max(1,Math.round(cv.width/112)); W=cv.width/S; H=cv.height/S;   // cada píxel lógico, un tamaño entero en pantalla
   BANDA=Math.min(170,Math.max(130,innerHeight*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
   FONDO=Math.round(H-BANDA*DPR/S); HORIZ=Math.round(FONDO*.36);
+  ARRIBA=3+Math.ceil(sonda.getBoundingClientRect().height*DPR/S);
   hazEscena();
 }
 function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x)*S,Math.round(y)*S,Math.max(1,Math.round(w))*S,Math.max(1,Math.round(h))*S);}
@@ -74,7 +82,7 @@ function linea(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(
   for(let n=0;n<600;n++){R(x0,y0,1,1,c);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
 const FUENTE={'/':'001001010100100','0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001',
  '5':'111100111001111','6':'111100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001111'};
-function numero(t,x,y,c){[...t].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4+(i%3),y+Math.floor(i/3),1,1,c);});}
+function numero(t,x,y,c,e=1){[...t].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1')R(x+(k*4+(i%3))*e,y+Math.floor(i/3)*e,e,e,c);});}
 
 // ── sonido
 let ac=null;function blip(f,d,tipo='square',vol=.09,fin=f*.5){try{if(!ac||ac.state!=='running')return;
@@ -168,7 +176,7 @@ function llegaChispa(c){
   if(floresMagicas>=5&&!excal){espadaPendiente=true;setTimeout(empiezaExcalibur,600);}
 }
 function actualizaChispas(){
-  const cx=W/2, cy=7;
+  const cx=W/2-8, cy=ARRIBA+7;
   chispas.forEach(c=>{c.t+=1/60;const k=Math.min(1,c.t/.9),e=k*k*(3-2*k);c.px=lerp(c.x,cx,e);c.py=lerp(c.y,cy,e)-Math.sin(Math.PI*k)*14;
     if(k>=1&&!c.hecha){c.hecha=true;llegaChispa(c);}});
   chispas=chispas.filter(c=>!c.hecha); if(saltoContador>0)saltoContador--;
@@ -197,6 +205,11 @@ function actualizaExcal(){
 function espadaEn(hx,hy,largo,brillo){   // espada grande: hoja ancha, guarda dorada, empuñadura y pomo
   R(hx-1,hy,3,5,'#6b3e1a'); R(hx-1,hy+5,3,2,'#e2b23a'); R(hx-5,hy-2,11,2,'#e2b23a'); P1(hx-5,hy-3,'#e2b23a'); P1(hx+5,hy-3,'#e2b23a');
   R(hx-1,hy-2-largo,3,largo,brillo?'#ffffff':'#dfe6ee'); R(hx+1,hy-2-largo,1,largo,brillo?'#e8f4ff':'#9aa7b4'); P1(hx,hy-3-largo,brillo?'#ffffff':'#dfe6ee');
+}
+function florMano(tipo,x,y){   // flor grande en la mano: cinco pétalos redondos y el centro
+  const c=COLOR_FLOR[tipo], borde=tipo==='margarita'?'#c8c8c8':oscurece(c,.7);
+  for(let k=0;k<5;k++){const a=k/5*Math.PI*2-Math.PI/2;elipse(x+Math.cos(a)*2.6,y+Math.sin(a)*2.6,2,2,0,(u,v)=>u*u+v*v>.6?borde:c);}
+  elipse(x,y,1.5,1.5,0,()=>tipo==='margarita'||tipo==='girasol'?'#a8641e':'#f2dd4a');
 }
 function florGrande(tipo,x,y){const c=COLOR_FLOR[tipo];x=Math.round(x);y=Math.round(y);
   for(const [dx,dy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0],[0,-1],[0,1]])P1(x+dx,y+dy,c);
@@ -317,7 +330,7 @@ function dibujaHada(h){
     [...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?20-i:i;R(x-10+xi+off,y-14+j,1,1,col[c]);});});
   if(h.espada)dibujaEspada(h,x,y,de_lado);
   // las flores que ha cortado, en la mano
-  h.flores.slice(-3).forEach((tipo,k)=>{const fx=x+(de_lado?-s*6:-10)+k,fy=y+5-k;linea(fx,fy+3,fx,fy,'#2f6e28');florMini(tipo,fx,fy-1);});
+  h.flores.slice(-3).forEach((tipo,k)=>{const fx=x+(de_lado?-s*7:-11)+(k-1)*3,fy=y+4-Math.abs(k-1)*2-k;linea(x+(de_lado?-s*6:-10),y+7,fx,fy,'#2f6e28');florMano(tipo,fx,fy-3);});   // ramito bien visible en la mano
 }
 
 // ── flores de los lados, cuatro distintas, que de vez en cuando sueltan polen mágico
@@ -445,12 +458,12 @@ function dibuja(){
   plumas.forEach(p=>P1(p.x,p.y,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
   // contador de flores mágicas
-  { const txt=floresMagicas+'/5', w=txt.length*4+9, x0=Math.round(W/2-w/2), sy=saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*2):0;
-    R(x0,3+sy,w,9,'#1d140b'); florMini(floresTipos.length?floresTipos[floresTipos.length-1]:'margarita',x0+4,7+sy); numero(txt,x0+8,5+sy,floresMagicas>=5?'#ffe27a':'#ffe9b8'); }
+  { const txt=floresMagicas+'/5', w=txt.length*8+16, x0=Math.round(W/2-w/2), y0=ARRIBA, sy=saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*3):0;
+    R(x0,y0+sy,w,15,'#1d140b'); R(x0,y0+sy,w,1,'#7a5c33'); R(x0,y0+sy+14,w,1,'#7a5c33');
+    florGrande(floresTipos.length?floresTipos[floresTipos.length-1]:'margarita',x0+6,y0+7+sy); numero(txt,x0+12,y0+3+sy,floresMagicas>=5?'#ffe27a':'#ffe9b8',2); }
   chispas.forEach(c=>{const x=Math.round(c.px||c.x),y=Math.round(c.py||c.y);florMini(c.tipo,x,y);if(Math.sin(t*20)>0){P1(x-2,y,'#ffffff');P1(x+2,y,'#ffffff');}});
-  // marcador: hadas cazadas
-  const txt=String(puntos).padStart(3,'0'), x0=Math.round(W-txt.length*4-6);
-  R(x0-2,3,txt.length*4+3,9,'#1d140b'); numero(txt,x0,5,'#ffe27a');
+  // hados comidos: en el panel de abajo, entre el mando y el botón
+  if(numComidos.textContent!==String(puntos)){numComidos.textContent=puntos;numComidos.animate([{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});}
 }
 addEventListener('resize',ajusta); ajusta();
 nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=3;
