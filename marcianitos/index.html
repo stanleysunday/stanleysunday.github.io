@@ -306,34 +306,37 @@ function actualizaArana(){
     a.h=k<.4?27-8*k/.4:19+8*Math.min(1,(k-.55)/.45);
     n.y=y; n.x=a.x+a.d*16; n.rot=(k<.4?-.9:.25)*a.d; coge([n.x,n.y-6]);
     if(a.ft>=T*4+.2){a.fase='deja';a.ft=0;n.y=SUELO-3;n.rot=0;n.rota=true;
-      st.piloto={x:n.x,y:n.y,vivo:true,escala:1,con:true,visto:false};}
-  }else if(a.fase==='deja'){                       // la nave queda deformada; la pata se mete dentro
+      st.piloto={ancla:[n.x+1,n.y+3],ang:0,vivo:true,escala:1,con:true,visto:false};}
+  }else if(a.fase==='deja'){                       // la nave queda deformada; mete una pata dentro
     a.h=lerp(a.h,21,.1); coge([n.x,n.y-1]);
-    if(a.ft>.6){a.fase='saca';a.ft=0;st.piloto.visto=true;blip(660,.12,'square',.04,990);}
-  }else if(a.fase==='saca'){                       // saca al piloto y lo alza; él patalea
+    if(a.ft>.6){a.fase='saca';a.ft=0;st.piloto.visto=true;a.desdePiloto=[...st.piloto.ancla];suelta(p1b);blip(660,.12,'square',.04,990);}
+  }else if(a.fase==='saca'){                       // lo saca cogido de un pie, lo alza y lo deja colgando boca abajo
     const k=Math.min(1,a.ft/1),e=k*k*(3-2*k),P=st.piloto;
-    P.x=lerp(n.x,a.x+a.d*15,e); P.y=lerp(n.y-2,SUELO-40,e); coge([P.x,P.y-2]);
+    P.ancla=[lerp(a.desdePiloto[0],a.x+a.d*15,e),lerp(a.desdePiloto[1],SUELO-46,e)];
+    P.ang=-a.d*Math.PI*e+(k>=1?Math.sin((a.ft-1)*5)*.45*Math.exp(-(a.ft-1)*1.1):0);
+    sujeta(p1,P.ancla);
     if(Math.random()<.08)blip(900+Math.random()*300,.05,'square',.025);
-    if(a.ft>1.6){a.fase='cabeza';a.ft=0;}
+    if(a.ft>2){a.fase='cabeza';a.ft=0;}
   }else if(a.fase==='cabeza'){                     // con otra pata le coge la cabeza
-    const P=st.piloto; coge([P.x,P.y-2]); sujeta(p2,[P.x,P.y-8],.45);
+    const P=st.piloto; P.ang=-a.d*Math.PI+Math.sin(a.ft*4)*.12; sujeta(p1,P.ancla); sujeta(p2,pilotoPunto(P,'cabeza'),.45);
     if(a.ft>.5){a.fase='arranca';a.ft=0;}
   }else if(a.fase==='arranca'){                    // tira, tira… y la arranca
-    const P=st.piloto; coge([P.x,P.y-2]);
-    if(P.con){const tir=Math.sin(a.ft*40)*.8*Math.min(1,a.ft*2);sujeta(p2,[P.x+tir,P.y-8-Math.abs(tir)]);
-      if(a.ft>.55){P.con=false;st.cabeza={x:P.x,y:P.y-8,vx:0,vy:0,r:0,vr:0,suelta:false};blip(120,.4,'sawtooth',.1,40);st.temblor=6;
-        for(let i=0;i<40;i++)st.lluvia.push({x:P.x,y:P.y-7,vx:azar(-1.4,1.4),vy:azar(-2.6,-.3),c:'#e0161b',quieto:false});}}
-    else{const e=Math.min(1,(a.ft-.55)/.25),C=st.cabeza;C.x=P.x+a.d*e*9;C.y=P.y-8-e*7;sujeta(p2,[C.x,C.y]);
-      if(Math.random()<.6)st.lluvia.push({x:P.x,y:P.y-7,vx:azar(-.6,.6),vy:azar(-2,-.8),c:'#e0161b',quieto:false});}
-    if(a.ft>1.2){a.fase='come';a.ft=0;P.vivo=false;}
-  }else if(a.fase==='come'){                       // se lleva el cuerpo a la boca y se lo come a bocados
-    const P=st.piloto,C=st.cabeza,boca=bocaDe(a),e=Math.min(1,a.ft/.5);
-    P.x=lerp(P.x,boca[0],e*.25);P.y=lerp(P.y,boca[1]+3,e*.25); coge([P.x,P.y-2]); sujeta(p2,[C.x,C.y]);
-    if(a.ft<.4&&Math.random()<.4)st.lluvia.push({x:P.x,y:P.y-6,vx:azar(-.5,.5),vy:azar(-1.5,-.4),c:'#e0161b',quieto:false});
+    const P=st.piloto; sujeta(p1,P.ancla); const cab=pilotoPunto(P,'cabeza'), cue=pilotoPunto(P,'cuello');
+    if(P.con){const tir=Math.sin(a.ft*40)*.8*Math.min(1,a.ft*2);P.ang=-a.d*Math.PI+tir*.08;sujeta(p2,[cab[0]+tir,cab[1]+Math.abs(tir)]);
+      if(a.ft>.55){P.con=false;st.cabeza={x:cab[0],y:cab[1],vx:0,vy:0,r:0,vr:0,suelta:false,de:[...cab]};blip(120,.4,'sawtooth',.1,40);st.temblor=6;
+        for(let i=0;i<40;i++)st.lluvia.push({x:cue[0],y:cue[1],vx:azar(-1.4,1.4),vy:azar(-2.2,.6),c:'#e0161b',quieto:false});}}
+    else{const e=Math.min(1,(a.ft-.55)/.25),C=st.cabeza;C.x=C.de[0]-a.d*e*7;C.y=C.de[1]-e*5;sujeta(p2,[C.x,C.y]);
+      if(Math.random()<.6)st.lluvia.push({x:cue[0],y:cue[1],vx:azar(-.6,.6),vy:azar(-.6,.8),c:'#e0161b',quieto:false});}
+    if(a.ft>1.2){a.fase='come';a.ft=0;P.vivo=false;a.desdePiloto=[...P.ancla];}
+  }else if(a.fase==='come'){                       // se lleva el cuerpo colgando a la boca y se lo come a bocados
+    const P=st.piloto,C=st.cabeza,boca=bocaDe(a),e=Math.min(1,a.ft/.5),ee=e*e*(3-2*e);
+    P.ancla=[lerp(a.desdePiloto[0],boca[0],ee),lerp(a.desdePiloto[1],boca[1]-5,ee)]; sujeta(p1,P.ancla); sujeta(p2,[C.x,C.y]);
+    const cue=pilotoPunto(P,'cuello');
+    if(a.ft<.4&&Math.random()<.4)st.lluvia.push({x:cue[0],y:cue[1],vx:azar(-.5,.5),vy:azar(-.5,.5),c:'#e0161b',quieto:false});
     const bocado=Math.floor(Math.max(0,a.ft-.55)/.32);
     if(bocado>(a.bocados||0)){a.bocados=bocado;P.escala=Math.max(0,1-bocado/3);blip(160,.1,'square',.08,90);
       for(let i=0;i<8;i++)st.lluvia.push({x:boca[0],y:boca[1]+2,vx:azar(-.8,.8),vy:azar(-1.2,0),c:'#e0161b',quieto:false});}
-    if(a.ft>1.7){a.fase='tira';a.ft=0;st.piloto=null;suelta(p1);suelta(p1b);}
+    if(a.ft>1.7){a.fase='tira';a.ft=0;st.piloto=null;suelta(p1);}
   }else if(a.fase==='tira'){                       // tira la cabeza por ahí
     const C=st.cabeza;
     if(!C.suelta){const e=Math.min(1,a.ft/.25);C.x+=-a.d*.6*e;C.y-=.8*e;sujeta(p2,[C.x,C.y]);
@@ -344,26 +347,31 @@ function actualizaArana(){
 }
 function bocaDe(a){const e=enCuerpo(a,a.d*13,-4);return [e[0]+a.d*2,e[1]-3];}
 
-// el piloto: cabeza esfera y brazos y piernas de palo
+// el piloto: cabeza esfera y brazos y piernas de palo. Se dibuja en su propio marco y se coloca colgando del pie que tiene cogido
+function pilotoLocal(P){
+  const t=st.anim/60, e=P.escala, mov=P.vivo?1:0, L={};
+  const curva=Math.sin(t*13)*1.6*mov+(mov?0:.8);
+  L.cad=[0,0]; L.cue=[Math.sin(t*11)*1.1*mov,-5.5*e]; L.ctl=[curva*e,-2.75*e];
+  L.hombro=[lerp(L.ctl[0],L.cue[0],.75),lerp(L.ctl[1],L.cue[1],.75)];
+  L.cabeza=[L.cue[0],L.cue[1]-2.4*e]; L.cuello=[L.cue[0],L.cue[1]-.4*e];
+  L.brazos=[-1,1].map(s=>{const ab=Math.sin(t*22+s*1.7)*.9*mov,codo=[L.hombro[0]+s*2.2*e,L.hombro[1]+1.2*e+ab*1.5*e];
+    return [L.hombro,codo,[codo[0]+s*1.8*e,codo[1]+(ab>0?2.2:-2.2)*e*(mov?1:.4)+1.5*e*(1-mov)]];});
+  const pi=Math.sin(t*19+2.3)*.8*mov, rodL=[-1.4*e+pi*1.2*e,2.6*e];
+  L.piernas=[[L.cad,rodL,[rodL[0]-.6*e-pi*1.6*e,rodL[1]+2.8*e]],[L.cad,[1.2*e,2.7*e],[1.6*e,5.4*e]]];   // la derecha es la que tiene cogida
+  L.pie=L.piernas[1][2];
+  return L;
+}
+function aMundo(P,L,q){const c=Math.cos(P.ang),sn=Math.sin(P.ang),x=q[0]-L.pie[0],y=q[1]-L.pie[1];return [P.ancla[0]+x*c-y*sn,P.ancla[1]+x*sn+y*c];}
+function pilotoPunto(P,nombre){const L=pilotoLocal(P);return aMundo(P,L,L[nombre]);}
 function dibujaPiloto(P){
   if(!P||!P.visto||P.escala<=0)return;
-  const t=st.anim/60, e=P.escala, x=P.x, y=P.y, mov=P.vivo?1:0;
+  const L=pilotoLocal(P), M=q=>aMundo(P,L,q), e=P.escala;
   g.strokeStyle='#ffe9c8'; g.lineWidth=Math.max(1.5,S*1.15*e); g.lineCap='round'; g.lineJoin='round';
-  const L=(a,b)=>{g.beginPath();g.moveTo(a[0]*S,a[1]*S);g.lineTo(b[0]*S,b[1]*S);g.stroke();};
-  // el torso se dobla con el pataleo
-  const curva=Math.sin(t*13)*1.6*mov+(mov?0:.8), cad=[x,y], cue=[x+Math.sin(t*11)*1.1*mov,y-5.5*e];
-  const ctl=[(cad[0]+cue[0])/2+curva*e,(cad[1]+cue[1])/2];
-  g.beginPath();g.moveTo(cad[0]*S,cad[1]*S);g.quadraticCurveTo(ctl[0]*S,ctl[1]*S,cue[0]*S,cue[1]*S);g.stroke();
-  const hombro=[lerp(ctl[0],cue[0],.75),lerp(ctl[1],cue[1],.75)];
-  for(const s of [-1,1]){
-    const ab=Math.sin(t*22+s*1.7)*.9*mov, pi=Math.sin(t*19+s*2.3)*.8*mov;
-    const codo=[hombro[0]+s*2.2*e,hombro[1]+1.2*e+ab*1.5*e], mano=[codo[0]+s*1.8*e,codo[1]+(ab>0?2.2:-2.2)*e*(mov?1:.4)+1.5*e*(1-mov)];
-    L(hombro,codo);L(codo,mano);
-    const rod=[cad[0]+s*1.4*e+pi*1.2*e,cad[1]+2.6*e], pie=[rod[0]+s*.6*e-pi*1.6*e,rod[1]+2.8*e];
-    L(cad,rod);L(rod,pie);
-  }
-  P.cuello=[cue[0],cue[1]-2.4*e];
-  if(P.con)dibujaCabeza(cue[0],cue[1]-2.4*e,0,e);
+  const linea=pts=>{g.beginPath();pts.map(M).forEach((q,i)=>i?g.lineTo(q[0]*S,q[1]*S):g.moveTo(q[0]*S,q[1]*S));g.stroke();};
+  const a=M(L.cad),c=M(L.ctl),b=M(L.cue);   // el torso se dobla con el pataleo
+  g.beginPath();g.moveTo(a[0]*S,a[1]*S);g.quadraticCurveTo(c[0]*S,c[1]*S,b[0]*S,b[1]*S);g.stroke();
+  L.brazos.forEach(linea); L.piernas.forEach(linea);
+  if(P.con){const h=M(L.cabeza);dibujaCabeza(h[0],h[1],P.ang,e);}
 }
 function dibujaCabeza(x,y,r,e=1){   // esfera: círculo con su sombra
   const R_=2.3*e;g.fillStyle='#ffe9c8';g.beginPath();g.arc(x*S,y*S,R_*S,0,Math.PI*2);g.fill();
@@ -398,21 +406,28 @@ function actualizaDom(){
   }
 }
 
+const ARA={cuerpo:'#2b1532',borde:'#5c3468',luz:'#9a6aa2',cerca:'#1b0c22',lejos:'#6a4474',ojo:'#ff3b2f',ancla:'#f2e6cf'};
+function pixLinea(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);
+  const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;
+  for(let n=0;n<400;n++){R(x0,y0,1,1,c);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
+function rectPix(cx,cy,w,h,rot){   // rectángulo girado, rellenado píxel a píxel, con borde, luz arriba y las cuatro esquinas marcadas
+  const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(w,h)/2)+1;
+  for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){
+    const X=x+.5-cx,Y=y+.5-cy,u=X*cs+Y*sn,v=-X*sn+Y*cs;
+    if(Math.abs(u)>w/2||Math.abs(v)>h/2)continue;
+    const borde=Math.abs(u)>w/2-1||Math.abs(v)>h/2-1;
+    R(x,y,1,1,borde?(v<0?ARA.luz:ARA.borde):ARA.cuerpo);}
+  for(const [u,v] of [[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]])R(Math.round(cx+u*cs-v*sn)-.5,Math.round(cy+u*sn+v*cs)-.5,1,1,ARA.ancla);
+}
 function dibujaArana(){
   const a=st.arana; if(!a)return; const y=SUELO-a.h;
-  const pata=p=>{const h=caderaDe(a,p),f=p.pie,k=rodilla(h,f,p.i);
-    g.strokeStyle=p.lejos?COL.lejos:'#fff';g.lineWidth=Math.max(1,S*.8);g.lineCap='square';
-    g.beginPath();g.moveTo(h[0]*S,h[1]*S);g.lineTo(k[0]*S,k[1]*S);g.lineTo(f[0]*S,f[1]*S);g.stroke();};
+  const pata=p=>{const h=caderaDe(a,p),f=p.pie,k=rodilla(h,f,p.i),c=p.lejos?ARA.lejos:ARA.cerca;
+    pixLinea(h[0],h[1],k[0],k[1],c);pixLinea(k[0],k[1],f[0],f[1],c);R(Math.round(k[0])-.5,Math.round(k[1])-.5,1,1,ARA.luz);};
   a.patas.filter(p=>p.lejos).forEach(pata);
-  const caja=(cx,cy,w,h,rot=0)=>{   // rectángulo con contorno y anclas en las esquinas
-    const cs=Math.cos(rot),sn=Math.sin(rot),pt=(u,v)=>[cx+u*cs-v*sn,cy+u*sn+v*cs];
-    const P=[pt(-w/2,-h/2),pt(w/2,-h/2),pt(w/2,h/2),pt(-w/2,h/2)];
-    g.beginPath();P.forEach((q,i)=>i?g.lineTo(q[0]*S,q[1]*S):g.moveTo(q[0]*S,q[1]*S));g.closePath();
-    g.lineWidth=Math.max(1,S*.5);g.strokeStyle='#fff';g.stroke();   /* solo contorno */
-    P.forEach(q=>{const t=1.1;g.fillStyle='#fff';g.fillRect((q[0]-t)*S,(q[1]-t)*S,2*t*S,2*t*S);});};
-  const r=a.d*INCL; caja(a.x,y,26,8,r);                        // cuerpo, inclinado hacia delante
+  const r=a.d*INCL; rectPix(a.x,y,26,8,r);                    // cuerpo, inclinado hacia delante
   const esq=enCuerpo(a,a.d*13,-4), inc=r-a.d*.25;             // cabeza: sobre la esquina de arriba delante, inclinada
-  caja(esq[0]+a.d*1.6,esq[1]-2.6,7,5.5,inc);
+  const hc=[esq[0]+a.d*1.6,esq[1]-2.6]; rectPix(hc[0],hc[1],7,6,inc);
+  R(Math.round(hc[0]+a.d*2)-.5,Math.round(hc[1]-1)-.5,1,1,ARA.ojo); R(Math.round(hc[0]+a.d*.5)-.5,Math.round(hc[1]-1)-.5,1,1,ARA.ojo);
   a.patas.filter(p=>!p.lejos).forEach(pata);
 }
 
@@ -468,6 +483,7 @@ function dibuja(){
   if(s.temblor>0)g.translate(Math.round(azar(-.5,.5)*s.temblor*S),Math.round(azar(-.5,.5)*s.temblor*.7*S));
   dibujaFondo();
   dibujaMarco();
+  s.piezas.filter(p=>p.cae).forEach(dibujaPieza);   // los bloques que caen van por detrás de la araña, la nave y el piloto
   s.lluvia.forEach(p=>R(p.x,p.y,1,1,p.c));
   s.marc.forEach(m=>{if(!m.vivo)return;const c=m.flash>0&&m.flash%2?'#ffffff':m.c;
     if(m.huida)sprite(SUSTO,m.x,m.y,c);
@@ -477,7 +493,6 @@ function dibuja(){
   sprite(sp,n.x,n.y,COL.nave,n.rot);
   dibujaArana(); dibujaPiloto(s.piloto); if(s.cabeza&&(s.cabeza.suelta||!s.piloto||!s.piloto.con))dibujaCabeza(s.cabeza.x,s.cabeza.y,s.cabeza.r);
   s.chispas.forEach(c=>R(c.x,c.y,1,1,COL.chispa));
-  s.piezas.filter(p=>p.cae).forEach(dibujaPieza);
   dibujaMarcador();
   g.setTransform(1,0,0,1,0,0);
   if(!s.empezado&&Math.floor(performance.now()/500)%2===0){const t='PULSA FUEGO';texto(t,(W-ancho(t))/2,SUELO*.66,COL.texto);}
