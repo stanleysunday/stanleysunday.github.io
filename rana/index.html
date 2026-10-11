@@ -28,11 +28,11 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
   box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
 #lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 #lengua.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
-#cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;max-width:min(82vw,320px);padding:12px 16px;
+#cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;max-width:min(88vw,380px);padding:16px 20px;
   background:#5a3a1c;border:3px solid #2b1a0b;box-shadow:inset 0 0 0 2px #8a5e30,0 4px 0 rgba(0,0,0,.35);color:#ffe9b8;
-  font:700 13px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+  font:700 18px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
 #cartel.ve{opacity:1;transform:translate(-50%,-50%) scale(1)}
-#cartel b{display:block;color:#ffe27a;font-size:15px;margin-bottom:4px}
+#cartel b{display:block;color:#ffe27a;font-size:22px;margin-bottom:6px}
 #otra{position:fixed;left:50%;top:40%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:3px solid var(--borde);background:#1d140b;color:#ffe27a;
   font:700 12px var(--font);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offset:3px}
@@ -157,7 +157,7 @@ const ALAS=['#f08a3a','#4fb6e8','#ef7fb0','#f2d14a','#9a7ce0','#5cc27a'];
 let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntrada=0;
 let floresMagicas=0, espadaPendiente=false, cartelHasta=0;
 const cartelEl=document.getElementById('cartel');
-function cartel(html,ms=2600){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
+function cartel(html,ms=4200){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
 function consigueFlor(){
   if(espadaPendiente||hadas.some(h=>h.espada))return;   // mientras tienen espada no cuentan
   floresMagicas=Math.min(5,floresMagicas+1);
@@ -213,7 +213,7 @@ function actualizaHadas(){
   // van entrando de uno en uno, nunca más de dos a la vez
   if(!finJuego&&hadas.length<2&&t>proximaEntrada){   // después de unos cuantos, aparece uno con espada
     const conEspada=espadaPendiente&&!hadas.some(h=>h.espada);nuevaHada(conEspada);if(conEspada){espadaPendiente=false;floresMagicas=0;
-      cartel('<b>¡Llega el de la espada!</b>Si la rana se come a alguien ahora…',3200);}
+      cartel('<b>¡Llega el de la espada!</b>Si la rana se come a alguien ahora…',4800);}
     proximaEntrada=t+azar(3,5);}
 }
 function lanzaLengua(){
