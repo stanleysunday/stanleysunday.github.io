@@ -217,12 +217,12 @@ function actualizaLengua(){
 // hombre mariposa, más grande: sin camiseta, con barba. De frente cuando vuela, de perfil cuando hace pis
 const HOMBRE_FRENTE=[
 ".....HHHHH.....","....HHHHHHH....","...HHHHHHHHH...","...HSSSSSSSH...","...hSESSSESh...","...SSSSsSSSS...","...BSSSsSSSB...","...BBSbbbSBB...",
-"...BBBBBBBBB...","....BBBBBBB....",".....bBBBb.....","......SsS......","...SSSSSSSSS...","..SSSSSSSSSSS..",".SS.SdSSSdS.SS.",".SS.SSSSSSS.SS.",
+"...BBBBBBBBB...","..SSBBBBBBBSS..",".SSSSbBBBbSSSS.","SSSSSSSSSSSSSSS","SSSSSSSSSSSSSSS","SS.SSdSSSdSS.SS","SS.SSSSSSSSS.SS",
 "SS.SSSSSSSSS.SS","SS.SSSSSSSSS.SS","S.SSSSSSSSSSS.S","S.SSSSSdSSSSS.S","s.SsSSSSSSSsS.s","s..sSSSSSSSs..s","...TTTTTTTTT...","...TTTTtTTTT...",
 "...TTTt.tTTT...","...SSSs.sSSS...","...SSSs.sSSS...","...sSSS.SSSs...","....SSs.sSS....","....SSs.sSS....","...FFF...FFF..."];
 const HOMBRE_LADO=[
 ".....HHHH......","....HHHHHH.....","...HHHHHHHH....","...HHSSSSSS....","...HhSSSES.....","...HSSSSSSSS...","...hSSSSSSs....","...BBBSbbb.....",
-"...BBBBBBB.....","....BBBBBB.....",".....bBBb......",".....SsS.......","....SSSSSS.....","...SSSSSSSS....","...SSSSSdSSS...","...SsSSSSSSSS..",
+"...BBBBBBB.....","..SSBBBBBBS....","..SSSSbBBbSS...","..SSSSSSSSSS...","...SSSSSdSSS...","...SsSSSSSSSS..",
 "...SsSSSSSSSSS.","...SSSSSSSSSSS.","...SSSSSSdSSSS.","...SSSSSSSSSSs.","....SSSSSSSSs..","....SSSSSSSSs..","....TTTTTTT....","....TTTTTTt....",
 "....TTTtTT.....","....SSSsSS.....","....SSSsS......","....SSSsS......","....SSSsS......","....SSSsS......","....FFFFFF....."];
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
