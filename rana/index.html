@@ -143,7 +143,7 @@ let hadas=[], pis=[], plumas=[], puntos=0, t=0, avisos=[];
 function nuevaHada(){const lado=Math.random()<.5?-1:1;
   hadas.push({x:lado<0?-12:W+12,y:azar(18,HORIZ+10),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(1.5,3),mira:lado<0?1:-1,
     ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8'][Math.floor(Math.random()*4)],
-    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c','#8a8a8a'][Math.floor(Math.random()*5)],barba:null,camisa:['#f4f1e6','#e65a4a','#4fb07a','#f2c84a'][Math.floor(Math.random()*4)],fase:Math.random()*6,esquiva:null,listo:azar(.85,1)});const h=hadas[hadas.length-1];h.barba=barbaDe(h);}
+    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c','#8a8a8a'][Math.floor(Math.random()*5)],barba:null,pantalon:['#3c5aa8','#c94a3a','#2f7a4a','#e2b23a','#5a3f86'][Math.floor(Math.random()*5)],fase:Math.random()*6,esquiva:null,listo:azar(.85,1)});const h=hadas[hadas.length-1];h.barba=barbaDe(h);}
 function barbaDe(h){return Math.random()<.25?'#cfcfcf':h.pelo;}
 function eligeObjetivo(h){h.obj=[azar(18,W-18),azar(18,HORIZ+12)];}
 function cambiaEstado(h){const r=Math.random();
@@ -165,7 +165,7 @@ function actualizaHadas(){
       h.vx*=.94;h.vy*=.94;h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}
     else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*3+h.fase)*.008;}
     if(h.estado==='pis'&&h.dur>.4&&h.dur<h.durPis-.3||h.estado==='pis'&&!h.durPis){h.durPis=h.durPis||h.dur;
-      if(t*60%2<1)pis.push({x:h.x+h.mira*3.5,y:h.y+1,vx:h.mira*azar(.55,.75),vy:azar(-.25,-.1),v:90});}
+      if(t*60%2<1)pis.push({x:h.x+h.mira*2.5,y:h.y+2,vx:h.mira*azar(.55,.75),vy:azar(-.25,-.1),v:90});}
     if(h.estado!=='pis')h.durPis=0;
     h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,12,W-12); h.y=cl(h.y,16,FONDO-42);
   });
@@ -194,22 +194,22 @@ function actualizaLengua(){
         avisos.push({x:mx,y:my-6,v:60});setTimeout(nuevaHada,azar(400,1400));}}}
   if(rana.trago>0)rana.trago--;
 }
-function dibujaHada(h){   // hombre mariposa: barbudo, con alas grandes
+// hombre mariposa, sin camiseta y con barba. Dos posturas: de frente (vuela o flota) y de lado (haciendo pis)
+const HOMBRE_FRENTE=["..HHHHH..",".HHHHHHH.",".HSSSSSH.","..SESES..","..BSSSB..","..BBBBB..","...BBB...",".SSSSSSS.",
+  "SSsSSSsSS","S.SsSsS.S","S.SSSSS.S","S.SSsSS.S","s.SSSSS.s","..TTTTT..","..TT.TT..","..SS.SS..","..SS.SS..","..sS.Ss..","..SS.SS..",".FF...FF."];
+const HOMBRE_LADO=["...HHHH..","..HHHHHH.","..HSSSSS.","..HSSES..","..BBSSSS.","..BBBB...","...BBB...","...SSSS..",
+  "..SSSSsS.","..SsSSSS.","..SSSSS..","...SSSSS.","...SSSSs.","...TTTT..","...TTT...","...SSS...","...SS....","...SS....","...SS....","...FFF..."];
+function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
+function dibujaHada(h){
   const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='vuela'?26:12)+h.fase)>0;
   const ab=aleteo?1:.5;
+  // alas pequeñas a la espalda, a la altura de los hombros
   for(const lado of [-1,1]){
-    elipse(x+lado*(5.5*ab+1),y-5,6*ab+1.2,5.5,lado*.45,(u,v)=>{const d=u*u+v*v;if(d>.7)return '#2a1a1a';if((u-lado*.35)**2+(v+.25)**2<.06)return '#fff4d8';return h.ala;});
-    elipse(x+lado*(4*ab+1),y+3,4.2*ab+1,3.6,lado*-.4,(u,v)=>u*u+v*v>.65?'#2a1a1a':h.ala);}
-  const piel=h.piel,pelo=h.pelo,barba=h.barba;
-  // cabeza con pelo y barba
-  R(x-2,y-11,5,5,piel); R(x-2,y-12,5,2,pelo); P1(x+(s>0?-3:3),y-11,pelo);
-  P1(x+s,y-10,'#1d1d1d'); P1(x+s*2-(s>0?0:0),y-10,'#1d1d1d');
-  R(x-2,y-8,5,3,barba); P1(x-1,y-5,barba); P1(x,y-5,barba); P1(x+1,y-5,barba); P1(x+s,y-8,'#b0645a');
-  // cuerpo: camiseta sin mangas, brazos, pantalón corto, piernas
-  R(x-2,y-5,5,5,h.camisa); R(x-3,y-4,1,4,piel); R(x+3,y-4,1,4,piel); P1(x-3,y,piel); P1(x+3,y,piel);
-  R(x-2,y,5,2,'#3c5aa8');
-  if(h.estado==='pis'&&!h.cogida){R(x-1,y+2,2,4,piel);R(x+(s>0?0:-1),y+2,2,4,piel);R(x-1+(s>0?1:-1),y+6,2,1,'#3b2416');P1(x+s*3,y+1,piel);}   // de lado, a lo suyo
-  else{R(x-2,y+2,2,4,piel);R(x+1,y+2,2,4,piel);R(x-2,y+6,2,1,'#3b2416');R(x+1,y+6,2,1,'#3b2416');}
+    elipse(x+lado*(3.6*ab+2.2),y-4,4*ab+.9,3.4,lado*.45,(u,v)=>{const d=u*u+v*v;if(d>.68)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.07)return '#fff4d8';return h.ala;});
+    elipse(x+lado*(2.6*ab+2.2),y+1,2.8*ab+.8,2.3,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
+  const de_lado=h.estado==='pis'&&!h.cogida, mapa=de_lado?HOMBRE_LADO:HOMBRE_FRENTE, espejo=de_lado&&s<0;
+  const col={H:h.pelo,S:h.piel,s:oscurece(h.piel,.82),B:h.barba,E:'#1d1d1d',T:h.pantalon,F:'#3b2416'};
+  mapa.forEach((fila,j)=>[...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?8-i:i;R(x-4+xi,y-11+j,1,1,col[c]);}));
 }
 
 // ── controles
