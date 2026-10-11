@@ -35,6 +35,9 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
 #cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;width:min(88vw,360px);padding:16px 20px;box-sizing:border-box;
   background:#5a3a1c;border:3px solid #2b1a0b;box-shadow:inset 0 0 0 2px #8a5e30,0 4px 0 rgba(0,0,0,.35);color:#ffe9b8;
   font:700 18px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+#nota{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 74px);transform:translate(-50%,-6px);z-index:3;max-width:min(86vw,330px);padding:7px 12px;box-sizing:border-box;
+  background:rgba(29,20,11,.88);border:2px solid #7a5c33;color:#ffe9b8;font:700 13px/1.3 var(--font);text-align:center;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+#nota.ve{opacity:1;transform:translate(-50%,0)}
 #cartel.ve{opacity:1;transform:translate(-50%,-50%) scale(1)}
 #cartel b{display:block;color:#ffe27a;font-size:22px;margin-bottom:6px}
 #otra{position:fixed;left:50%;top:62%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:3px solid var(--borde);background:#1d140b;color:#ffe27a;
@@ -52,6 +55,7 @@ button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offs
   <button id="lengua" aria-label="Sacar la lengua"></button>
 </div>
 <div id="cartel" role="status" aria-live="polite"></div>
+<div id="nota" aria-live="polite"></div>
 <button id="otra" hidden>Otra vez</button>
 
 <script>
@@ -193,6 +197,14 @@ const cartelEl=document.getElementById('cartel');
 let avisadoEspada=false;
 function avisoEspada(){avisadoEspada=true;}   /* sin cartel: que la trampa sea sorpresa; solo avisan la rana sudando y la mira roja */
 function peligro(){return !ataque&&!rana.sinCabeza&&hadas.some(h=>h.espada&&h.estado!=='seVa'&&!h.cogida);}
+/* notas breves que comentan lo que pasa, una vez por partida cada una */
+const notaEl=document.getElementById('nota'); let notasDichas=new Set(), notaHasta=0, colaNotas=[];
+function nota(clave,txt){if(notasDichas.has(clave)||introAbierta||ataque||finJuego)return;notasDichas.add(clave);colaNotas.push(txt);}
+function actualizaNotas(){
+  if(notaEl.classList.contains('ve')&&t>notaHasta)notaEl.classList.remove('ve');
+  if(colaNotas.length&&t>notaHasta+.6&&!cartelEl.classList.contains('ve')){notaEl.textContent=colaNotas.shift();notaEl.classList.add('ve');notaHasta=t+3.2;}
+}
+let introAbierta=true;   // mientras está el primer cartel, los hados revolotean pero no hacen nada
 function cartel(html,ms=4200){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
 let floresTipos=[], chispas=[], saltoContador=0, excal=null;
 function consigueFlor(f){
@@ -211,6 +223,7 @@ function actualizaChispas(){
 }
 // ── con 5 flores, la espada sale del agua: un brazo la alza, las flores giran alrededor, resplandece, y un hado la coge
 function empiezaExcalibur(){
+  nota('excal','¡Cinco flores! Algo sale del agua…');
   excal={fase:'sube',t:0,x:Math.round(W/2),y:Math.round(lerp(HORIZ,FONDO,.5)),tipos:floresTipos.slice(0,5),sub:SUB0,salen:0};
   floresTipos=[]; musicaEpica();
   for(let i=0;i<4;i++)avisos.push({x:excal.x,y:excal.y,v:14+i*6,onda:true});
@@ -231,7 +244,7 @@ function actualizaExcal(){
     if(E.t>1.6&&!E.recogedor){nuevaHada();const h=hadas[hadas.length-1];h.estado='recoge';h.recoge=true;h.ala='#8a1f2a';h.pantalon='#1d1d1d';h.vida=azar(24,32);h.listo=1;h.dur=99;E.recogedor=h;}
     const h=E.recogedor;
     if(h&&!h.cogida&&hadas.includes(h)){const [mx,my]=manoExcal();if(Math.hypot(h.x+10-mx,h.y+4-my)<3.5&&E.t>2.6){
-      h.espada=true;avisoEspada();h.recoge=false;h.estado='vuela';h.dur=azar(2,4);h.angEspada=-.25;eligeObjetivo(h);E.fase='baja';E.t=0;floresMagicas=0;espadaPendiente=false;
+      h.espada=true;avisoEspada();nota('espada','Uno de ellos tiene ahora una espada. Mmm…');h.recoge=false;h.estado='vuela';h.dur=azar(2,4);h.angEspada=-.25;eligeObjetivo(h);E.fase='baja';E.t=0;floresMagicas=0;espadaPendiente=false;
       blip(880,.4,'sawtooth',.06,1760);for(let i=0;i<40;i++)polen.push({x:mx,y:my-16,vx:azar(-1,1),vy:azar(-1.2,.3),v:azar(80,140),f:Math.random()*6,c:['#fff6b0','#ffd2f0','#c8f0ff','#ffffff'][i%4]});}}
     else if(h&&(h.cogida||!hadas.includes(h))){E.recogedor=null;}}
   else if(E.fase==='baja'){const k=Math.min(1,E.t/1.2);E.sub=SUB0*k*k;if(k>=1)excal=null;}
@@ -281,12 +294,13 @@ function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
 function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
 function cambiaEstado(h){
   if(h.recoge)return;
+  if(introAbierta){h.estado='vuela';h.dur=azar(1.5,3);eligeObjetivo(h);return;}
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
   if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
   h.florObj=null;
   if(h.estado==='pis'||Math.random()<.5||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
-  else{h.estado='pis';h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
+  else{h.estado='pis';nota('pis','Ajá, haciendo pis en la laguna… ahí están bien distraídos.');h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
 function actualizaHadas(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
   hadas.forEach(h=>{
@@ -302,7 +316,7 @@ function actualizaHadas(){
       if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
       else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
         if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
-        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);consigueFlor(f);
+        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;nota('flor','Uno ha cortado una flor mágica y se la lleva.');blip(1000,.12,'square',.05,1500);consigueFlor(f);
           for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}
         const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
         if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
@@ -330,6 +344,7 @@ function lanzaLengua(){
     if(a<0||Math.abs(p)>20)return;
     const pisando=h.estado==='pis', prob=(h.espada||h.recoge)?1:(pisando?.12:.98)*h.listo, retraso=pisando?30:2;
     if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
+      if(!pisando)nota('esquiva','Son listos: si están volando, se escapan.');
       if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
 }
 /* lo que toca la punta de la lengua: el contador pega un bote (y la lengua rebota); hojas, juncos y flores se sacuden */
@@ -361,7 +376,7 @@ function actualizaLengua(){
   else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3:5.5;
     if(rana.presa){rana.presa.x=mx+dx*rana.lengua;rana.presa.y=my+dy*rana.lengua;}
     if(rana.lengua<=0){rana.lengua=0;rana.estado='quieta';
-      if(rana.presa){const comido=rana.presa;hadas=hadas.filter(x=>x!==rana.presa);rana.presa=null;puntos++;rana.trago=40;blip(140,.25,'sine',.09,70);
+      if(rana.presa){const comido=rana.presa;hadas=hadas.filter(x=>x!==rana.presa);rana.presa=null;puntos++;rana.trago=40;if(!hadas.some(h=>h.espada&&h.estado!=='seVa'))nota('come','¡Ñam! Uno menos.');blip(140,.25,'sine',.09,70);
         const esp=hadas.find(h=>h.espada&&h.estado!=='seVa'&&!h.cogida);if(esp&&!ataque)empiezaAtaque(esp,comido);
         avisos.push({x:mx,y:my-6,v:60});proximaEntrada=Math.max(proximaEntrada,t+azar(1.5,3));}}}
   if(rana.trago>0)rana.trago--;
@@ -478,6 +493,7 @@ function dibujaCabezaRana(hx,hy,a,muerta){
   if(muerta){const bx=hx-Math.sin(a)*5,by=hy+Math.cos(a)*5;elipse(bx,by,3,1.6,a,()=> '#b0202c');}
 }
 function reinicia(){
+  notasDichas=new Set();colaNotas=[];notaEl.classList.remove('ve');
   clearTimeout(cartel.tm);cartelEl.classList.remove('ve');
   floresMagicas=0;espadaPendiente=false;floresTipos=[];chispas=[];excal=null;
   hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;sangre=[];manchas=[];avisadoEspada=false;
@@ -506,7 +522,8 @@ function paso(){
   t+=1/60;
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
   if(!rana.sinCabeza&&!ataque&&(rana.estado==='quieta'||rana.estado==='vuelve'))rana.ang=cl(rana.ang+v*Math.abs(v)*.016,-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
-  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal(); actualizaBotes();
+  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal(); actualizaBotes(); actualizaNotas();
+  if(introAbierta&&t>1&&!cartelEl.classList.contains('ve'))introAbierta=false;
   // el pis cae hasta abajo, hasta el agua de delante
   pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>FONDO-3){p.v=0;if(Math.random()<.35)avisos.push({x:p.x,y:FONDO-3,v:14,onda:true});}});
   polen.forEach(p=>{p.vy+=.004;p.vx*=.99;p.x+=p.vx+Math.sin(t*3+p.f)*.25;p.y+=p.vy;p.v--;}); polen=polen.filter(p=>p.v>0);
@@ -546,7 +563,7 @@ function dibuja(){
 }
 addEventListener('resize',ajusta); ajusta();
 nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=3;
-cartel('<b>Flores mágicas</b>Los hados buscan 5 flores mágicas. Cuando tengan 5, conseguirán una espada.',7000);
+cartel('Los hados buscan 5 flores mágicas. Cuando tengan 5, conseguirán una espada.',7000);
 addEventListener('pointerdown',()=>{if(cartelEl.classList.contains('ve')&&t>.8)cartelEl.classList.remove('ve');},{passive:true});
 let acc=0,ult=performance.now();
 function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
