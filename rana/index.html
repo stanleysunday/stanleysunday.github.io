@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>rana</title>
+<meta property="og:title" content="rana">
+<link rel="icon" href="/favicon.ico">
+<style>
+/* Layout: pantalla completa en píxeles grandes. Arriba cielo, en medio la laguna con nenúfares, a los lados vegetación,
+   abajo la rana vista desde arriba sobre su nenúfar. Debajo, una franja de barro con el mando de girar y el botón de la lengua */
+:root{ --barro:#3b2a17; --borde:#7a5c33; --palo:#efe3cb; --lengua:#e2607a; --font:"Space Mono",ui-monospace,Menlo,monospace; color-scheme:dark; }
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#1c2a14;overflow:hidden}
+:root{padding:0!important}
+body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:var(--font)}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
+.back{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:10px;color:#f4ecd8;background:rgba(20,30,15,.75);padding:2px 5px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:2}
+.mandos{position:fixed;left:0;right:0;bottom:0;height:var(--banda,150px);padding:8px 26px env(safe-area-inset-bottom,0px);
+  display:flex;justify-content:space-between;align-items:center;z-index:2;pointer-events:none}
+.mandos>*{pointer-events:auto}
+#mando{position:relative;width:118px;height:64px;border-radius:3px;background:#1d140b;touch-action:none;
+  box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
+#mando::before{content:"";position:absolute;left:14px;right:14px;top:50%;height:4px;margin-top:-2px;background:#0d0905;border-radius:2px}
+#palo{position:absolute;left:50%;top:50%;width:22px;height:36px;margin:-18px 0 0 -11px;border-radius:2px;background:var(--palo);
+  box-shadow:inset -3px -3px 0 rgba(0,0,0,.18);will-change:transform}
+#lengua{width:84px;height:64px;border-radius:3px;border:0;background:#1d140b;cursor:pointer;touch-action:none;padding:0;
+  box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
+#lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
+#lengua.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
+button:focus-visible,#mando:focus-visible{outline:3px solid #f4ecd8;outline-offset:3px}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+</head>
+<body>
+<canvas id="c" aria-label="Juego de la rana que caza hadas"></canvas>
+<a class="back" href="/">← volver</a>
+<div class="mandos">
+  <div id="mando" role="slider" tabindex="0" aria-label="Gira la cabeza de la rana" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
+  <button id="lengua" aria-label="Sacar la lengua"></button>
+</div>
+
+<script>
+const cv=document.getElementById('c'), g=cv.getContext('2d',{alpha:false});
+const mando=document.getElementById('mando'), palo=document.getElementById('palo'), boton=document.getElementById('lengua');
+let W=112,H=200,S=1,DPR=1,FONDO=150,HORIZ=60,BANDA=150;
+const lerp=(a,b,k)=>a+(b-a)*k, azar=(a,b)=>a+Math.random()*(b-a), cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function ajusta(){
+  DPR=Math.min(3,window.devicePixelRatio||1);
+  cv.width=Math.round(innerWidth*DPR); cv.height=Math.round(innerHeight*DPR);
+  S=Math.max(1,Math.round(cv.width/112)); W=cv.width/S; H=cv.height/S;   // cada píxel lógico, un tamaño entero en pantalla
+  BANDA=Math.min(170,Math.max(130,innerHeight*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
+  FONDO=Math.round(H-BANDA*DPR/S); HORIZ=Math.round(FONDO*.36);
+  hazEscena();
+}
+function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x)*S,Math.round(y)*S,Math.max(1,Math.round(w))*S,Math.max(1,Math.round(h))*S);}
+const P1=(x,y,c)=>R(Math.round(x),Math.round(y),1,1,c);
+// elipse girada, píxel a píxel; color(u,v) recibe coordenadas normalizadas (-1..1)
+function elipse(cx,cy,rx,ry,rot,color){const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(rx,ry))+1;
+  for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){
+    const X=x+.5-cx,Y=y+.5-cy,u=(X*cs+Y*sn)/rx,v=(-X*sn+Y*cs)/ry;if(u*u+v*v>1)continue;const c=color(u,v);if(c)R(x,y,1,1,c);}}
+function linea(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);
+  const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;
+  for(let n=0;n<600;n++){R(x0,y0,1,1,c);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
+const FUENTE={'0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001',
+ '5':'111100111001111','6':'111100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001111'};
+function numero(t,x,y,c){[...t].forEach((ch,k)=>{const f=FUENTE[ch];for(let i=0;i<15;i++)if(f[i]==='1')R(x+k*4+(i%3),y+Math.floor(i/3),1,1,c);});}
+
+// ── sonido
+let ac=null;function blip(f,d,tipo='square',vol=.05,fin=f*.5){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  const o=ac.createOscillator(),v=ac.createGain();o.type=tipo;o.frequency.setValueAtTime(f,ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(30,fin),ac.currentTime+d);v.gain.setValueAtTime(vol,ac.currentTime);
+  v.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(v).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+// ── escena fija: nenúfares de la laguna y vegetación de los lados (se recalcula al cambiar el tamaño)
+let NENU=[], HOJAS=[], JUNCOS=[];
+function hazEscena(){
+  let sem=7; const rnd=()=>{sem=(sem*9301+49297)%233280;return sem/233280;};
+  NENU=[]; for(let i=0;i<9;i++){const y=lerp(HORIZ+6,FONDO-30,rnd()), k=(y-HORIZ)/(FONDO-HORIZ);   // más grandes cuanto más cerca
+    NENU.push({x:lerp(14,W-14,rnd()),y,rx:3+k*8,ry:1.4+k*3.2,flor:rnd()<.4,giro:rnd()*6});}
+  HOJAS=[]; for(const lado of [-1,1])for(let i=0;i<7;i++){const y=lerp(HORIZ-6,FONDO+4,i/6)+rnd()*6;
+    HOJAS.push({x:lado<0?rnd()*6-1:W-rnd()*6+1,y,rx:9+rnd()*6,ry:3+rnd()*2,rot:lado*(-.5-rnd()*.6),c:rnd()<.5?'#3f8a32':'#2f6e28',lado});}
+  JUNCOS=[]; for(const lado of [-1,1])for(let i=0;i<5;i++)JUNCOS.push({x:lado<0?3+i*2.5+rnd()*2:W-3-i*2.5-rnd()*2,base:HORIZ+8+rnd()*10,alto:20+rnd()*16});
+}
+const CIELO=['#7ec8f0','#93d3f2','#a9ddf3','#c2e7f2','#d9efef'];
+function dibujaFondo(t){
+  const bh=HORIZ/CIELO.length; CIELO.forEach((c,i)=>R(0,i*bh,W,bh+1,c));
+  // nubes
+  for(const [x0,y0,v] of [[20,9,.05],[70,17,.03],[95,6,.04]]){const x=((x0+t*v*60)%(W+30))-15;
+    for(const [dx,dy,rx] of [[0,0,6],[5,-2,5],[10,0,6]])elipse(x+dx,y0+dy,rx,2.6,0,()=> '#ffffff');}
+  // árboles lejanos en la otra orilla
+  for(let x=0;x<W;x++){const h=Math.round(4+Math.sin(x*.31)*1.5+Math.sin(x*.9)*1.2);R(x,HORIZ-h,1,h,'#4f8d48');}
+  // agua, más oscura hacia delante, con brillos que se mueven
+  const agua=['#5aa6b4','#4f99a8','#468c9c','#3d7f8f','#357384','#2e6779'], ah=(FONDO-HORIZ)/agua.length;
+  agua.forEach((c,i)=>R(0,HORIZ+i*ah,W,ah+1,c));
+  for(let i=0;i<22;i++){const y=HORIZ+3+((i*37)%Math.max(1,FONDO-HORIZ-6)), x=((i*53+t*(6+i%3)*4)%(W+20))-10,l=2+(i%4);R(x,y,l,1,'#8cc9cf');}
+  // nenúfares, con muesca y algunos con flor
+  NENU.forEach(n=>{elipse(n.x,n.y,n.rx,n.ry,0,(u,v)=>{const a=Math.atan2(v,u);if(Math.abs(((a-n.giro+Math.PI*3)%(Math.PI*2))-Math.PI)<.35)return null;
+      return u*u+v*v>.7?'#2f7a3a':(v<-.2?'#58a84a':'#47963f');});
+    if(n.flor){const fx=n.x+n.rx*.2,fy=n.y-n.ry*.3;P1(fx,fy-1,'#f6a8c6');P1(fx-1,fy,'#f6a8c6');P1(fx+1,fy,'#f6a8c6');P1(fx,fy,'#ffe27a');}});
+}
+function dibujaVegetacion(t){
+  JUNCOS.forEach(j=>{const sw=Math.sin(t*1.3+j.x)*1.2;linea(j.x,j.base,j.x+sw,j.base-j.alto,'#3a6e2a');
+    R(Math.round(j.x+sw)-1,Math.round(j.base-j.alto)-1,2,5,'#6b4426');});
+  HOJAS.forEach(h=>elipse(h.x,h.y,h.rx,h.ry,h.rot+Math.sin(t*.9+h.y)*.04,(u,v)=>Math.abs(v)<.12?'#7fc25a':(v<0?h.c:'#24561f')));
+  // orilla de barro de abajo
+  R(0,FONDO,W,H-FONDO,'#3b2a17'); R(0,FONDO,W,1,'#5c4426');
+  for(let x=0;x<W;x+=3){const h=2+((x*7)%5);linea(x,FONDO+1,x+((x%2)?1:-1),FONDO-h,'#4c8a35');}
+}
+
+// ── la rana, vista desde arriba, sobre su nenúfar
+const rana={x:0,y:0,ang:0,lengua:0,estado:'quieta',presa:null,trago:0,dir:0};
+const ANG_MAX=1.3;
+function cuello(){return [W/2,FONDO-17];}
+function boca(){const [x,y]=cuello();return [x+Math.sin(rana.ang)*7,y-Math.cos(rana.ang)*7];}
+function dibujaRana(t){
+  const [cx,cy]=[W/2,FONDO-11];
+  elipse(cx,cy+2,20,7,0,(u,v)=>{const a=Math.atan2(v,u);if(a>1.2&&a<1.9)return null;return u*u+v*v>.75?'#2f7a3a':'#47963f';});   // su nenúfar
+  const verde='#5fb04a',oscuro='#3f8a32',claro='#8fd06a';
+  // patas traseras dobladas y delanteras
+  for(const s of [-1,1]){elipse(cx+s*9,cy+4,4,2.5,s*.6,(u,v)=>v<-.3?claro:verde);elipse(cx+s*12,cy+7,4,1.6,s*-.3,()=>oscuro);
+    elipse(cx+s*7,cy-6,2.6,1.5,s*-.7,()=>verde);for(let k=-1;k<=1;k++)P1(cx+s*9+k,cy-8+Math.abs(k),oscuro);}
+  // cuerpo con manchas
+  elipse(cx,cy,7,8.5,0,(u,v)=>{if(((Math.floor((u+1)*5)*7+Math.floor((v+1)*5)*3)%11)===0)return oscuro;return v<-.3&&u<0?claro:verde;});
+  // cabeza: gira hacia donde apunta
+  const [nx,ny]=cuello(), a=rana.ang, hx=nx+Math.sin(a)*2, hy=ny-Math.cos(a)*2, hinch=rana.trago>0?1+Math.sin(rana.trago*.5)*.25:1;
+  elipse(hx,hy,7*hinch,5.5,a,(u,v)=>v<-.55&&Math.abs(u)<.6?'#3f8a32':(v<-.2?claro:verde));
+  for(const s of [-1,1]){const ex=hx+Math.cos(a)*s*5.2+Math.sin(a)*1,ey=hy+Math.sin(a)*s*5.2-Math.cos(a)*1;   // ojos saltones
+    elipse(ex,ey,2.4,2.4,0,(u,v)=>u*u+v*v<.35?'#111':(v<-.3?'#fff':'#e9f2c8'));}
+}
+function dibujaLengua(){
+  if(rana.lengua<=0)return;
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), L=rana.lengua;
+  const fx=mx+dx*L, fy=my+dy*L;
+  linea(mx,my,fx,fy,'#c9455f'); linea(mx+dy*-.6+.0,my+dx*.6,fx+dy*-.6,fy+dx*.6,'#e2607a');
+  elipse(fx,fy,2.2,2.2,0,(u,v)=>v<-.2?'#f59bb0':'#e2607a');
+}
+
+// ── los chicos hada: listos, se escapan; a veces se paran, a veces se paran a hacer pis
+const ALAS=['#f08a3a','#4fb6e8','#ef7fb0','#f2d14a','#9a7ce0','#5cc27a'];
+let hadas=[], pis=[], plumas=[], puntos=0, t=0, avisos=[];
+function nuevaHada(){const lado=Math.random()<.5?-1:1;
+  hadas.push({x:lado<0?-8:W+8,y:azar(12,HORIZ+10),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(1.5,3),mira:lado<0?1:-1,
+    ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8'][Math.floor(Math.random()*4)],
+    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c'][Math.floor(Math.random()*4)],fase:Math.random()*6,esquiva:null,listo:azar(.85,1)});}
+function eligeObjetivo(h){h.obj=[azar(16,W-16),azar(12,HORIZ+14)];}
+function cambiaEstado(h){const r=Math.random();
+  if(r<.55){h.estado='vuela';h.dur=azar(1.5,3.5);eligeObjetivo(h);}
+  else if(r<.8){h.estado='para';h.dur=azar(1.4,2.6);}
+  else{h.estado='pis';h.dur=azar(2.2,3.4);h.mira=Math.random()<.5?-1:1;}}
+function actualizaHadas(){
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
+  hadas.forEach(h=>{
+    if(h.cogida)return;
+    h.dur-=1/60; if(h.dur<=0)cambiaEstado(h);
+    // reaccionan a la lengua: cuanto más tranquilos estén, peor reaccionan
+    if(h.esquiva){if(h.esquiva.retraso>0)h.esquiva.retraso--;else{h.vx+=h.esquiva.vx;h.vy+=h.esquiva.vy;h.esquiva.n--;if(h.esquiva.n<=0)h.esquiva=null;}}
+    if(h.estado==='vuela'){if(!h.obj)eligeObjetivo(h);const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
+      if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*.06;h.vy+=oy/d*.06;}
+      // listos: si la rana les apunta, se apartan de la línea
+      const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
+      if(a>0&&Math.abs(p)<8){h.vx+=Math.sign(p||1)*dy*.03*h.listo;h.vy+=-Math.sign(p||1)*dx*.03*h.listo;}
+      h.vx*=.94;h.vy*=.94;h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}
+    else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*3+h.fase)*.008;}
+    if(h.estado==='pis'&&h.dur>.4&&h.dur<h.durPis-.3||h.estado==='pis'&&!h.durPis){h.durPis=h.durPis||h.dur;
+      if(t*60%2<1)pis.push({x:h.x+h.mira*1.5,y:h.y+3,vx:h.mira*azar(.55,.75),vy:azar(-.25,-.1),v:90});}
+    if(h.estado!=='pis')h.durPis=0;
+    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,8,W-8); h.y=cl(h.y,9,FONDO-34);
+  });
+}
+function lanzaLengua(){
+  if(rana.estado!=='quieta')return; rana.estado='sale'; blip(300,.12,'square',.05,900);
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
+  hadas.forEach(h=>{if(h.cogida)return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
+    if(a<0||Math.abs(p)>12)return;
+    const prob={vuela:.8,para:.4,pis:.1}[h.estado]*h.listo, retraso={vuela:5,para:12,pis:26}[h.estado];
+    if(Math.random()<prob){const s=Math.sign(p)||1;h.esquiva={vx:s*dy*.9,vy:-s*dx*.9-.2,n:6,retraso:Math.round(retraso+a*.05)};
+      if(h.estado!=='vuela'){h.estado='vuela';h.dur=azar(1,2);eligeObjetivo(h);}}});
+}
+function actualizaLengua(){
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=Math.min(FONDO-24,96);
+  if(rana.estado==='sale'){rana.lengua+=6;
+    const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
+    const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-(fy-dy*k))<6)return true;}return false;});   /* revisa todo el tramo recorrido */
+    if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);
+      for(let i=0;i<8;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
+    else if(rana.lengua>=MAX||fy<2||fx<2||fx>W-2){rana.estado='vuelve';blip(200,.1,'square',.03,120);}}
+  else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3.2:5.5;
+    if(rana.presa){rana.presa.x=mx+dx*rana.lengua;rana.presa.y=my+dy*rana.lengua;}
+    if(rana.lengua<=0){rana.lengua=0;rana.estado='quieta';
+      if(rana.presa){hadas=hadas.filter(x=>x!==rana.presa);rana.presa=null;puntos++;rana.trago=40;blip(140,.25,'sine',.09,70);
+        avisos.push({x:mx,y:my-6,v:60});setTimeout(nuevaHada,azar(400,1400));}}}
+  if(rana.trago>0)rana.trago--;
+}
+function dibujaHada(h){
+  const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='vuela'?28:14)+h.fase)>0;
+  // alas de mariposa: dos pares, se abren y se cierran
+  const ab=aleteo?1:.45;
+  for(const lado of [-1,1]){elipse(x+lado*3.6*ab,y-1.5,3.2*ab+.6,3,lado*.5,(u,v)=>u*u+v*v>.55?'#2a1a1a':h.ala);
+    elipse(x+lado*2.6*ab,y+2.5,2.2*ab+.5,2,lado*-.4,(u,v)=>u*u+v*v>.5?'#2a1a1a':h.ala);}
+  // cuerpo de chico: cabeza, pelo, camiseta, piernas
+  R(x-1,y-5,3,3,h.piel); R(x-1,y-6,3,1,h.pelo); P1(x+(s>0?-1:1),y-5,h.pelo);
+  R(x-1,y-2,3,3,'#f4f1e6'); P1(x+s*2,y-1,h.piel);
+  if(h.estado==='pis'&&!h.cogida){P1(x+s,y+2,'#4a6bd0');R(x-1+(s<0?1:0),y+1,2,1,'#4a6bd0');P1(x-s,y+3,h.piel);P1(x,y+4,h.piel);}   // de lado, a lo suyo
+  else{R(x-1,y+1,3,1,'#4a6bd0');P1(x-1,y+2,h.piel);P1(x+1,y+2,h.piel);P1(x-1,y+3,h.piel);P1(x+1,y+3,h.piel);}
+}
+
+// ── controles
+let joy=0, joyId=null, teclas={};
+function leeMando(e){const r=mando.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),max=r.width/2-18;
+  joy=cl(dx/max,-1,1); palo.style.transform=`translateX(${joy*max}px)`; mando.setAttribute('aria-valuenow',joy.toFixed(2));}
+mando.addEventListener('pointerdown',e=>{joyId=e.pointerId;mando.setPointerCapture(e.pointerId);leeMando(e);});
+mando.addEventListener('pointermove',e=>{if(e.pointerId===joyId)leeMando(e);});
+const suelta=e=>{if(e.pointerId!==joyId)return;joyId=null;joy=0;palo.style.transform='';mando.setAttribute('aria-valuenow','0');};
+mando.addEventListener('pointerup',suelta);mando.addEventListener('pointercancel',suelta);
+boton.addEventListener('pointerdown',e=>{e.preventDefault();boton.classList.add('dn');lanzaLengua();});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>boton.addEventListener(ev,()=>boton.classList.remove('dn')));
+boton.addEventListener('click',e=>{if(e.detail===0)lanzaLengua();});
+addEventListener('keydown',e=>{teclas[e.key]=true;if(e.key===' '){e.preventDefault();lanzaLengua();}if(e.key.startsWith('Arrow'))e.preventDefault();});
+addEventListener('keyup',e=>teclas[e.key]=false);
+
+// ── bucle
+function paso(){
+  t+=1/60;
+  let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
+  if(rana.estado==='quieta'||rana.estado==='vuelve')rana.ang=cl(rana.ang+v*.035,-ANG_MAX,ANG_MAX);
+  actualizaHadas(); actualizaLengua();
+  pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>HORIZ+6+((p.x*13)%20)){p.v=0;if(Math.random()<.3)avisos.push({x:p.x,y:p.y,v:12,onda:true});}});
+  pis=pis.filter(p=>p.v>0);
+  plumas.forEach(p=>{p.vy+=.02;p.vx*=.97;p.x+=p.vx+Math.sin(t*5+p.y)*.2;p.y+=p.vy;p.v--;}); plumas=plumas.filter(p=>p.v>0);
+  avisos.forEach(a=>{a.v--;if(!a.onda)a.y-=.3;}); avisos=avisos.filter(a=>a.v>0);
+  while(hadas.length<3&&Math.random()<.02)nuevaHada();
+}
+function dibuja(){
+  dibujaFondo(t);
+  pis.forEach(p=>P1(p.x,p.y,'#f2dd4a'));
+  avisos.filter(a=>a.onda).forEach(a=>{const r=(12-a.v)*.5;R(a.x-r,a.y,1,1,'#bfe6ea');R(a.x+r,a.y,1,1,'#bfe6ea');});
+  hadas.filter(h=>!h.cogida).forEach(dibujaHada);
+  dibujaVegetacion(t);
+  dibujaRana(t); dibujaLengua(); if(rana.presa)dibujaHada(rana.presa);
+  plumas.forEach(p=>P1(p.x,p.y,p.c));
+  avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
+  // marcador: hadas cazadas
+  const txt=String(puntos).padStart(3,'0'), x0=Math.round(W-txt.length*4-6);
+  R(x0-2,3,txt.length*4+3,9,'#1d140b'); numero(txt,x0,5,'#ffe27a');
+}
+addEventListener('resize',ajusta); ajusta();
+for(let i=0;i<3;i++){nuevaHada();hadas[i].x=azar(20,W-20);eligeObjetivo(hadas[i]);}
+let acc=0,ult=performance.now();
+function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
+requestAnimationFrame(bucle);
+</script>
+</body>
+</html>
