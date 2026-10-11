@@ -137,79 +137,108 @@ function dibujaLengua(){
   elipse(fx,fy,2.2,2.2,0,(u,v)=>v<-.2?'#f59bb0':'#e2607a');
 }
 
-// ── los chicos hada: listos, se escapan; a veces se paran, a veces se paran a hacer pis
+// ── los hombres mariposa: listos; si se mueven se escapan. Solo se paran a hacer pis, y lo hacen largo rato
 const ALAS=['#f08a3a','#4fb6e8','#ef7fb0','#f2d14a','#9a7ce0','#5cc27a'];
-let hadas=[], pis=[], plumas=[], puntos=0, t=0, avisos=[];
+let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntrada=0;
 function nuevaHada(){const lado=Math.random()<.5?-1:1;
-  hadas.push({x:lado<0?-12:W+12,y:azar(18,HORIZ+10),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(1.5,3),mira:lado<0?1:-1,
-    ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8'][Math.floor(Math.random()*4)],
-    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c','#8a8a8a'][Math.floor(Math.random()*5)],barba:null,pantalon:['#3c5aa8','#c94a3a','#2f7a4a','#e2b23a','#5a3f86'][Math.floor(Math.random()*5)],fase:Math.random()*6,esquiva:null,listo:azar(.85,1)});const h=hadas[hadas.length-1];h.barba=barbaDe(h);}
-function barbaDe(h){return Math.random()<.25?'#cfcfcf':h.pelo;}
-function eligeObjetivo(h){h.obj=[azar(18,W-18),azar(18,HORIZ+12)];}
-function cambiaEstado(h){const r=Math.random();
-  if(r<.55){h.estado='vuela';h.dur=azar(1.5,3.5);eligeObjetivo(h);}
-  else if(r<.8){h.estado='para';h.dur=azar(1.4,2.6);}
-  else{h.estado='pis';h.dur=azar(2.2,3.4);h.mira=Math.random()<.5?-1:1;}}
+  const h={x:lado<0?-16:W+16,y:azar(32,HORIZ+6),vx:0,vy:0,obj:null,estado:'vuela',dur:azar(3,6),mira:lado<0?1:-1,
+    ala:ALAS[Math.floor(Math.random()*ALAS.length)],piel:['#f2c6a0','#d9a07a','#a8704c','#f6d8b8','#7a4a30'][Math.floor(Math.random()*5)],
+    pelo:['#3b2416','#e8c55a','#1c1c1c','#b5522c','#8a8a8a'][Math.floor(Math.random()*5)],
+    pantalon:['#3c5aa8','#c94a3a','#2f7a4a','#e2b23a','#5a3f86'][Math.floor(Math.random()*5)],
+    fase:Math.random()*6,esquiva:null,listo:azar(.9,1),vida:azar(12,18)};
+  h.barba=Math.random()<.25?'#cfcfcf':h.pelo; eligeObjetivo(h); hadas.push(h);}
+function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
+function cambiaEstado(h){
+  if(h.estado==='pis'||Math.random()<.45||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
+  else{h.estado='pis';h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
 function actualizaHadas(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
   hadas.forEach(h=>{
     if(h.cogida)return;
-    h.dur-=1/60; if(h.dur<=0)cambiaEstado(h);
-    // reaccionan a la lengua: cuanto más tranquilos estén, peor reaccionan
+    h.vida-=1/60;
+    if(h.estado==='seVa'){h.vx+=h.mira*.08;h.vx*=.96;h.vy*=.9;h.vy-=.01;h.x+=h.vx;h.y+=h.vy;if(h.x<-20||h.x>W+20)h.fuera=true;return;}
+    h.dur-=1/60; if(h.dur<=0){if(h.vida<=0&&h.estado!=='pis'){h.estado='seVa';h.mira=h.x<W/2?-1:1;return;}cambiaEstado(h);}
     if(h.esquiva){if(h.esquiva.retraso>0)h.esquiva.retraso--;else{h.vx+=h.esquiva.vx;h.vy+=h.esquiva.vy;h.esquiva.n--;if(h.esquiva.n<=0)h.esquiva=null;}}
-    if(h.estado==='vuela'){if(!h.obj)eligeObjetivo(h);const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
+    if(h.estado==='vuela'){const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
       if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*.06;h.vy+=oy/d*.06;}
-      // listos: si la rana les apunta, se apartan de la línea
-      const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
-      if(a>0&&Math.abs(p)<11){h.vx+=Math.sign(p||1)*dy*.03*h.listo;h.vy+=-Math.sign(p||1)*dx*.03*h.listo;}
+      const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;   // si la rana les apunta, se apartan
+      if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
       h.vx*=.94;h.vy*=.94;h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}
-    else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*3+h.fase)*.008;}
-    if(h.estado==='pis'&&h.dur>.4&&h.dur<h.durPis-.3||h.estado==='pis'&&!h.durPis){h.durPis=h.durPis||h.dur;
-      if(t*60%2<1)pis.push({x:h.x+h.mira*2.5,y:h.y+2,vx:h.mira*azar(.55,.75),vy:azar(-.25,-.1),v:90});}
-    if(h.estado!=='pis')h.durPis=0;
-    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,12,W-12); h.y=cl(h.y,16,FONDO-42);
+    else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*2.5+h.fase)*.006;
+      if(h.dur>.5&&(t*60)%2<1)pis.push({x:h.x+h.mira*6,y:h.y+5,vx:h.mira*azar(.5,.65),vy:azar(-.3,-.15),v:400});}
+    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,16,W-16); h.y=cl(h.y,30,FONDO-56);
   });
+  hadas=hadas.filter(h=>!h.fuera);
+  // van entrando de uno en uno, nunca más de dos a la vez
+  if(hadas.length<2&&t>proximaEntrada){nuevaHada();proximaEntrada=t+azar(3,5);}
 }
 function lanzaLengua(){
   if(rana.estado!=='quieta')return; rana.estado='sale'; blip(300,.12,'square',.05,900);
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
-  hadas.forEach(h=>{if(h.cogida)return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
-    if(a<0||Math.abs(p)>16)return;
-    const prob={vuela:.8,para:.4,pis:.1}[h.estado]*h.listo, retraso={vuela:5,para:12,pis:26}[h.estado];
-    if(Math.random()<prob){const s=Math.sign(p)||1;h.esquiva={vx:s*dy*.9,vy:-s*dx*.9-.2,n:6,retraso:Math.round(retraso+a*.05)};
-      if(h.estado!=='vuela'){h.estado='vuela';h.dur=azar(1,2);eligeObjetivo(h);}}});
+  hadas.forEach(h=>{if(h.cogida||h.estado==='seVa')return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
+    if(a<0||Math.abs(p)>20)return;
+    const pisando=h.estado==='pis', prob=(pisando?.12:.98)*h.listo, retraso=pisando?30:2;
+    if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
+      if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
 }
 function actualizaLengua(){
-  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=Math.min(FONDO-24,96);
+  const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=Math.min(FONDO-24,104);
   if(rana.estado==='sale'){rana.lengua+=6;
     const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
-    const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-2-(fy-dy*k))<8.5)return true;}return false;});   /* revisa todo el tramo recorrido */
+    const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-(fy-dy*k))<9)return true;}return false;});
     if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);
-      for(let i=0;i<8;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
+      for(let i=0;i<10;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
     else if(rana.lengua>=MAX||fy<2||fx<2||fx>W-2){rana.estado='vuelve';blip(200,.1,'square',.03,120);}}
-  else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3.2:5.5;
+  else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3:5.5;
     if(rana.presa){rana.presa.x=mx+dx*rana.lengua;rana.presa.y=my+dy*rana.lengua;}
     if(rana.lengua<=0){rana.lengua=0;rana.estado='quieta';
       if(rana.presa){hadas=hadas.filter(x=>x!==rana.presa);rana.presa=null;puntos++;rana.trago=40;blip(140,.25,'sine',.09,70);
-        avisos.push({x:mx,y:my-6,v:60});setTimeout(nuevaHada,azar(400,1400));}}}
+        avisos.push({x:mx,y:my-6,v:60});proximaEntrada=Math.max(proximaEntrada,t+azar(1.5,3));}}}
   if(rana.trago>0)rana.trago--;
 }
-// hombre mariposa, sin camiseta y con barba. Dos posturas: de frente (vuela o flota) y de lado (haciendo pis)
-const HOMBRE_FRENTE=["..HHHHH..",".HHHHHHH.",".HSSSSSH.","..SESES..","..BSSSB..","..BBBBB..","...BBB...",".SSSSSSS.",
-  "SSsSSSsSS","S.SsSsS.S","S.SSSSS.S","S.SSsSS.S","s.SSSSS.s","..TTTTT..","..TT.TT..","..SS.SS..","..SS.SS..","..sS.Ss..","..SS.SS..",".FF...FF."];
-const HOMBRE_LADO=["...HHHH..","..HHHHHH.","..HSSSSS.","..HSSES..","..BBSSSS.","..BBBB...","...BBB...","...SSSS..",
-  "..SSSSsS.","..SsSSSS.","..SSSSS..","...SSSSS.","...SSSSs.","...TTTT..","...TTT...","...SSS...","...SS....","...SS....","...SS....","...FFF..."];
+// hombre mariposa, más grande: sin camiseta, con barba. De frente cuando vuela, de perfil cuando hace pis
+const HOMBRE_FRENTE=[
+"....HHHHH....","...HHHHHHH...","..HHHHHHHHH..","..HSSSSSSSH..","..hSESSSESh..","..SSSSsSSSS..","..BSSSsSSSB..","..BBSbbbSBB..",
+"..BBBBBBBBB..","...BBBBBBB...","....bBBBb....",".....SsS.....","..SSSSSSSSS..",".SSSSSSSSSSS.","SS.SdSSSdS.SS","SS.SSSSSSS.SS",
+"SS.SSSSSSS.SS","S..SSSsSSS..S","S..SSSSSSS..S","S..SSSdSSS..S","SS.TTTTTTT.SS","...TTTtTTT...","...TTt.tTT...","...SSs.sSS...",
+"...SSs.sSS...","...sSS.SSs...","...SSs.sSS...","...SSs.sSS...","..FFF...FFF.."];
+const HOMBRE_LADO=[
+".....HHHH....","....HHHHHH...","...HHHHHHHH..","...HHSSSSSS..","...HhSSSES...","...HSSSSSSSS.","...hSSSSSSs..","...BBBSbbb...",
+"...BBBBBBB...","....BBBBBB...",".....bBBb....",".....SsS.....","....SSSSSS...","...SSSSSSSs..","...SSSSSdSS..","...SSSSSSSS..",
+"...SSSSSSS...","...SSSSSSSS..","....SSSSSSSs.","....SSSSSSSS.","....TTTTTT...","....TTTTTt...","....TTtTT....","....SSsSS....",
+"....SSsS.....","....SSsS.....","....SSsS.....","....SSsS.....","....FFFFF...."];
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
 function dibujaHada(h){
-  const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='vuela'?26:12)+h.fase)>0;
+  const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
   const ab=aleteo?1:.5;
-  // alas pequeñas a la espalda, a la altura de los hombros
-  for(const lado of [-1,1]){
-    elipse(x+lado*(3.6*ab+2.2),y-4,4*ab+.9,3.4,lado*.45,(u,v)=>{const d=u*u+v*v;if(d>.68)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.07)return '#fff4d8';return h.ala;});
-    elipse(x+lado*(2.6*ab+2.2),y+1,2.8*ab+.8,2.3,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
+  for(const lado of [-1,1]){   // alas a la espalda, a la altura de los hombros
+    elipse(x+lado*(5*ab+3),y-7,6*ab+1.2,5,lado*.45,(u,v)=>{const d=u*u+v*v;if(d>.7)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.06)return '#fff4d8';if(d<.12)return oscurece(h.ala,.8);return h.ala;});
+    elipse(x+lado*(3.8*ab+3),y,4*ab+1,3.5,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
   const de_lado=h.estado==='pis'&&!h.cogida, mapa=de_lado?HOMBRE_LADO:HOMBRE_FRENTE, espejo=de_lado&&s<0;
-  const col={H:h.pelo,S:h.piel,s:oscurece(h.piel,.82),B:h.barba,E:'#1d1d1d',T:h.pantalon,F:'#3b2416'};
-  mapa.forEach((fila,j)=>[...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?8-i:i;R(x-4+xi,y-11+j,1,1,col[c]);}));
+  const col={H:h.pelo,h:oscurece(h.pelo,.75),S:h.piel,s:oscurece(h.piel,.84),d:oscurece(h.piel,.62),B:h.barba,b:oscurece(h.barba,.72),E:'#1d1d1d',T:h.pantalon,t:oscurece(h.pantalon,.75),F:'#3b2416'};
+  mapa.forEach((fila,j)=>[...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?12-i:i;R(x-6+xi,y-14+j,1,1,col[c]);}));
+}
+
+// ── flores de los lados, cuatro distintas, que de vez en cuando sueltan polen mágico
+const FLORES=[
+  {lado:-1,alto:.42,tipo:'girasol'},{lado:-1,alto:.78,tipo:'tulipan'},
+  {lado:1,alto:.5,tipo:'margarita'},{lado:1,alto:.82,tipo:'campanilla'}];
+FLORES.forEach(f=>f.prox=azar(2,6));
+function posFlor(f){const y=Math.round(lerp(HORIZ,FONDO,f.alto));return [f.lado<0?9:Math.round(W-9),y];}
+function dibujaFlores(){
+  FLORES.forEach(f=>{const [x,y]=posFlor(f),sw=Math.round(Math.sin(t*1.2+f.alto*9)*1);
+    linea(x,y+16,x+sw,y,'#2f6e28'); elipse(x+f.lado*-3,y+9,3,1.2,f.lado*.6,()=> '#3f8a32');
+    const cx=x+sw,cy=y;
+    if(f.tipo==='girasol'){for(let k=0;k<10;k++){const a=k/10*Math.PI*2+t*.2;elipse(cx+Math.cos(a)*4,cy+Math.sin(a)*4,2.2,1.2,a,()=> '#f6c431');}
+      elipse(cx,cy,2.6,2.6,0,(u,v)=>((Math.floor((u+1)*3)+Math.floor((v+1)*3))%2)?'#6b3e1a':'#8a5426');}
+    else if(f.tipo==='tulipan'){elipse(cx,cy,3,3.6,0,(u,v)=>v<-.5&&Math.abs(u)<.35?null:(u<-.2?'#b82a3a':'#e24a58'));P1(cx,cy-3,'#e24a58');}
+    else if(f.tipo==='margarita'){for(let k=0;k<12;k++){const a=k/12*Math.PI*2;linea(cx,cy,cx+Math.cos(a)*4.5,cy+Math.sin(a)*4.5,'#ffffff');}
+      elipse(cx,cy,1.8,1.8,0,()=> '#f2c431');}
+    else{for(let k=0;k<3;k++){const bx=cx+(k-1)*3,by=cy+Math.abs(k-1)*2;elipse(bx,by,1.8,2.4,0,(u,v)=>v>.6?'#5a3f9a':'#8a6ad8');P1(bx,by+3,'#f2dd4a');}}
+    // polen mágico
+    f.prox-=1/60; if(f.prox<=0){f.prox=azar(4,8);blip(1300,.3,'sine',.025,2200);
+      for(let i=0;i<16;i++)polen.push({x:cx,y:cy,vx:-f.lado*azar(.1,.7),vy:azar(-.9,-.2),v:azar(90,160),f:Math.random()*6,c:['#fff6b0','#ffd2f0','#c8f0ff','#ffffff'][i%4]});}
+  });
 }
 
 // ── controles
@@ -232,18 +261,21 @@ function paso(){
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
   if(rana.estado==='quieta'||rana.estado==='vuelve')rana.ang=cl(rana.ang+v*.035,-ANG_MAX,ANG_MAX);
   actualizaHadas(); actualizaLengua();
-  pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>HORIZ+6+((p.x*13)%20)){p.v=0;if(Math.random()<.3)avisos.push({x:p.x,y:p.y,v:12,onda:true});}});
+  // el pis cae hasta abajo, hasta el agua de delante
+  pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>FONDO-3){p.v=0;if(Math.random()<.35)avisos.push({x:p.x,y:FONDO-3,v:14,onda:true});}});
+  polen.forEach(p=>{p.vy+=.004;p.vx*=.99;p.x+=p.vx+Math.sin(t*3+p.f)*.25;p.y+=p.vy;p.v--;}); polen=polen.filter(p=>p.v>0);
   pis=pis.filter(p=>p.v>0);
   plumas.forEach(p=>{p.vy+=.02;p.vx*=.97;p.x+=p.vx+Math.sin(t*5+p.y)*.2;p.y+=p.vy;p.v--;}); plumas=plumas.filter(p=>p.v>0);
   avisos.forEach(a=>{a.v--;if(!a.onda)a.y-=.3;}); avisos=avisos.filter(a=>a.v>0);
-  while(hadas.length<3&&Math.random()<.02)nuevaHada();
 }
 function dibuja(){
   dibujaFondo(t);
   pis.forEach(p=>P1(p.x,p.y,'#f2dd4a'));
-  avisos.filter(a=>a.onda).forEach(a=>{const r=(12-a.v)*.5;R(a.x-r,a.y,1,1,'#bfe6ea');R(a.x+r,a.y,1,1,'#bfe6ea');});
+  avisos.filter(a=>a.onda).forEach(a=>{const r=(14-a.v)*.5;R(a.x-r,a.y,1,1,'#bfe6ea');R(a.x+r,a.y,1,1,'#bfe6ea');});
   hadas.filter(h=>!h.cogida).forEach(dibujaHada);
   dibujaVegetacion(t);
+  dibujaFlores();
+  polen.forEach(p=>{const x=Math.round(p.x),y=Math.round(p.y);if(Math.sin(t*14+p.f)>.2){P1(x,y,p.c);if(p.v%40<10){P1(x-1,y,p.c);P1(x+1,y,p.c);P1(x,y-1,p.c);P1(x,y+1,p.c);}}});
   // punto de mira: donde llegaría la punta de la lengua
   if(rana.estado==='quieta'){const [mx,my]=boca(),L=Math.min(FONDO-24,96),px=Math.round(mx+Math.sin(rana.ang)*L),py=Math.round(my-Math.cos(rana.ang)*L);
     for(const [ox,oy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]])P1(px+ox,py+oy,'#5a1a2a');
@@ -256,7 +288,7 @@ function dibuja(){
   R(x0-2,3,txt.length*4+3,9,'#1d140b'); numero(txt,x0,5,'#ffe27a');
 }
 addEventListener('resize',ajusta); ajusta();
-for(let i=0;i<3;i++){nuevaHada();hadas[i].x=azar(20,W-20);eligeObjetivo(hadas[i]);}
+nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=3;
 let acc=0,ult=performance.now();
 function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
 requestAnimationFrame(bucle);
