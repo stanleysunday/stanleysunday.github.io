@@ -28,7 +28,7 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
   box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
 #lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 #lengua.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
-#cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;max-width:min(88vw,380px);padding:16px 20px;
+#cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;width:min(88vw,360px);padding:16px 20px;box-sizing:border-box;
   background:#5a3a1c;border:3px solid #2b1a0b;box-shadow:inset 0 0 0 2px #8a5e30,0 4px 0 rgba(0,0,0,.35);color:#ffe9b8;
   font:700 18px/1.35 var(--font);text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
 #cartel.ve{opacity:1;transform:translate(-50%,-50%) scale(1)}
@@ -158,12 +158,62 @@ let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntr
 let floresMagicas=0, espadaPendiente=false, cartelHasta=0;
 const cartelEl=document.getElementById('cartel');
 function cartel(html,ms=4200){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
-function consigueFlor(){
-  if(espadaPendiente||hadas.some(h=>h.espada))return;   // mientras tienen espada no cuentan
-  floresMagicas=Math.min(5,floresMagicas+1);
-  if(floresMagicas>=5){espadaPendiente=true;proximaEntrada=Math.min(proximaEntrada,t+1.5);blip(520,.5,'square',.06,1040);
-    cartel('<b>¡Ya tienen 5 flores mágicas!</b>Van a comprar una espada');}
-  else cartel('<b>Flor mágica '+floresMagicas+'&nbsp;de&nbsp;5</b>Cuando consigan 5 flores mágicas comprarán una espada');
+let floresTipos=[], chispas=[], saltoContador=0, excal=null;
+function consigueFlor(f){
+  if(espadaPendiente||excal||hadas.some(h=>h.espada))return;   // mientras hay espada no cuentan
+  const [fx,fy]=posFlor(f); chispas.push({x:fx,y:fy,t:0,tipo:f.tipo});
+}
+function llegaChispa(c){
+  floresMagicas=Math.min(5,floresMagicas+1); floresTipos.push(c.tipo); saltoContador=12; blip(1200+floresMagicas*120,.18,'square',.05,1800);
+  if(floresMagicas>=5&&!excal){espadaPendiente=true;setTimeout(empiezaExcalibur,600);}
+}
+function actualizaChispas(){
+  const cx=W/2, cy=7;
+  chispas.forEach(c=>{c.t+=1/60;const k=Math.min(1,c.t/.9),e=k*k*(3-2*k);c.px=lerp(c.x,cx,e);c.py=lerp(c.y,cy,e)-Math.sin(Math.PI*k)*14;
+    if(k>=1&&!c.hecha){c.hecha=true;llegaChispa(c);}});
+  chispas=chispas.filter(c=>!c.hecha); if(saltoContador>0)saltoContador--;
+}
+// ── con 5 flores, la espada sale del agua: un brazo la alza, las flores giran alrededor, resplandece, y un hado la coge
+function empiezaExcalibur(){
+  excal={fase:'sube',t:0,x:Math.round(W/2),y:Math.round(lerp(HORIZ,FONDO,.5)),tipos:floresTipos.slice(0,5),sub:56};
+  floresTipos=[];
+  [523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.35,'square',.05,f),i*180));
+  for(let i=0;i<4;i++)avisos.push({x:excal.x,y:excal.y,v:14+i*6,onda:true});
+}
+function manoExcal(){return [excal.x,excal.y-30+excal.sub];}
+function actualizaExcal(){
+  if(!excal)return; const E=excal; E.t+=1/60;
+  if(E.fase==='sube'){const k=Math.min(1,E.t/1.8);E.sub=56*(1-k*k*(3-2*k));if(Math.random()<.15)avisos.push({x:E.x+azar(-5,5),y:E.y,v:14,onda:true});
+    if(k>=1){E.fase='brilla';E.t=0;blip(1568,.6,'sine',.05,2093);}}
+  else if(E.fase==='brilla'){
+    if(E.t>1.6&&!E.recogedor){nuevaHada();const h=hadas[hadas.length-1];h.estado='recoge';h.recoge=true;h.ala='#8a1f2a';h.pantalon='#1d1d1d';h.vida=azar(24,32);h.listo=1;h.dur=99;E.recogedor=h;}
+    const h=E.recogedor;
+    if(h&&!h.cogida&&hadas.includes(h)){const [mx,my]=manoExcal();if(Math.hypot(h.x+10-mx,h.y+4-my)<3.5&&E.t>2.6){
+      h.espada=true;h.recoge=false;h.estado='vuela';h.dur=azar(2,4);h.angEspada=-.25;eligeObjetivo(h);E.fase='baja';E.t=0;floresMagicas=0;espadaPendiente=false;
+      blip(880,.4,'sawtooth',.06,1760);for(let i=0;i<40;i++)polen.push({x:mx,y:my-16,vx:azar(-1,1),vy:azar(-1.2,.3),v:azar(80,140),f:Math.random()*6,c:['#fff6b0','#ffd2f0','#c8f0ff','#ffffff'][i%4]});}}
+    else if(h&&(h.cogida||!hadas.includes(h))){E.recogedor=null;}}
+  else if(E.fase==='baja'){const k=Math.min(1,E.t/1.2);E.sub=56*k*k;if(k>=1)excal=null;}
+}
+function espadaEn(hx,hy,largo,brillo){   // espada grande: hoja ancha, guarda dorada, empuñadura y pomo
+  R(hx-1,hy,3,5,'#6b3e1a'); R(hx-1,hy+5,3,2,'#e2b23a'); R(hx-5,hy-2,11,2,'#e2b23a'); P1(hx-5,hy-3,'#e2b23a'); P1(hx+5,hy-3,'#e2b23a');
+  R(hx-1,hy-2-largo,3,largo,brillo?'#ffffff':'#dfe6ee'); R(hx+1,hy-2-largo,1,largo,brillo?'#e8f4ff':'#9aa7b4'); P1(hx,hy-3-largo,brillo?'#ffffff':'#dfe6ee');
+}
+function florGrande(tipo,x,y){const c=COLOR_FLOR[tipo];x=Math.round(x);y=Math.round(y);
+  for(const [dx,dy] of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0],[0,-1],[0,1]])P1(x+dx,y+dy,c);
+  P1(x,y,tipo==='margarita'||tipo==='girasol'?'#a8641e':'#f2dd4a');}
+function dibujaExcal(){
+  if(!excal)return; const E=excal,[hx,hy]=manoExcal(),agua=E.y,brilla=E.fase==='brilla',tomada=E.fase==='baja';
+  // resplandor: rayos que giran
+  if(brilla){const cy=hy-18;for(let k=0;k<14;k++){const a=k/14*Math.PI*2+t*.8,l=24+Math.sin(t*6+k)*6;
+      if(Math.sin(t*10+k*2)>-.3)linea(hx+Math.cos(a)*7,cy+Math.sin(a)*7,hx+Math.cos(a)*l,cy+Math.sin(a)*l,k%2?'#fff6c8':'#ffe27a');}}
+  // el brazo, con la manga blanca, y la espada; solo se ve lo que está por encima del agua
+  const P=(x,y,c)=>{if(y<agua)P1(x,y,c);};
+  for(let y=hy+5;y<agua+1;y++)for(let x=-4;x<=4;x++)P(hx+x,y,Math.abs(x)===4?'#c4cfd6':(x<-1?'#e6ecf0':'#f7f9fa'));   // manga blanca
+  for(let y=hy-1;y<hy+5;y++)for(let x=-3;x<=3;x++)if(!(Math.abs(x)===3&&(y===hy-1||y===hy+4)))P(hx+x,y,x<-1?'#e0b48e':'#f2c6a0');   // la mano agarra la empuñadura
+  if(!tomada&&hy<agua)espadaEn(hx,hy-1,30,brilla&&Math.floor(t*8)%2===0);   // la espada, en cuanto asoma la mano
+  // las cinco flores dan vueltas alrededor
+  if(brilla){const cy=hy-18;E.tipos.forEach((tipo,i)=>{const a=i/5*Math.PI*2+t*2.2;florGrande(tipo,hx+Math.cos(a)*19,cy+Math.sin(a)*10);});
+    if(Math.random()<.4)polen.push({x:hx+azar(-18,18),y:hy-18+azar(-12,12),vx:azar(-.2,.2),vy:azar(-.4,-.1),v:50,f:Math.random()*6,c:'#ffffff'});}
 }
 let entradas=0, ataque=null, cabezaRana=null, finJuego=false;
 function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
@@ -176,6 +226,7 @@ function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
   eligeObjetivo(h); hadas.push(h);}
 function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
 function cambiaEstado(h){
+  if(h.recoge)return;
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
   if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
@@ -190,11 +241,14 @@ function actualizaHadas(){
     if(h.estado==='seVa'){h.vx+=h.mira*.08;h.vx*=.96;h.vy*=.9;h.vy-=.01;h.x+=h.vx;h.y+=h.vy;if(h.x<-20||h.x>W+20)h.fuera=true;return;}
     h.dur-=1/60; if(h.dur<=0){if(h.vida<=0&&h.estado!=='pis'&&h.estado!=='corta'){h.estado='seVa';h.mira=h.x<W/2?-1:1;return;}cambiaEstado(h);}
     if(h.esquiva){if(h.esquiva.retraso>0)h.esquiva.retraso--;else{h.vx+=h.esquiva.vx;h.vy+=h.esquiva.vy;h.esquiva.n--;if(h.esquiva.n<=0)h.esquiva=null;}}
-    if(h.estado==='flor'||h.estado==='corta'){const f=h.florObj;
+    if(h.estado==='recoge'){if(!excal){h.estado='vuela';h.recoge=false;eligeObjetivo(h);}
+      else{const [mx2,my2]=manoExcal(),tx=mx2-10,ty=my2-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);
+        if(d>1){h.vx+=ox/d*Math.min(.12,d*.02);h.vy+=oy/d*Math.min(.12,d*.02);}h.vx*=.9;h.vy*=.9;h.mira=1;}}
+    else if(h.estado==='flor'||h.estado==='corta'){const f=h.florObj;
       if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
       else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
         if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
-        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);consigueFlor();
+        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;blip(1000,.12,'square',.05,1500);consigueFlor(f);
           for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}
         const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
         if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
@@ -212,8 +266,7 @@ function actualizaHadas(){
   hadas=hadas.filter(h=>!h.fuera);
   // van entrando de uno en uno, nunca más de dos a la vez
   if(!finJuego&&hadas.length<2&&t>proximaEntrada){   // después de unos cuantos, aparece uno con espada
-    const conEspada=espadaPendiente&&!hadas.some(h=>h.espada);nuevaHada(conEspada);if(conEspada){espadaPendiente=false;floresMagicas=0;
-      cartel('<b>¡Llega el de la espada!</b>Si la rana se come a alguien ahora…',4800);}
+    nuevaHada();
     proximaEntrada=t+azar(3,5);}
 }
 function lanzaLengua(){
@@ -221,7 +274,7 @@ function lanzaLengua(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
   hadas.forEach(h=>{if(h.cogida||h.estado==='seVa')return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
     if(a<0||Math.abs(p)>20)return;
-    const pisando=h.estado==='pis', prob=h.espada?1:(pisando?.12:.98)*h.listo, retraso=pisando?30:2;
+    const pisando=h.estado==='pis', prob=(h.espada||h.recoge)?1:(pisando?.12:.98)*h.listo, retraso=pisando?30:2;
     if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
       if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
 }
@@ -338,7 +391,7 @@ function dibujaCabezaRana(hx,hy,a,muerta){
   if(muerta){const bx=hx-Math.sin(a)*5,by=hy+Math.cos(a)*5;elipse(bx,by,3,1.6,a,()=> '#b0202c');}
 }
 function reinicia(){
-  floresMagicas=0;espadaPendiente=false;
+  floresMagicas=0;espadaPendiente=false;floresTipos=[];chispas=[];excal=null;
   hadas=[];pis=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;
   Object.assign(rana,{ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
   FLORES.forEach(f=>{f.cortada=false;f.crece=1;});
@@ -365,7 +418,7 @@ function paso(){
   t+=1/60;
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
   if(!rana.sinCabeza&&!ataque&&(rana.estado==='quieta'||rana.estado==='vuelve'))rana.ang=cl(rana.ang+v*Math.abs(v)*.016,-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
-  actualizaHadas(); actualizaLengua(); actualizaAtaque();
+  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal();
   // el pis cae hasta abajo, hasta el agua de delante
   pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>FONDO-3){p.v=0;if(Math.random()<.35)avisos.push({x:p.x,y:FONDO-3,v:14,onda:true});}});
   polen.forEach(p=>{p.vy+=.004;p.vx*=.99;p.x+=p.vx+Math.sin(t*3+p.f)*.25;p.y+=p.vy;p.v--;}); polen=polen.filter(p=>p.v>0);
@@ -378,6 +431,7 @@ function dibuja(){
   pis.forEach(p=>P1(p.x,p.y,'#f2dd4a'));
   avisos.filter(a=>a.onda).forEach(a=>{const r=(14-a.v)*.5;R(a.x-r,a.y,1,1,'#bfe6ea');R(a.x+r,a.y,1,1,'#bfe6ea');});
   hadas.filter(h=>!h.cogida&&!h.ataca).forEach(dibujaHada);
+  dibujaExcal();
   dibujaVegetacion(t);
   dibujaFlores();
   polen.forEach(p=>{const x=Math.round(p.x),y=Math.round(p.y);if(Math.sin(t*14+p.f)>.2){P1(x,y,p.c);if(p.v%40<10){P1(x-1,y,p.c);P1(x+1,y,p.c);P1(x,y-1,p.c);P1(x,y+1,p.c);}}});
@@ -391,14 +445,17 @@ function dibuja(){
   plumas.forEach(p=>P1(p.x,p.y,p.c));
   avisos.filter(a=>!a.onda).forEach(a=>numero('1',Math.round(a.x)-1,Math.round(a.y),'#ffe27a'));
   // contador de flores mágicas
-  { const txt=floresMagicas+'/5', w=txt.length*4+9, x0=Math.round(W/2-w/2);
-    R(x0,3,w,9,'#1d140b'); florMini('margarita',x0+4,7); numero(txt,x0+8,5,floresMagicas>=5||espadaPendiente?'#ff8a8a':'#ffe9b8'); }
+  { const txt=floresMagicas+'/5', w=txt.length*4+9, x0=Math.round(W/2-w/2), sy=saltoContador>0?-Math.round(Math.sin(saltoContador/12*Math.PI)*2):0;
+    R(x0,3+sy,w,9,'#1d140b'); florMini(floresTipos.length?floresTipos[floresTipos.length-1]:'margarita',x0+4,7+sy); numero(txt,x0+8,5+sy,floresMagicas>=5?'#ffe27a':'#ffe9b8'); }
+  chispas.forEach(c=>{const x=Math.round(c.px||c.x),y=Math.round(c.py||c.y);florMini(c.tipo,x,y);if(Math.sin(t*20)>0){P1(x-2,y,'#ffffff');P1(x+2,y,'#ffffff');}});
   // marcador: hadas cazadas
   const txt=String(puntos).padStart(3,'0'), x0=Math.round(W-txt.length*4-6);
   R(x0-2,3,txt.length*4+3,9,'#1d140b'); numero(txt,x0,5,'#ffe27a');
 }
 addEventListener('resize',ajusta); ajusta();
 nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=3;
+cartel('<b>Flores mágicas</b>Los hados buscan 5 flores mágicas. Cuando tengan 5, conseguirán una espada.',7000);
+addEventListener('pointerdown',()=>{if(cartelEl.classList.contains('ve')&&t>.8)cartelEl.classList.remove('ve');},{passive:true});
 let acc=0,ult=performance.now();
 function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
 requestAnimationFrame(bucle);
