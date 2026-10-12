@@ -179,7 +179,7 @@ function dibujaRana(t){
   try{dibujaRanaCuerpo(t,cx,cy);}finally{EP=null;}
 }
 function dibujaRanaCuerpo(t,cx,cy){
-  const verde='#5fb04a',oscuro='#3f8a32',claro='#8fd06a';
+  const ki=Math.min(1,(rana.intox||0)*1.1), verde=mezcla('#5fb04a','#a3a63c',ki), oscuro=mezcla('#3f8a32','#77762a',ki), claro=mezcla('#8fd06a','#c7c460',ki);
   // patas traseras dobladas y delanteras
   for(const s of [-1,1]){elipse(cx+s*9,cy+4,4,2.5,s*.6,(u,v)=>v<-.3?claro:verde);elipse(cx+s*12,cy+7,4,1.6,s*-.3,()=>oscuro);
     elipse(cx+s*7,cy-6,2.6,1.5,s*-.7,()=>verde);for(let k=-1;k<=1;k++)P1(cx+s*9+k,cy-8+Math.abs(k),oscuro);}
@@ -190,11 +190,21 @@ function dibujaRanaCuerpo(t,cx,cy){
   const [nx,ny]=cuello(), a=rana.ang, hx=nx+Math.sin(a)*2, hy=ny-Math.cos(a)*2, hinch=rana.trago>0?1+Math.sin(rana.trago*.5)*.25:1;
   elipse(hx,hy,7*hinch,5.5,a,(u,v)=>v<-.55&&Math.abs(u)<.6?'#3f8a32':(v<-.2?claro:verde));
   for(const s of [-1,1]){const ex=hx+Math.cos(a)*s*5.2+Math.sin(a)*1,ey=hy+Math.sin(a)*s*5.2-Math.cos(a)*1;   // ojos saltones
-    elipse(ex,ey,2.4,2.4,0,(u,v)=>u*u+v*v<.35?'#111':(v<-.3?'#fff':'#e9f2c8'));}
+    elipse(ex,ey,2.4,2.4,0,(u,v)=>{if(ki>.3&&v<-1+ki*1.1)return oscuro;return u*u+v*v<.35?'#111':(v<-.3?'#fff':'#e9f2c8');});}   /* intoxicada: párpados caídos */
+  if(ki>.3&&Math.random()<ki*.06)polen.push({x:hx+azar(-4,4),y:hy-3,vx:azar(-.1,.1),vy:-.25,v:50,f:0,c:'#c7d86a'});   // burbujitas
   if(peligro())for(const s of [-1,1]){const k=((t*1.4+(s>0?.5:0))%1),gx=hx+s*(8+k*2),gy=hy-4+k*9;   // suda: gotas que resbalan
     if(k<.9){P1(gx,gy,'#dff4ff');P1(gx,gy+1,'#9fd6f0');P1(gx,gy-1,'#ffffff');}}
 }
+function puntosCuerda(){   // la lengua floja: sale con poca fuerza, se tuerce hacia un lado y cae, luego se recoge
+  const F=rana.flo,[mx,my]=boca(),T=F.t,N=16;
+  const L=T<.3?T/.3*44:T<1?44:Math.max(0,44*(1-(T-1)/.45));
+  const caida=Math.min(1,T/.7), pts=[[mx,my]]; let x=mx,y=my;
+  for(let i=1;i<=N;i++){const s=i/N, th=rana.ang+F.lado*(.4+s*s*2.2*caida)+Math.sin(T*9+s*7)*.25*(1-caida);
+    x+=Math.sin(th)*L/N; y+=-Math.cos(th)*L/N+s*caida*1.2; pts.push([x,y]);}
+  return pts;}
 function dibujaLengua(){
+  if(rana.estado==='floja'&&rana.flo){const p=puntosCuerda();for(let i=1;i<p.length;i++){linea(p[i-1][0],p[i-1][1],p[i][0],p[i][1],'#c9455f');linea(p[i-1][0]+1,p[i-1][1],p[i][0]+1,p[i][1],'#e2607a');}
+    const q=p[p.length-1];elipse(q[0],q[1],1.6,1.6,0,()=> '#e2607a');return;}
   if(rana.lengua<=0)return;
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), L=rana.lengua;
   const fx=mx+dx*L, fy=my+dy*L;
@@ -208,11 +218,16 @@ const ALAS=['#f08a3a','#4fb6e8','#ef7fb0','#f2d14a','#9a7ce0','#5cc27a'];
 /* manchas amarillas de pis que se quedan flotando en la laguna; el polen de un hado con flor las limpia */
 let charcos=[];
 function ensucia(x,y){const c=charcos.find(c=>!c.limpia&&Math.hypot(c.x-x,(c.y-y)*2)<c.r+3);
-  if(c){c.r=Math.min(9,c.r+.025);c.x+=(x-c.x)*.01;}else if(Math.random()<.25&&charcos.length<14)charcos.push({x,y,r:1.4,f:Math.random()*6});}
+  if(c){c.r=Math.min(9,c.r+.04);c.x+=(x-c.x)*.01;}else if(Math.random()<.25&&charcos.length<14)charcos.push({x,y,r:1.4,f:Math.random()*6});}
+function suciedad(){return charcos.reduce((a,c)=>a+(c.limpia?0:c.r*c.r),0);}
+const SUCIO_MIN=55, SUCIO_MAX=220;   // a partir de aquí la rana empieza a intoxicarse; arriba del todo, intoxicada del todo
+function actualizaIntox(){const obj=cl((suciedad()-SUCIO_MIN)/(SUCIO_MAX-SUCIO_MIN),0,1);rana.intox=(rana.intox||0)+(obj-(rana.intox||0))*.02;
+  if(rana.intox>.35)nota('intox','La laguna está tan sucia que la rana se está intoxicando…');}
 function limpiaLaguna(){if(!charcos.some(c=>!c.limpia))return;charcos.forEach(c=>c.limpia=c.limpia||azar(.6,1.4));blip(1500,.4,'sine',.05,2600);
   nota('limpia','¡Su polen mágico limpia la laguna!');}
 function dibujaCharcos(){charcos.forEach(c=>{const ox=Math.sin(t*.6+c.f)*.6;
   elipse(c.x+ox,c.y,c.r*1.4,c.r*.45+.5,0,(u,v)=>{const d=u*u+v*v;if(d>.8)return '#a9a64a';return ((Math.floor((u+1)*c.r)+Math.floor((v+1)*3))%3===0)?'#d8cf58':'#c3bd4c';});});}
+const MAX_HADAS=4;
 let hadas=[], pis=[], plumas=[], polen=[], puntos=0, t=0, avisos=[], proximaEntrada=0;
 let floresMagicas=0, espadaPendiente=false, cartelHasta=0;
 const cartelEl=document.getElementById('cartel');
@@ -329,9 +344,9 @@ function cambiaEstado(h){
   if(introAbierta){h.estado='vuela';h.dur=azar(1.5,3);eligeObjetivo(h);return;}
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
-  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=7;return;}
+  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.5){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=7;return;}
   h.florObj=null;
-  if(h.estado==='pis'||Math.random()<.5||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
+  if(h.estado==='pis'||Math.random()<.35||hadas.filter(o=>o!==h&&o.estado==='pis').length>=2){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
   else{h.estado='pis';nota('pis','Ajá, haciendo pis en la laguna… ahí están bien distraídos.');h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
 function actualizaHadas(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
@@ -366,12 +381,14 @@ function actualizaHadas(){
   });
   hadas=hadas.filter(h=>!h.fuera);
   // van entrando de uno en uno, nunca más de dos a la vez
-  if(!finJuego&&!duelo&&!ataque&&hadas.length<2&&t>proximaEntrada){   // después de unos cuantos, aparece uno con espada
+  if(!finJuego&&!duelo&&!ataque&&hadas.length<MAX_HADAS&&t>proximaEntrada){   // después de unos cuantos, aparece uno con espada
     nuevaHada();
-    proximaEntrada=t+azar(3,5);}
+    proximaEntrada=t+azar(2,3.5);}
 }
 function lanzaLengua(){
   if(duelo){salta();return;}
+  if(rana.estado==='quieta'&&!rana.sinCabeza&&!ataque&&(rana.intox||0)>.3&&Math.random()<.25+.5*rana.intox){   // intoxicada: le sale la lengua sin fuerza, como una cuerda
+    rana.estado='floja';rana.flo={t:0,lado:Math.random()<.5?-1:1};blip(220,.5,'triangle',.05,70);return;}
   if(rana.estado!=='quieta'||rana.sinCabeza||ataque)return; rana.estado='sale'; blip(300,.12,'square',.05,900);
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
   hadas.forEach(h=>{if(h.cogida||h.estado==='seVa')return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
@@ -400,6 +417,7 @@ function actualizaBotes(){
 const T_ESTR=.3, CUELLO_HADA=4;
 function KH(){return Math.max(1,Math.round(S*ESCALA_HADO))/S;}   // cuánto dura el estrangulamiento; la punta de la lengua va al cuello, no al centro
 function actualizaLengua(){
+  if(rana.estado==='floja'){rana.flo.t+=1/60;if(rana.flo.t>1.5){rana.estado='quieta';rana.flo=null;}return;}
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=my-1;   /* llega hasta arriba del todo (y al contador) */
   if(rana.estado==='sale'){rana.lengua+=6;
     const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
@@ -635,7 +653,7 @@ function reinicia(){
   floresMagicas=0;espadaPendiente=false;floresTipos=[];chispas=[];excal=null;
   hadas=[];pis=[];charcos=[];plumas=[];polen=[];avisos=[];puntos=0;entradas=0;ataque=null;cabezaRana=null;finJuego=false;sangre=[];manchas=[];avisadoEspada=false;duelo=null;espadaCae=null;
   boton.classList.remove('salto');boton.style.removeProperty('--queda');boton.setAttribute('aria-label','Sacar la lengua');
-  Object.assign(rana,{px:null,py:null,escala:1,ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
+  Object.assign(rana,{intox:0,flo:null,px:null,py:null,escala:1,ang:0,lengua:0,estado:'quieta',presa:null,trago:0,sinCabeza:false});
   FLORES.forEach(f=>{f.cortada=false;f.crece=1;});
   document.getElementById('otra').hidden=true; nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=t+3;
 }
@@ -659,8 +677,8 @@ addEventListener('keyup',e=>teclas[e.key]=false);
 function paso(){
   t+=1/60;
   let v=joy; if(teclas.ArrowLeft)v=-1; if(teclas.ArrowRight)v=1;
-  if(!rana.sinCabeza&&!ataque&&(!duelo||duelo.fase==='espera')&&(rana.estado==='quieta'||(rana.estado==='vuelve'&&!rana.presa)))rana.ang=cl(rana.ang+v*Math.abs(v)*.016,-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
-  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal(); actualizaDuelo(); actualizaBotes(); actualizaNotas();
+  if(!rana.sinCabeza&&!ataque&&(!duelo||duelo.fase==='espera')&&(rana.estado==='quieta'||(rana.estado==='vuelve'&&!rana.presa)))rana.ang=cl(rana.ang+v*Math.abs(v)*.016*(1-.45*(rana.intox||0)),-ANG_MAX,ANG_MAX);   /* más lento, y suave cerca del centro para afinar */
+  actualizaHadas(); actualizaLengua(); actualizaAtaque(); actualizaChispas(); actualizaExcal(); actualizaDuelo(); actualizaBotes(); actualizaNotas(); actualizaIntox();
   if(introAbierta&&t>1&&!cartelEl.classList.contains('ve'))introAbierta=false;
   // el pis cae hasta abajo, hasta el agua de delante
   pis.forEach(p=>{p.vy+=.045;p.x+=p.vx;p.y+=p.vy;p.v--;if(p.y>=p.suelo){p.v=0;if(Math.random()<.3)avisos.push({x:p.x,y:p.suelo,v:14,onda:true});ensucia(p.x,p.suelo);}});
