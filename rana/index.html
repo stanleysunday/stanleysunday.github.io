@@ -646,7 +646,7 @@ function dibuja(){
 }
 addEventListener('resize',ajusta); ajusta();
 nuevaHada(); hadas[0].x=azar(30,W-30); proximaEntrada=3;
-cartel('Los hados buscan 5 flores mágicas. Cuando tengan 5, conseguirán una espada.',7000);
+cartel('Los hados no paran de mear en la laguna y llevas semanas quejándote. Si reúnen 5 flores mágicas, conseguirán Excalibur para acabar contigo.',8000);
 addEventListener('pointerdown',()=>{if(cartelEl.classList.contains('ve')&&t>.8)cartelEl.classList.remove('ve');},{passive:true});
 let acc=0,ult=performance.now();
 function bucle(now){acc+=Math.min(100,now-ult);ult=now;while(acc>=1000/60){paso();acc-=1000/60;}dibuja();requestAnimationFrame(bucle);}
