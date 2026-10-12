@@ -32,8 +32,10 @@ canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:blo
   box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,240,210,.15),0 0 0 3px var(--borde)}
 #lengua::after{content:"";display:block;width:44px;height:32px;margin:auto;border-radius:2px;background:var(--lengua);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 #lengua.salto{position:relative}
-#lengua.salto::after{content:"SALTO";width:auto;height:auto;padding:9px 8px;background:#ffe27a;color:#1d140b;font:700 13px var(--font);letter-spacing:.12em;line-height:1}
-#lengua.salto::before{content:"";position:absolute;left:8px;bottom:6px;height:4px;width:calc((100% - 16px) * var(--queda,1));background:#e2483a}
+#lengua.salto{background:#4caf3a;box-shadow:inset 0 -5px 0 rgba(0,0,0,.25),0 0 0 3px var(--borde)}
+#lengua.salto::after{display:none}
+#lengua.salto.dn{box-shadow:inset 0 -1px 0 rgba(0,0,0,.25),0 0 0 3px var(--borde)}
+#lengua.salto::before{content:"";position:absolute;left:6px;bottom:8px;height:4px;width:calc((100% - 12px) * var(--queda,1));background:#1d5a14}
 #lengua.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
 #cartel{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);z-index:3;width:min(88vw,360px);padding:16px 20px;box-sizing:border-box;
   background:#5a3a1c;border:3px solid #2b1a0b;box-shadow:inset 0 0 0 2px #8a5e30,0 4px 0 rgba(0,0,0,.35);color:#ffe9b8;
@@ -219,11 +221,18 @@ function actualizaNotas(){
 let introAbierta=true;   // mientras está el primer cartel, los hados revolotean pero no hacen nada
 function cartel(html,ms=4200){cartelEl.innerHTML=html;cartelEl.classList.add('ve');clearTimeout(cartel.tm);cartel.tm=setTimeout(()=>cartelEl.classList.remove('ve'),ms);}
 let floresTipos=[], chispas=[], saltoContador=0, excal=null;
-function consigueFlor(f){
+function consigueFlor(f,h){
   if(espadaPendiente||excal||hadas.some(h=>h.espada))return;   // mientras hay espada no cuentan
-  const [fx,fy]=posFlor(f); chispas.push({x:fx,y:fy,t:0,tipo:f.tipo});
+  const [fx,fy]=posFlor(f); chispas.push({x:fx,y:fy,t:0,tipo:f.tipo,h});
+}
+function quitaFlores(h){   // si cazas a uno que lleva flores mágicas, las pierde y se descuentan
+  for(const tipo of h.flores.slice(-3))for(let i=0;i<8;i++)plumas.push({x:h.x-11,y:h.y,vx:azar(-.8,.8),vy:azar(-1,.2),c:COLOR_FLOR[tipo],v:70});
+  const n=h.cuenta||0; h.cuenta=0; h.flores=[];
+  if(n>0&&!espadaPendiente&&!excal){floresMagicas=Math.max(0,floresMagicas-n);floresTipos.splice(-n,n);saltoContador=12;blip(600,.3,'square',.05,200);
+    nota('quita','¡Le quitaste la flor! Una menos para la espada.');}
 }
 function llegaChispa(c){
+  if(c.h){if(c.h.cogida||!hadas.includes(c.h))return;c.h.cuenta=(c.h.cuenta||0)+1;}
   floresMagicas=Math.min(5,floresMagicas+1); floresTipos.push(c.tipo); saltoContador=12; blip(1200+floresMagicas*120,.18,'square',.05,1800);
   if(floresMagicas>=5&&!excal){espadaPendiente=true;setTimeout(empiezaExcalibur,600);}
 }
@@ -306,6 +315,7 @@ function nuevaHada(espada=false){const lado=Math.random()<.5?-1:1; entradas++;
 function eligeObjetivo(h){h.obj=[azar(20,W-20),azar(32,HORIZ+10)];}
 function cambiaEstado(h){
   if(h.recoge)return;
+  if(h.estado==='admira'){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   if(introAbierta){h.estado='vuela';h.dur=azar(1.5,3);eligeObjetivo(h);return;}
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
@@ -328,11 +338,13 @@ function actualizaHadas(){
       if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
       else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
         if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
-        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;nota('flor','Uno ha cortado una flor mágica y se la lleva.');blip(1000,.12,'square',.05,1500);consigueFlor(f);
-          for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}
+        else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;nota('flor','Uno ha cortado una flor mágica y se la lleva.');blip(1000,.12,'square',.05,1500);consigueFlor(f,h);
+          for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='admira';h.dur=azar(1.8,2.4);h.vx*=.3;h.vy*=.3;}}
         const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
         if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
         h.vx*=.94;h.vy*=.94;if(h.estado==='flor')h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}}
+    else if(h.estado==='admira'){h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*3+h.fase)*.008;   // se para a mirar la flor: es el momento de cazarlo
+      nota('admira','Se para a mirar su flor… ¡es tu momento!');}
     else if(h.estado==='vuela'){const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
       if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*.06;h.vy+=oy/d*.06;}
       const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;   // si la rana les apunta, se apartan
@@ -355,7 +367,7 @@ function lanzaLengua(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang);
   hadas.forEach(h=>{if(h.cogida||h.estado==='seVa')return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
     if(a<0||Math.abs(p)>20)return;
-    const pisando=h.estado==='pis', prob=(h.espada||h.recoge)?1:(pisando?.12:.98)*h.listo, retraso=pisando?30:2;
+    const pisando=h.estado==='pis'||h.estado==='admira', conFlor=(h.cuenta||0)>0||h.flores.length>0, prob=(h.espada||h.recoge)?1:pisando?(h.estado==='admira'?.15:.12):(conFlor?.99:.98*h.listo), retraso=pisando?30:2;
     if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
       if(!pisando)nota('esquiva','Son listos: si están volando, se escapan.');
       if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
@@ -383,7 +395,7 @@ function actualizaLengua(){
     const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
     if(toques(fx,fy)){rana.estado='vuelve';}
     const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-(fy-dy*k))<9)return true;}return false;});
-    if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);
+    if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);quitaFlores(h);
       for(let i=0;i<10;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
     else if(rana.lengua>=MAX||fy<2||fx<2||fx>W-2){rana.estado='vuelve';blip(200,.1,'square',.03,120);}}
   else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3:5.5;
