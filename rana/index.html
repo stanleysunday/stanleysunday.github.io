@@ -474,7 +474,7 @@ function empiezaDuelo(h){
   duelo={fase:'espera',t:0,esp:h}; h.duelo=true; h.vx=0; h.vy=0;
   hadas.forEach(o=>{if(o!==h&&!o.cogida){o.estado='seVa';o.mira=o.x<W/2?-1:1;}});
   boton.classList.add('salto'); boton.setAttribute('aria-label','Saltar');
-  notaYa('¡Duelo! El botón ahora es un salto. Solo uno: caza al de la espada antes de que baje a por ti.',4.5);
+  cartel('<b>¡Duelo!</b>El botón ahora es un salto. Solo tienes uno: caza al de la espada antes de que baje a por ti.',5000);
   blip(220,.5,'sawtooth',.06,110);
 }
 function destinoSalto(){   // hasta dónde llega el salto en la dirección en que mira la rana
@@ -483,7 +483,7 @@ function destinoSalto(){   // hasta dónde llega el salto en la dirección en qu
   return [x+dx*L,y+dy*L+6];
 }
 function salta(){
-  if(!duelo||duelo.fase!=='espera'||rana.sinCabeza)return;
+  if(!duelo||duelo.fase!=='espera'||rana.sinCabeza||cartelEl.classList.contains('ve'))return;
   const [x0,y0]=posRana(),[x1,y1]=destinoSalto();
   duelo.fase='salto';duelo.t=0;duelo.de=[x0,y0];duelo.a=[x1,y1];duelo.dur=.35+Math.hypot(x1-x0,y1-y0)/260;
   boton.classList.remove('salto');boton.style.removeProperty('--queda');blip(260,.25,'square',.06,900);ruido(0,.2,.06,900,1);
@@ -496,6 +496,7 @@ function actualizaDuelo(){
     h.vx+=(h.dvx-h.vx)*.05; h.vy=(bandaDuelo()+Math.sin(t*1.7)*4-h.y)*.05;
     h.lv=(h.lv||0)+(-h.vx*1.2-(h.lean||0))*.12; h.lv*=.88; h.lean=cl((h.lean||0)+h.lv,-1.4,1.4);
     h.x+=h.vx; h.y+=h.vy; h.mira=h.vx>0?1:-1; h.angEspada=-.25+Math.sin(t*3)*.15;}
+  if(D.fase==='espera'&&cartelEl.classList.contains('ve'))D.t=0;
   if(D.fase==='espera'){const q=Math.max(0,1-D.t/T_DUELO);boton.style.setProperty('--queda',q.toFixed(3));
     if(D.t>T_DUELO){D.fase='fin';boton.classList.remove('salto');empiezaAtaque(h,null,'tarde');}}
   else if(D.fase==='salto'){const k=Math.min(1,D.t/D.dur),e=k*(2-k);
