@@ -362,17 +362,18 @@ function actualizaHadas(){
     else if(h.estado==='flor'||h.estado==='corta'){const f=h.florObj;
       if(!f||f.cortada){h.estado='vuela';h.florObj=null;h.dur=azar(2,4);eligeObjetivo(h);}
       else{const [fx,fy]=posFlor(f),tx=fx-f.lado*9,ty=fy-4,ox=tx-h.x,oy=ty-h.y,d=Math.hypot(ox,oy);   // se pone al lado, con la mano en la flor
-        if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.8;h.mira=f.lado;}else{h.vx+=ox/d*.08;h.vy+=oy/d*.08;}}
+        if(h.estado==='flor'){if(d<2.5){h.estado='corta';h.dur=.45;h.mira=f.lado;}else{h.vx+=ox/d*.14;h.vy+=oy/d*.14;}}
         else{h.vx+=ox*.02;h.vy+=oy*.02;if(h.dur<.1){f.cortada=true;f.crece=0;f.espera=azar(4,7);h.flores.push(f.tipo);h.florObj=null;nota('flor','Uno ha cortado una flor mágica y se la lleva.');blip(1000,.12,'square',.05,1500);consigueFlor(f,h);
           for(let i=0;i<6;i++)plumas.push({x:fx,y:fy,vx:azar(-.6,.6),vy:azar(-.8,0),c:'#3f8a32',v:50});h.estado='admira';h.dur=azar(1.8,2.4);h.vx*=.3;h.vy*=.3;}}
         const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
         if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
-        h.vx*=.94;h.vy*=.94;if(h.estado==='flor')h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}}
+        h.vx*=h.estado==='flor'?.92:.94;h.vy*=h.estado==='flor'?.92:.94;if(h.estado==='flor')h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}}
     else if(h.estado==='admira'){h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*3+h.fase)*.008;}   /* se para a mirar la flor: es el momento de cazarlo */
     else if(h.estado==='vuela'){const ox=h.obj[0]-h.x,oy=h.obj[1]-h.y,d=Math.hypot(ox,oy);
-      if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*.06;h.vy+=oy/d*.06;}
+      const conFlor=h.flores.length>0, ac=conFlor?.09:.06, ap=conFlor?.075:.045;   /* con flor vuelan más rápido y se apartan más */
+      if(d<3)eligeObjetivo(h);else{h.vx+=ox/d*ac;h.vy+=oy/d*ac;}
       const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;   // si la rana les apunta, se apartan
-      if(a>0&&Math.abs(p)<15){h.vx+=Math.sign(p||1)*dy*.045*h.listo;h.vy+=-Math.sign(p||1)*dx*.045*h.listo;}
+      if(a>0&&Math.abs(p)<(conFlor?20:15)){h.vx+=Math.sign(p||1)*dy*ap*h.listo;h.vy+=-Math.sign(p||1)*dx*ap*h.listo;}
       h.vx*=.94;h.vy*=.94;h.mira=h.vx>.05?1:h.vx<-.05?-1:h.mira;}
     else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*2.5+h.fase)*.006;
       if(h.dur>.5&&(t*60)%2<1)pis.push({x:h.x+h.mira*6,y:h.y+4,vx:h.mira*azar(.5,.65),vy:azar(-.3,-.15),v:400,suelo:cl(h.y+azar(30,36),HORIZ+6,FONDO-8)});}
@@ -394,7 +395,7 @@ function lanzaLengua(){
   hadas.forEach(h=>{if(h.cogida||h.estado==='seVa')return;const rx=h.x-mx,ry=h.y-my,a=rx*dx+ry*dy,p=rx*dy-ry*dx;
     if(a<0||Math.abs(p)>20)return;
     const pisando=h.estado==='pis'||h.estado==='admira', conFlor=(h.cuenta||0)>0||h.flores.length>0, prob=(h.espada||h.recoge)?1:pisando?(h.estado==='admira'?.15:.12):(conFlor?.99:.98*h.listo), retraso=pisando?30:2;
-    if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */h.esquiva={vx:s*dy*2.2,vy:-s*dx*2.2-.2,n:8,retraso:Math.round(retraso+a*.04)};
+    if(Math.random()<prob){let s=Math.sign(p)||1;if(h.x<30||h.x>W-30||h.y<40){const cx=W/2-h.x,cy=HORIZ-h.y;s=(dy*cx-dx*cy)>=0?1:-1;}   /* cerca del borde, esquiva hacia el centro */const fz=conFlor&&!pisando?3:2.2;h.esquiva={vx:s*dy*fz,vy:-s*dx*fz-.2,n:8,retraso:Math.round(retraso+a*.04)};
       if(pisando){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);}}});
 }
 /* lo que toca la punta de la lengua: el contador pega un bote (y la lengua rebota); hojas, juncos y flores se sacuden */
