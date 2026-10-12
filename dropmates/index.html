@@ -220,9 +220,10 @@ function getPos(e){
   return{x:(raw.clientX-rect.left)*scaleX-hL, y:(raw.clientY-rect.top)*scaleY-hT};
 }
 
+let dedo={x:0,y:0};
 function onStart(e){
   e.preventDefault();
-  const{x,y}=getPos(e), t=hitTile(x,y);
+  const{x,y}=getPos(e), t=hitTile(x,y); dedo={x,y};
   if(!t) return;
   dragging=t; dragOffX=x-t.x; dragOffY=y-t.y;
   dragContacts.clear();
@@ -231,7 +232,7 @@ function onStart(e){
 function onMove(e){
   e.preventDefault();
   if(!dragging) return;
-  const{x,y}=getPos(e);
+  const{x,y}=getPos(e); dedo={x,y};
   dragging.x=Math.max(dragging.w/2,Math.min(W-dragging.w/2, x-dragOffX));
   dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2, y-dragOffY));
 
@@ -241,8 +242,6 @@ function onMove(e){
       matchTiles(dragging,t); dragging=null; dragContacts.clear(); return;
     }
   }
-  const pb=bricks.find(b=>isMatchPair(dragging,b)&&boxesTouch(dragging,b));
-  if(pb){matchBrick(dragging,pb);return;}
   for(const t of tiles){
     if(t===dragging||t.matched||isMatchPair(dragging,t)) continue;
     if(boxesOverlap(dragging,t)){
@@ -262,7 +261,7 @@ function onEnd(e){
       matchTiles(dragging,t); dragging=null; dragContacts.clear(); return;
     }
   }
-  dragging.parked=true; dragging.vx=0; dragging.vy=0;
+  dragging.parked=false; dragging.vx=0; dragging.vy=FALL_SPEED;
   dragging=null; dragContacts.clear();
 }
 
@@ -302,7 +301,7 @@ function landTile(t){
   const landY=getLandingY(t);
   if(t.y+t.h/2<landY) return false;
   t.y=landY-t.h/2;
-  const pareja=bricks.find(b=>isMatchPair(t,b)&&boxesTouch(t,b));
+  const pareja=bricks.find(b=>isMatchPair(t,b)&&Math.abs(b.x-t.x)<(b.w+t.w)/2-2&&Math.abs((b.y-b.h/2)-landY)<1.5);   // solo si cae justo encima de su pareja
   if(pareja){matchBrick(t,pareja);return true;}
   bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
   t.matched=true;
@@ -313,6 +312,11 @@ function landTile(t){
 
 function update(now,f){
   spawnTile(now);
+  if(dragging){   // aunque la sujetes, la palabra sigue bajando: no se puede dejar quieta
+    dragOffY-=FALL_SPEED*.8*f;
+    dragging.y=Math.max(dragging.h/2,Math.min(H-dragging.h/2,dedo.y-dragOffY));
+    if(dragging.y+dragging.h/2>=getLandingY(dragging)){const d=dragging;dragging=null;dragContacts.clear();d.vy=FALL_SPEED;landTile(d);}
+  }
   tiles.forEach(t=>{
     if(t===dragging||t.matched) return;
     if(t.parked){
