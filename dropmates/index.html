@@ -38,7 +38,7 @@ body{display:flex;align-items:center;justify-content:center;}
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 const wrap   = document.getElementById('wrap');
-let WW=0, WH=0, W=0, H=0, hL=0, hT=0, hB=0;
+let WW=0, WH=0, W=0, H=0, hL=0, hT=0, hB=0, DPR=1;
 
 function drawFrame() {
   ctx.fillStyle = '#fff';
@@ -187,6 +187,15 @@ function matchTiles(a,b){
   a.matched=true; b.matched=true;
 }
 
+/* empareja una palabra con su pareja que ya está en el suelo; lo que quede encima sin apoyo vuelve a caer (sin restar) */
+function matchBrick(t,b){
+  matchTiles(t,b); bricks=bricks.filter(x=>x!==b); if(dragging===t){dragging=null;dragContacts.clear();}
+  let cambio=true;
+  while(cambio){cambio=false;
+    for(const k of bricks){const base=k.y+k.h/2;if(base>=H-0.5)continue;
+      const apoyo=bricks.some(o=>o!==k&&Math.abs(o.x-k.x)<(o.w+k.w)/2-2&&Math.abs((o.y-o.h/2)-base)<1.5);
+      if(!apoyo){bricks=bricks.filter(x=>x!==k);const nt={id:idCounter++,word:k.word,w:k.w,h:k.h,x:k.x,y:k.y,vy:0,vx:0,bounceTimer:0,matched:false,parked:false,yaCayo:true};tiles.push(nt);cambio=true;break;}}}
+}
 function pushAway(t){
   const dx=t.x-dragging.x, dy=t.y-dragging.y;
   const ox=(dragging.w+t.w)/2-Math.abs(dx);
@@ -206,7 +215,7 @@ function pushAway(t){
 }
 
 function getPos(e){
-  const rect=canvas.getBoundingClientRect(), scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+  const rect=canvas.getBoundingClientRect(), scaleX=WW/rect.width, scaleY=WH/rect.height;
   const raw=e.touches?e.touches[0]:e;
   return{x:(raw.clientX-rect.left)*scaleX-hL, y:(raw.clientY-rect.top)*scaleY-hT};
 }
@@ -232,6 +241,8 @@ function onMove(e){
       matchTiles(dragging,t); dragging=null; dragContacts.clear(); return;
     }
   }
+  const pb=bricks.find(b=>isMatchPair(dragging,b)&&boxesTouch(dragging,b));
+  if(pb){matchBrick(dragging,pb);return;}
   for(const t of tiles){
     if(t===dragging||t.matched||isMatchPair(dragging,t)) continue;
     if(boxesOverlap(dragging,t)){
@@ -291,9 +302,11 @@ function landTile(t){
   const landY=getLandingY(t);
   if(t.y+t.h/2<landY) return false;
   t.y=landY-t.h/2;
+  const pareja=bricks.find(b=>isMatchPair(t,b)&&boxesTouch(t,b));
+  if(pareja){matchBrick(t,pareja);return true;}
   bricks.push({x:t.x,y:t.y,w:t.w,h:t.h,word:t.word});
-  t.matched=true; score=Math.max(0,score-1);
-  spawnText(t.x,t.y-16,'-1'); combo=1;
+  t.matched=true;
+  if(!t.yaCayo){score=Math.max(0,score-1); spawnText(t.x,t.y-16,'-1'); combo=1;}
   if(bricks.some(b=>b.y-b.h/2<H*0.15)) triggerGameOver();
   return true;
 }
@@ -358,7 +371,7 @@ function update(now,f){
   floatingTexts.forEach(t=>{t.y+=t.vy*f;t.life-=f;t.alpha=Math.max(0,t.life/60);});
 }
 
-function draw(){ctx.imageSmoothingEnabled=false;drawFrame();drawGame();}
+function draw(){ctx.setTransform(DPR,0,0,DPR,0,0);drawFrame();drawGame();}
 
 function triggerGameOver(){
   gameOver=true; document.getElementById('go-score-val').textContent=score;
@@ -387,7 +400,7 @@ function sizeAll(){
   const dw=Math.round(WW*scale), dh=Math.round(WH*scale);
   wrap.style.width=dw+'px'; wrap.style.height=dh+'px';
   wrap.style.left=Math.round((vw-dw)/2)+'px'; wrap.style.top=Math.round((vh-dh)/2)+'px';
-  wrap.style.position='absolute'; canvas.width=WW; canvas.height=WH;
+  wrap.style.position='absolute'; DPR=Math.min(3,window.devicePixelRatio||1); canvas.width=Math.round(WW*DPR); canvas.height=Math.round(WH*DPR);
   hL=16; hT=40; hB=32; W=WW-hL*2; H=WH-hT-hB;
   const go=document.getElementById('gameover');
   go.style.left=Math.round(hL*scale)+'px'; go.style.top=Math.round(hT*scale)+'px';
