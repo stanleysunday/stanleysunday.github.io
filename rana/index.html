@@ -81,7 +81,7 @@ function ajusta(){
   hazEscena();
 }
 /* EP: mientras se dibuja un hado, sus píxeles son algo más pequeños que los del resto (pero siguen siendo enteros y nítidos) */
-let EP=null; const ESCALA_HADO=.8;
+let EP=null; const ESCALA_HADO=.65;
 function R(x,y,w,h,c){g.fillStyle=c;if(EP){g.fillRect(EP.ox+(Math.round(x)-EP.cx)*EP.sp,EP.oy+(Math.round(y)-EP.cy)*EP.sp,Math.max(1,Math.round(w))*EP.sp,Math.max(1,Math.round(h))*EP.sp);return;}g.fillRect(Math.round(x)*S,Math.round(y)*S,Math.max(1,Math.round(w))*S,Math.max(1,Math.round(h))*S);}
 const P1=(x,y,c)=>R(Math.round(x),Math.round(y),1,1,c);
 // elipse girada, píxel a píxel; color(u,v) recibe coordenadas normalizadas (-1..1)
@@ -577,7 +577,7 @@ function salta(){
 function actualizaDuelo(){
   if(!duelo)return; const D=duelo,h=D.esp; D.t+=1/60;
   if(D.fase==='espera'||D.fase==='salto'){   // el de la espada se pasea de lado a lado, sin esquivar: es un duelo limpio
-    if(!h.dvx)h.dvx=Math.random()<.5?-.55:.55; if(Math.random()<.008)h.dvx*=-1;
+    if(!h.dvx)h.dvx=Math.random()<.5?-.45:.45; if(Math.random()<.005)h.dvx*=-1;
     if(h.x<24)h.dvx=Math.abs(h.dvx); if(h.x>W-24)h.dvx=-Math.abs(h.dvx);
     h.vx+=(h.dvx-h.vx)*.05; h.vy=(bandaDuelo()+Math.sin(t*1.7)*4-h.y)*.05;
     h.lv=(h.lv||0)+(-h.vx*1.2-(h.lean||0))*.12; h.lv*=.88; h.lean=cl((h.lean||0)+h.lv,-1.4,1.4);
@@ -588,7 +588,7 @@ function actualizaDuelo(){
   else if(D.fase==='salto'){const k=Math.min(1,D.t/D.dur),e=k*(2-k);
     rana.px=lerp(D.de[0],D.a[0],e);rana.py=lerp(D.de[1],D.a[1],e);rana.escala=1+Math.sin(Math.PI*Math.min(1,k*1.15))*.55;
     const [nx,ny]=cuello();
-    if(Math.hypot(h.x-nx,h.y+2-ny)<12){   // ¡cazado!
+    if(Math.hypot(h.x-nx,h.y+2-ny)<14){   // ¡cazado!
       D.fase='gana';D.t=0;hadas=hadas.filter(o=>o!==h);puntos++;rana.trago=40;blip(880,.15,'square',.07,1400);blip(140,.3,'sine',.09,70);
       for(let i=0;i<24;i++)plumas.push({x:h.x,y:h.y,vx:azar(-1.4,1.4),vy:azar(-1.6,.4),c:i%2?h.ala:'#d0202c',v:90});
       espadaCae={x:h.x+6,y:h.y+4,vy:-1.5,a:-.4,suelo:Math.max(h.y+18,HORIZ+14)};
