@@ -328,7 +328,7 @@ function cambiaEstado(h){
   if(introAbierta){h.estado='vuela';h.dur=azar(1.5,3);eligeObjetivo(h);return;}
   if(h.espada){h.estado='vuela';h.dur=azar(2,4);eligeObjetivo(h);return;}
   const libres=FLORES.filter(f=>!f.cortada&&!hadas.some(o=>o.florObj===f));
-  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=12;return;}
+  if(h.estado!=='flor'&&h.estado!=='corta'&&libres.length&&Math.random()<.65){const f=libres[Math.floor(Math.random()*libres.length)];h.estado='flor';h.florObj=f;h.dur=7;return;}
   h.florObj=null;
   if(h.estado==='pis'||Math.random()<.5||hadas.some(o=>o!==h&&o.estado==='pis')){h.estado='vuela';h.dur=azar(3,6);eligeObjetivo(h);}
   else{h.estado='pis';nota('pis','Ajá, haciendo pis en la laguna… ahí están bien distraídos.');h.dur=azar(5.5,8.5);h.mira=h.x<W/2?1:-1;   /* hacia el centro, para que el chorro caiga a la laguna */h.vx*=.3;h.vy*=.3;}}
@@ -362,7 +362,7 @@ function actualizaHadas(){
     else{h.vx*=.85;h.vy*=.85;h.vy+=Math.sin(t*2.5+h.fase)*.006;
       if(h.dur>.5&&(t*60)%2<1)pis.push({x:h.x+h.mira*6,y:h.y+4,vx:h.mira*azar(.5,.65),vy:azar(-.3,-.15),v:400,suelo:cl(h.y+azar(30,36),HORIZ+6,FONDO-8)});}
     h.lv=(h.lv||0)+(-h.vx*1.2-(h.lean||0))*.12; h.lv*=.88; h.lean=cl((h.lean||0)+h.lv,-1.4,1.4);   // péndulo
-    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,14,W-14); h.y=cl(h.y,30,FONDO-34);
+    h.x+=h.vx; h.y+=h.vy; h.x=cl(h.x,14,W-14); h.y=cl(h.y,30,(h.estado==='flor'||h.estado==='corta'||h.estado==='admira')?FONDO-14:FONDO-34);   /* para llegar a las flores de abajo pueden bajar más */
   });
   hadas=hadas.filter(h=>!h.fuera);
   // van entrando de uno en uno, nunca más de dos a la vez
