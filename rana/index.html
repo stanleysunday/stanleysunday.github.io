@@ -199,7 +199,8 @@ function dibujaLengua(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), L=rana.lengua;
   const fx=mx+dx*L, fy=my+dy*L;
   linea(mx,my,fx,fy,'#c9455f'); linea(mx+dy*-.6+.0,my+dx*.6,fx+dy*-.6,fy+dx*.6,'#e2607a');
-  elipse(fx,fy,2.2,2.2,0,(u,v)=>v<-.2?'#f59bb0':'#e2607a');
+  if(rana.estado==='estrangula'||(rana.estado==='vuelve'&&rana.presa)){for(let a=0;a<6.28;a+=.4)P1(fx+Math.cos(a)*3.2,fy+Math.sin(a)*1.3,a<3.14?'#e2607a':'#c9455f');}   // le rodea el cuello
+  else elipse(fx,fy,2.2,2.2,0,(u,v)=>v<-.2?'#f59bb0':'#e2607a');
 }
 
 // ── los hombres mariposa: listos; si se mueven se escapan. Solo se paran a hacer pis, y lo hacen largo rato
@@ -396,17 +397,22 @@ function actualizaBotes(){
   boteC.vy+=.3;boteC.oy+=boteC.vy;if(boteC.oy>0){boteC.oy=0;boteC.vy=Math.abs(boteC.vy)>.8?-boteC.vy*.45:0;}boteC.ox*=.9;
   for(const arr of [HOJAS,JUNCOS,FLORES])arr.forEach(o=>{if(o.golpe)o.golpe=o.golpe>.02?o.golpe*.965:0;});
 }
+const T_ESTR=.9, CUELLO_HADA=4;   // cuánto dura el estrangulamiento; la punta de la lengua va al cuello, no al centro
 function actualizaLengua(){
   const [mx,my]=boca(), dx=Math.sin(rana.ang), dy=-Math.cos(rana.ang), MAX=my-1;   /* llega hasta arriba del todo (y al contador) */
   if(rana.estado==='sale'){rana.lengua+=6;
     const fx=mx+dx*rana.lengua, fy=my+dy*rana.lengua;
     if(toques(fx,fy)){rana.estado='vuelve';}
     const h=hadas.find(h=>{if(h.cogida)return false;for(let k=0;k<=6;k+=2){if(Math.hypot(h.x-(fx-dx*k),h.y-(fy-dy*k))<9)return true;}return false;});
-    if(h){h.cogida=true;rana.presa=h;rana.estado='vuelve';blip(880,.15,'square',.06,1400);quitaFlores(h);
+    if(h){h.cogida=true;rana.presa=h;rana.estado='estrangula';rana.estr=0;h.estrangula=true;h.morado=0;blip(200,.5,'sawtooth',.04,120);blip(880,.15,'square',.06,1400);quitaFlores(h);
       for(let i=0;i<10;i++)plumas.push({x:h.x,y:h.y,vx:azar(-.8,.8),vy:azar(-.8,.2),c:h.ala,v:80});}
     else if(rana.lengua>=MAX||fy<2||fx<2||fx>W-2){rana.estado='vuelve';blip(200,.1,'square',.03,120);}}
-  else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3:5.5;
-    if(rana.presa){rana.presa.x=mx+dx*rana.lengua;rana.presa.y=my+dy*rana.lengua;}
+  else if(rana.estado==='estrangula'){   // la lengua le aprieta el cuello: patalea, se pone morado, las alas se paran; luego se lo traga
+    rana.estr+=1/60; const P=rana.presa, k=Math.min(1,rana.estr/T_ESTR);
+    if(P){P.morado=k; P.x=mx+dx*rana.lengua; P.y=my+dy*rana.lengua+CUELLO_HADA; if(Math.random()<.25*(1-k))blip(300+Math.random()*200,.05,'square',.02,200);}
+    if(rana.estr>=T_ESTR){rana.estado='vuelve';blip(120,.2,'sine',.06,60);}}
+  else if(rana.estado==='vuelve'){rana.lengua-=rana.presa?3.6:5.5;
+    if(rana.presa){rana.presa.x=mx+dx*rana.lengua;rana.presa.y=my+dy*rana.lengua+CUELLO_HADA;}
     if(rana.lengua<=0){rana.lengua=0;rana.estado='quieta';
       if(rana.presa){const comido=rana.presa;hadas=hadas.filter(x=>x!==rana.presa);rana.presa=null;puntos++;rana.trago=40;if(!hadas.some(h=>h.espada&&h.estado!=='seVa'))nota('come','¡Ñam! Uno menos.');blip(140,.25,'sine',.09,70);
         const esp=hadas.find(h=>h.espada&&h.estado!=='seVa'&&!h.cogida);if(esp&&!ataque)empiezaAtaque(esp,comido);
@@ -416,6 +422,7 @@ function actualizaLengua(){
 // hombre mariposa, más grande: sin camiseta, con barba. De frente cuando vuela, de perfil cuando hace pis
 const HOMBRE_FRENTE=["........HHHHH........","......HHHHHHHHH......",".....HHHHHHHHHHH.....",".....HSSSSSSSSSH.....",".....hSSESSSESSh.....",".....SSSSSsSSSSS.....",".....BSSSSsSSSSB.....",".....BBSSbbbSSBB.....",".....BBBBBBBBBBB.....","......BBBBBBBBB......","..sSSSSBBBBBBBSSSSs..",".SSSSSSSSSSSSSSSSSSS.","SSS.SSSSSSSSSSSSS.SSS","SSS.SSdSSSSSSSdSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SsS.SSSSSSSSSSSSS.SsS","SSS.SSSSSSdSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","sSs.sSSSSSSSSSSSs.sSs","....TTTTTTTTTTTTT....","....TTTTTTtTTTTTT....","....TTTTT...TTTTT....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","...FFFFFF...FFFFFF..."];
 const HOMBRE_LADO=[".......HHHHH.........","......HHHHHHH........",".....HHHHHHHHH.......",".....HHSSSSSSSS......",".....HhSSSSESS.......",".....HSSSSSSSSSS.....",".....hSSSSSSSSS......",".....BBBSSbbbB.......",".....BBBBBBBBB.......","......BBBBBBBB.......","....sSSSBBBBBSs......","...SSSSaaaSSSSSS.....","...SSSSaaaSSSSSS.....","...SSSSaaaSdSSSS.....","...SSSSaaaSSSSSS.....","...SsSSaaaSSSSSS.....","...SsSSaaaSSdSSS.....","...SSSSaaaaaaaaaS....","...SSSSaaaaaaaaas....","....TTTTTTTTTTT......","....TTTTTTTTTTt......",".....TTTTTTTTT.......",".....SSSSSSSS........",".....SSSSSSSs........",".....SSSSSSSs........",".....SSSSSSSs........",".....SSSSSSSs........","....FFFFFFFFF........"];
+function mezcla(a,b,k){const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16),m=sh=>Math.round(((A>>sh)&255)*(1-k)+((B>>sh)&255)*k);return '#'+[16,8,0].map(sh=>m(sh).toString(16).padStart(2,'0')).join('');}
 function oscurece(hex,k){const n=parseInt(hex.slice(1),16);const f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;}
 function dibujaHada(h){
   const sp=Math.max(1,Math.round(S*ESCALA_HADO)), cx=Math.round(h.x), cy=Math.round(h.y);
@@ -423,7 +430,7 @@ function dibujaHada(h){
   try{dibujaHadaPix(h);}finally{EP=null;}
 }
 function dibujaHadaPix(h){
-  const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
+  const x=Math.round(h.x),y=Math.round(h.y),s=h.mira, aleteo=h.estrangula?((h.morado||0)<.65&&Math.sin(t*40)>0):h.cogida?Math.sin(t*40)>0:Math.sin(t*(h.estado==='pis'?10:26)+h.fase)>0;
   const ab=aleteo?1:.5, de_lado=(h.estado==='pis'&&!h.cogida)||(h.ataca&&ataque&&(ataque.fase==='sierra'||ataque.fase==='chorro'));   /* de perfil también al serrar */
   const alaFn=(lado,osc)=>(u,v)=>{const d=u*u+v*v;if(d>.7)return '#2a1a1a';if((u-lado*.3)**2+(v+.25)**2<.06)return '#fff4d8';return osc?oscurece(h.ala,.78):h.ala;};
   if(de_lado){   // de perfil: las dos alas se ven de canto, a la espalda
@@ -434,11 +441,16 @@ function dibujaHadaPix(h){
     elipse(x+lado*(5*ab+7),y-6,6*ab+1.2,5,lado*.45,alaFn(lado,false));
     elipse(x+lado*(3.8*ab+7),y+1,4*ab+1,3.5,lado*-.4,(u,v)=>u*u+v*v>.62?'#2a1a1a':h.ala);}
   const mapa=de_lado?HOMBRE_LADO:HOMBRE_FRENTE, espejo=de_lado&&s<0, n=mapa.length;
-  const col={a:oscurece(h.piel,.9),H:h.pelo,h:oscurece(h.pelo,.75),S:h.piel,s:oscurece(h.piel,.84),d:oscurece(h.piel,.62),B:h.barba,b:oscurece(h.barba,.72),E:'#1d1d1d',T:h.pantalon,t:oscurece(h.pantalon,.75),F:'#3b2416'};
+  const piel=h.estrangula?mezcla(h.piel,'#7a3f9e',h.morado||0):h.piel;
+  const col={a:oscurece(piel,.9),H:h.pelo,h:oscurece(h.pelo,.75),S:piel,s:oscurece(piel,.84),d:oscurece(piel,.62),B:h.barba,b:oscurece(h.barba,.72),E:'#1d1d1d',T:h.pantalon,t:oscurece(h.pantalon,.75),F:'#3b2416'};
   // cuerpo flexible: cuelga de las alas, así que al moverse las piernas se quedan atrás y luego se balancean
   const curva=j=>Math.max(0,(j-10)/(n-10));
   mapa.forEach((fila,j)=>{const off=Math.round((h.lean||0)*curva(j)**1.4*5+Math.sin(t*3.2+h.fase+j*.12)*curva(j)*(h.cogida?2:.8));
-    [...fila].forEach((c,i)=>{if(c==='.')return;const xi=espejo?20-i:i;R(x-10+xi+off,y-14+j,1,1,col[c]);});});
+    [...fila].forEach((c,i)=>{if(c==='.')return;if(h.estrangula&&!de_lado&&j>=12&&(i<=2||i>=18))return;   /* brazos: los dibuja arriba */const xi=espejo?20-i:i;R(x-10+xi+off,y-14+j,1,1,col[c]);});});
+  if(h.estrangula&&!de_lado){   // brazos arriba, agitándose (cada vez menos)
+    const fuerza=1-(h.morado||0)*.8;
+    for(const sd of [-1,1]){const a=Math.sin(t*28+sd)*.5*fuerza, hx=x+sd*(10+Math.sin(a)*3), hy=y-17+Math.cos(t*28+sd)*2*fuerza;
+      for(let o=-1;o<=1;o++)linea(x+sd*8+o,y-3,hx+o,hy,o?col.s:col.S); elipse(hx,hy-1,1.6,1.6,0,()=>col.S);}}
   if(h.espada)dibujaEspada(h,x,y,de_lado);
   // las flores que ha cortado, en la mano
   h.flores.slice(-3).forEach((tipo,k)=>{const fx=x+(de_lado?-s*7:-11)+(k-1)*3,fy=y+4-Math.abs(k-1)*2-k;linea(x+(de_lado?-s*6:-10),y+7,fx,fy,'#2f6e28');florMano(tipo,fx,fy-3);});   // ramito bien visible en la mano
@@ -641,7 +653,7 @@ function dibuja(){
     const c=peligro()?(Math.floor(t*8)%2?'#ff2a2a':'#ffffff'):(Math.floor(t*4)%2?'#ffffff':'#f59bb0');for(const [ox,oy] of [[0,0],[-1,0],[1,0],[0,-1],[0,1]])P1(px+ox,py+oy,c);}
   manchas.forEach(m=>P1(m.x,m.y,m.v<60&&m.v%8<4?'#5a1018':m.c));
   if(cabezaRana)dibujaCabezaRana(cabezaRana.x,cabezaRana.y,cabezaRana.ang,true);
-  dibujaEspadaCae(); dibujaRana(t); dibujaLengua(); if(rana.presa)dibujaHada(rana.presa);
+  dibujaEspadaCae(); dibujaRana(t); if(rana.presa)dibujaHada(rana.presa); dibujaLengua();   /* la lengua por encima, para ver cómo le rodea el cuello */
   if(ataque&&ataque.esp.ataca)dibujaHada(ataque.esp);
   plumas.forEach(p=>P1(p.x,p.y,p.c));
   sangre.forEach(p=>R(p.x,p.y,1,p.vy<-1.5?2:1,p.c));
