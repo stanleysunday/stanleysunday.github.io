@@ -17,7 +17,7 @@
 html,body{background:var(--bg);color:var(--ink)}
 body{font-family:var(--font);padding-inline:16px;padding-block:32px 48px;overflow-x:hidden}
 main{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
-#v{display:block;width:100%;max-width:100%;aspect-ratio:1/1;background:var(--screen)}
+#v{display:block;width:100%;max-width:100%;aspect-ratio:16/9;background:var(--ink)}
 .mandos{position:relative;display:flex;justify-content:center;gap:clamp(28px,8vw,72px);padding-bottom:40px}
 .hueco{position:relative;width:clamp(96px,22vw,150px);aspect-ratio:1}
 .hueco::before{content:"";position:absolute;inset:0;border:2px dashed var(--socket);border-radius:50%}
@@ -31,7 +31,7 @@ main{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
 .boton:active:not(.suelto){filter:brightness(1.4)}
 .boton{transition:background-color .12s,color .12s,box-shadow .12s}
 .boton.activo{background:var(--lit);color:var(--ink);box-shadow:inset 0 0 0 9px var(--ink)}
-.pantalla{display:flex;flex-direction:column;gap:10px;width:min(100%,62vh);margin-inline:auto}
+.pantalla{display:flex;flex-direction:column;gap:10px;width:min(100%,110vh);margin-inline:auto}
 .avance{height:4px;background:var(--socket);overflow:hidden}
 .avance i{display:block;height:100%;width:0;background:var(--ink)}
 @media (prefers-reduced-motion:reduce){.boton{transition:none}}
@@ -45,7 +45,7 @@ html,body{margin:0}
 <main>
   <a class="back" href="/">← volver</a>
   <div class="pantalla">
-    <canvas id="v" width="1080" height="1080" role="img" aria-label="Un muñeco de palitos bailando"></canvas>
+    <video id="v" src="https://res.cloudinary.com/dwkzyfnvc/video/upload/q_auto/v1791832262/wolfman_ok.mp4" poster="https://res.cloudinary.com/dwkzyfnvc/video/upload/so_0,q_auto/v1791832262/wolfman_ok.jpg" width="960" height="540" playsinline loop preload="auto" aria-label="wolfman"></video>
     <div class="avance" role="progressbar" aria-label="Avance del vídeo" aria-valuemin="0" aria-valuemax="100"><i id="barra"></i></div>
   </div>
   <div class="mandos">
@@ -57,52 +57,8 @@ html,body{margin:0}
 </main>
 
 <script>
-// ── el baile, dibujado en código. 'v' se comporta como un vídeo: play(), pause(), currentTime, duration
-const v=(()=>{
-  const cv=document.getElementById('v'), c=cv.getContext('2d');
-  const BPM=120, DUR=8, FONDO='#ffe14d', TINTA='#111';
-  const FLOOR=880, CX=540, TORSO=230, HEAD=72, UA=135, FA=125, TH=165, SH=160, LW=20;
-  const sm=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x)}, lerp=(a,b,k)=>a+(b-a)*k, S=b=>Math.sin(Math.PI*b);
-  const rebote=b=>{const s=(1+S(b-0.5))/2;return {hx:0,hy:28*(1-Math.cos(2*Math.PI*b))/2,lean:0,tilt:6*S(b),
-      aL:75+65*s,eL:40,aR:75+65*(1-s),eR:40,fL:-75,fR:75}};
-  const lado=b=>{const s=S(b);return {hx:55*s,hy:14*Math.abs(s),lean:-6*s,tilt:-8*s,
-      aL:45-40*s,eL:50+20*s,aR:45+40*s,eR:50-20*s,fL:-75+60*Math.min(0,s),fR:75+60*Math.max(0,s)}};
-  const disco=b=>{const k=sm((S(b/2)+1)/2);return {hx:30*(2*k-1),hy:12*(1-Math.cos(2*Math.PI*b))/2,lean:10*(1-2*k),tilt:10*(1-2*k),
-      aL:lerp(140,25,k),eL:lerp(0,70,k),aR:lerp(25,140,k),eR:lerp(70,0,k),fL:-70,fR:70}};
-  const twist=b=>{const s=S(2*b);return {hx:26*s,hy:34+10*Math.cos(4*Math.PI*b),lean:4*s,tilt:-5*s,
-      aL:55-30*s,eL:75,aR:55+30*s,eR:75,fL:-62,fR:62}};
-  const PASOS=[rebote,lado,disco,twist];
-  function pose(b){const i=Math.floor(b/4)%4, lb=b%4; let p=PASOS[i](b);
-    if(lb>3.5){const q=PASOS[(i+1)%4](b),k=sm((lb-3.5)/0.5);const r={};for(const key in p)r[key]=lerp(p[key],q[key],k);p=r;}
-    return p;}
-  function ik(h,f,a,b,side){const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.min(Math.hypot(dx,dy),a+b-0.01);
-    const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-side*Math.acos(cc);
-    return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];}
-  const vec=(o,ang,L,side)=>{const r=ang*Math.PI/180;return [o[0]+side*L*Math.sin(r),o[1]+L*Math.cos(r)]};
-  const legH=Math.sqrt((TH+SH)**2-75**2)-8;
-  function dibuja(t){
-    const b=t*BPM/60, p=pose(b);
-    c.fillStyle=FONDO; c.fillRect(0,0,1080,1080);
-    c.strokeStyle=TINTA; c.lineCap='round'; c.lineJoin='round'; c.lineWidth=LW;
-    const L=(a,z)=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(z[0],z[1]);c.stroke();};
-    const hip=[CX+p.hx,FLOOR-legH+p.hy], lr=p.lean*Math.PI/180;
-    const neck=[hip[0]+TORSO*Math.sin(lr),hip[1]-TORSO*Math.cos(lr)];
-    const tr=(p.lean+p.tilt)*Math.PI/180, hc=[neck[0]+(HEAD+18)*Math.sin(tr),neck[1]-(HEAD+18)*Math.cos(tr)];
-    const sh=[neck[0],neck[1]+28];
-    for(const [side,fx] of [[-1,p.fL],[1,p.fR]]){const foot=[CX+fx,FLOOR],knee=ik(hip,foot,TH,SH,side);L(hip,knee);L(knee,foot);}
-    for(const [side,a,e] of [[-1,p.aL,p.eL],[1,p.aR,p.eR]]){const so=[sh[0]+side*34,sh[1]+4];L(sh,so);
-      const el=vec(so,a+p.lean*side,UA,side),ha=vec(el,a+e+p.lean*side,FA,side);L(so,el);L(el,ha);}
-    L(hip,neck);
-    c.beginPath();c.arc(hc[0],hc[1],HEAD,0,Math.PI*2);c.stroke();
-    c.lineWidth=4;L([CX-260,FLOOR+LW/2+4],[CX+260,FLOOR+LW/2+4]);
-  }
-  let t=0, rodando=false, ult=0;
-  function bucle(now){if(rodando){t=(t+(now-ult)/1000)%DUR;ult=now;dibuja(t);requestAnimationFrame(bucle);}}
-  dibuja(0);
-  return {duration:DUR,get currentTime(){return t},get paused(){return !rodando},
-    play(){if(!rodando){rodando=true;ult=performance.now();requestAnimationFrame(bucle);}return Promise.resolve();},
-    pause(){rodando=false;}};
-})();
+// el vídeo, alojado en Cloudinary
+const v=document.getElementById('v');
 
 const play=document.getElementById('play');
 const pausa=document.getElementById('pausa');
