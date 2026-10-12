@@ -152,21 +152,32 @@ function makeTile(word){
     vy:FALL_SPEED*(0.85+Math.random()*0.3), vx:0, bounceTimer:0, matched:false, parked:false};
 }
 
+/* qué palabra sale: una bolsa barajada con todas (así no se repiten siempre las mismas),
+   y a veces la pareja de alguna que cae o de una que está arriba del muro, para que se pueda jugar */
+let bolsa=[], recientes=[];
+function deBolsa(evita){
+  for(let n=0;n<2;n++){
+    if(!bolsa.length){bolsa=[...WORDS];for(let i=bolsa.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bolsa[i],bolsa[j]]=[bolsa[j],bolsa[i]];}}
+    const k=bolsa.findIndex(w=>!evita.has(w)); if(k>=0)return bolsa.splice(k,1)[0];
+    bolsa=[];}
+  return WORDS[Math.floor(Math.random()*WORDS.length)];
+}
+function expuestos(){return bricks.filter(b=>!bricks.some(o=>o!==b&&Math.abs(o.x-b.x)<(o.w+b.w)/2-2&&Math.abs((o.y+o.h/2)-(b.y-b.h/2))<1.5));}
 function spawnTile(now){
   if(gameOver||now-lastSpawn<SPAWN_INTERVAL) return;
   lastSpawn=now;
-  const active=tiles.filter(t=>!t.matched).map(t=>t.word);
-  let word;
-  if(active.length>0&&Math.random()<0.6){
-    const w=active[Math.floor(Math.random()*active.length)];
-    const cands=PARTNERS[w].filter(p=>!active.includes(p));
-    word=cands.length?cands[Math.floor(Math.random()*cands.length)]:WORDS[Math.floor(Math.random()*WORDS.length)];
-  } else {
-    word=WORDS[Math.floor(Math.random()*WORDS.length)];
+  const cayendo=tiles.filter(t=>!t.matched).map(t=>t.word);
+  const evita=new Set([...cayendo,...recientes]);
+  let word=null;
+  if(Math.random()<0.35){
+    const base=[...cayendo,...expuestos().map(b=>b.word)];
+    for(let n=0;n<6&&!word&&base.length;n++){const w=base[Math.floor(Math.random()*base.length)];
+      const cands=PARTNERS[w].filter(q=>!evita.has(q)); if(cands.length)word=cands[Math.floor(Math.random()*cands.length)];}
   }
+  if(!word)word=deBolsa(evita);
+  recientes.push(word); if(recientes.length>8)recientes.shift();
   tiles.push(makeTile(word));
 }
-
 function spawnParticles(x,y){
   for(let i=0;i<12;i++){
     const a=Math.random()*Math.PI*2, s=1.5+Math.random()*4;
@@ -388,7 +399,7 @@ function triggerGameOver(){
 }
 function restartGame(){
   tiles=[];bricks=[];particles=[];floatingTexts=[];score=0;combo=1;gameOver=false;
-  dragging=null;lastSpawn=0;dragContacts.clear();
+  dragging=null;lastSpawn=0;dragContacts.clear();bolsa=[];recientes=[];
   const go=document.getElementById('gameover'); go.style.opacity=0; go.style.pointerEvents='none';
 }
 let lastT=0;
