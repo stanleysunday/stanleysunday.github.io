@@ -8,42 +8,80 @@
 <link rel="icon" href="/favicon.ico">
 
 <style>
-/* Layout: una columna — vídeo arriba, dos botones grandes debajo, sobre blanco liso como el resto de la web */
+/* Layout: una columna — servicio técnico, vídeo, dos botones grandes debajo, sobre blanco liso como el resto de la web */
 :root{
-  --bg:#ffffff; --ink:#111111; --muted:#8a8a8a; --socket:#d9d9d9; --screen:#ffe14d; --lit:#ffe14d;
+  --bg:#ffffff; --ink:#111111; --muted:#8a8a8a; --socket:#d9d9d9; --screen:#ffe14d; --lit:#ffe14d; --ok:#2bb24c;
   --font:"Helvetica Neue",Helvetica,Arial,sans-serif;
   color-scheme:light;
 }
-html,body{background:var(--bg);color:var(--ink)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
 body{font-family:var(--font);padding-inline:16px;padding-block:32px 48px;overflow-x:hidden}
 main{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.back{align-self:flex-start;color:var(--ink);font-size:13px}
+
+/* servicio técnico */
+.soporte{position:relative;display:flex;justify-content:flex-end;width:min(100%,110vh);margin-inline:auto;margin-bottom:-14px}
+.st{font:inherit;font-size:14px;background:var(--bg);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;
+  padding:8px 14px;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.st:hover:not(:disabled){background:var(--ink);color:var(--bg)}
+.st:disabled{opacity:.4;cursor:default}
+.st:focus-visible{outline:3px solid var(--muted);outline-offset:3px}
+.punto{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.chat{position:absolute;top:calc(100% + 10px);right:0;width:min(320px,100%);background:var(--bg);border:1.5px solid var(--ink);
+  border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.15);z-index:60;overflow:hidden;transform-origin:top right;animation:abre .18s ease-out}
+.chat[hidden]{display:none}
+@keyframes abre{from{opacity:0;transform:translateY(-6px) scale(.97)}}
+.chat-cab{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--socket);font-size:14px}
+.estado{color:var(--muted);font-size:12px;margin-right:auto}
+.cerrar{border:0;background:none;font:inherit;font-size:20px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
+.chat-cuerpo{display:flex;flex-direction:column;gap:8px;padding:14px 12px;min-height:64px;font-size:15px}
+.msg{max-width:85%;padding:9px 12px;border-radius:14px;line-height:1.3;overflow-wrap:anywhere}
+.msg.ellos{align-self:flex-start;background:#f0f0f0;border-bottom-left-radius:4px}
+.msg.yo{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:4px}
+.escribiendo{display:inline-flex;gap:4px;padding:4px 0}
+.escribiendo i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:pt 1s infinite}
+.escribiendo i:nth-child(2){animation-delay:.15s}.escribiendo i:nth-child(3){animation-delay:.3s}
+@keyframes pt{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+.chat-pie{display:flex;border-top:1px solid var(--socket)}
+.chat-pie[hidden]{display:none}
+.chat-pie input{flex:1;min-width:0;border:0;padding:12px;font:inherit;font-size:16px;outline:none;background:var(--bg);color:var(--ink)}
+.chat-pie button{border:0;background:var(--ink);color:var(--bg);width:48px;font-size:18px;cursor:pointer}
+.chat-pie button:disabled,.chat-pie input:disabled{opacity:.4}
+
+/* reproductor */
+.pantalla{display:flex;flex-direction:column;gap:10px;width:min(100%,110vh);margin-inline:auto}
 #v{display:block;width:100%;max-width:100%;aspect-ratio:16/9;background:var(--ink)}
+.avance{height:4px;background:var(--socket);overflow:hidden}
+.avance i{display:block;height:100%;width:0;background:var(--ink)}
 .mandos{position:relative;display:flex;justify-content:center;gap:clamp(28px,8vw,72px);padding-bottom:40px}
 .hueco{position:relative;width:clamp(96px,22vw,150px);aspect-ratio:1}
 .hueco::before{content:"";position:absolute;inset:0;border:2px dashed var(--socket);border-radius:50%}
-.boton{position:absolute;inset:0;border:0;border-radius:50%;background:var(--ink);color:var(--bg);
+.boton{position:absolute;inset:0;z-index:40;border:0;border-radius:50%;background:var(--ink);color:var(--bg);
   display:grid;place-items:center;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;
-  will-change:transform}
+  will-change:transform;transition:background-color .12s,color .12s,box-shadow .12s}
 .boton svg{width:42%;height:42%;fill:currentColor;pointer-events:none}
 .boton:focus-visible{outline:3px solid var(--muted);outline-offset:4px}
 .boton.suelto{cursor:grab}
 .boton.arrastrando{cursor:grabbing}
 .boton:active:not(.suelto){filter:brightness(1.4)}
-.boton{transition:background-color .12s,color .12s,box-shadow .12s}
 .boton.activo{background:var(--lit);color:var(--ink);box-shadow:inset 0 0 0 9px var(--ink)}
-.pantalla{display:flex;flex-direction:column;gap:10px;width:min(100%,110vh);margin-inline:auto}
-.avance{height:4px;background:var(--socket);overflow:hidden}
-.avance i{display:block;height:100%;width:0;background:var(--ink)}
-@media (prefers-reduced-motion:reduce){.boton{transition:none}}
-*{box-sizing:border-box}
-html,body{margin:0}
-.back{align-self:flex-start;color:var(--ink);font-size:13px}
+.tecnico{position:fixed;left:0;top:0;z-index:45;pointer-events:none;overflow:visible}
+@media (prefers-reduced-motion:reduce){.boton{transition:none}.chat{animation:none}}
 </style>
 
 </head>
 <body>
 <main>
   <a class="back" href="/">← volver</a>
+  <div class="soporte">
+    <button class="st" id="st" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="chat"><span class="punto"></span>Servicio técnico</button>
+    <div class="chat" id="chat" role="dialog" aria-label="Servicio técnico" hidden>
+      <div class="chat-cab"><span class="punto"></span><b>Servicio técnico</b><span class="estado">en línea</span><button class="cerrar" id="cerrar" type="button" aria-label="Cerrar">×</button></div>
+      <div class="chat-cuerpo" id="cuerpo" aria-live="polite"></div>
+      <form class="chat-pie" id="pie" hidden><input id="entrada" autocomplete="off" placeholder="Escribe aquí…" aria-label="Tu mensaje"><button type="submit" aria-label="Enviar">→</button></form>
+    </div>
+  </div>
   <div class="pantalla">
     <video id="v" src="https://res.cloudinary.com/dwkzyfnvc/video/upload/q_auto/v1791832262/wolfman_ok.mp4" poster="https://res.cloudinary.com/dwkzyfnvc/video/upload/so_0,q_auto/v1791832262/wolfman_ok.jpg" width="960" height="540" playsinline loop preload="auto" aria-label="wolfman"></video>
     <div class="avance" role="progressbar" aria-label="Avance del vídeo" aria-valuemin="0" aria-valuemax="100"><i id="barra"></i></div>
@@ -59,10 +97,14 @@ html,body{margin:0}
 <script>
 // el vídeo, alojado en Cloudinary
 const v=document.getElementById('v');
-
 const play=document.getElementById('play');
 const pausa=document.getElementById('pausa');
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+const lerp2=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k];
+
+let arreglado=false;   // cuando el técnico lo arregla, el play ya no se cae
+let tecnico=null;      // técnico en marcha
 
 // estado del botón de play respecto a su hueco
 const s={x:0,y:0,r:0,vx:0,vy:0,vr:0,sentado:true,anim:0};
@@ -78,15 +120,9 @@ function limites(){
 function encierra(){const L=limites();
   s.x=Math.min(L.der,Math.max(L.izq,s.x)); s.y=Math.min(L.suelo,Math.max(L.techo,s.y));}
 
-// se desprende: cae con gravedad, rebota en el borde de abajo y en los laterales, rueda y se para
-function desprender(rapido,ladoFijo){
-  s.sentado=false; play.classList.add('suelto'); play.setAttribute('aria-label','Play (suelto: arrástralo a su sitio)');
-  const lado=ladoFijo||(Math.random()<.5?-1:1);
-  s.vx=lado*(1.5+Math.random()*2.5); s.vy=rapido?4:-1.5-Math.random()*1.5; s.vr=lado*(rapido?4:2);
-  const g=rapido?0.95:0.55;
-  if(reduce){const L=limites();s.y=L.suelo;s.x=Math.min(L.der,Math.max(L.izq,lado*60));s.r=lado*20;pinta();return;}
+// física: cae con gravedad, rebota en el borde de abajo y en los laterales, rueda y se para
+function fisica(g,t0,lado){
   const radio=play.offsetWidth/2;
-  let t0=performance.now()+(rapido?0:120); // sin rapido, un instante colgando antes de soltarse
   cancelAnimationFrame(s.anim);
   const paso=now=>{
     if(now<t0){s.r=Math.sin((now-t0)/18)*1.5*lado;pinta();s.anim=requestAnimationFrame(paso);return;}
@@ -97,17 +133,26 @@ function desprender(rapido,ladoFijo){
       if(s.vy>2){ s.vy=-s.vy*0.5; s.vx*=0.85; } else s.vy=0; }
     if(s.x<=L.izq){s.x=L.izq; s.vx=Math.abs(s.vx)*0.6;}
     if(s.x>=L.der){s.x=L.der; s.vx=-Math.abs(s.vx)*0.6;}
-    if(enSuelo){ s.vx*=0.97; s.vr=s.vx/radius*57.3; } else s.vr*=0.99;
+    if(enSuelo){ s.vx*=0.97; s.vr=s.vx/radio*57.3; } else s.vr*=0.99;
     s.r+=s.vr; pinta();
     if(enSuelo && s.vy===0 && Math.abs(s.vx)<0.05) return;
     s.anim=requestAnimationFrame(paso);
   };
-  const radius=radio;
   s.anim=requestAnimationFrame(paso);
 }
+function alSuelo(){const L=limites();s.y=L.suelo;encierra();pinta();}
 
-// vuelve a encajar con un pequeño resorte
-function encajar(alTerminar){
+// se desprende del hueco
+function desprender(rapido,ladoFijo){
+  s.sentado=false; play.classList.add('suelto'); play.setAttribute('aria-label','Play (roto: pide ayuda al servicio técnico)');
+  const lado=ladoFijo||(Math.random()<.5?-1:1);
+  s.vx=lado*(1.5+Math.random()*2.5); s.vy=rapido?4:-1.5-Math.random()*1.5; s.vr=lado*(rapido?4:2);
+  if(reduce){s.x=Math.max(-60,Math.min(60,s.x+lado*60));s.r=lado*20;alSuelo();return;}
+  fisica(rapido?0.95:0.55, performance.now()+(rapido?0:120), lado);
+}
+
+// vuelve al hueco con un pequeño resorte (marcar=false: solo se acerca, no se queda)
+function encajar(alTerminar,marcar=true){
   cancelAnimationFrame(s.anim);
   const ini={x:s.x,y:s.y,r:s.r}, d=reduce?1:260, t0=performance.now();
   const e=t=>1-Math.pow(1-t,3)*Math.cos(t*Math.PI*1.2);
@@ -115,36 +160,42 @@ function encajar(alTerminar){
     s.x=ini.x*(1-k);s.y=ini.y*(1-k);s.r=ini.r*(1-k);pinta();
     if(t<1)s.anim=requestAnimationFrame(paso);else{s.x=s.y=s.r=0;pinta();alTerminar&&alTerminar();}};
   s.anim=requestAnimationFrame(paso);
-  s.sentado=true; play.classList.remove('suelto'); play.setAttribute('aria-label','Play');
+  if(marcar){s.sentado=true; play.classList.remove('suelto'); play.setAttribute('aria-label','Play');}
 }
 
-// arrastrar cuando está suelto
-let drag=null, recienSoltado=false;
+// arrastrar cuando está suelto: se mueve, pero al soltarlo no se sujeta y vuelve a caer
+let drag=null, recienSoltado=false, casi=0;
 play.addEventListener('pointerdown',e=>{
-  if(s.sentado)return;
-  cancelAnimationFrame(s.anim);
-  drag={px:e.clientX,py:e.clientY,x:s.x,y:s.y,movido:false};
+  if(s.sentado||tecnico)return;
+  cancelAnimationFrame(s.anim); clearTimeout(casi);
+  drag={px:e.clientX,py:e.clientY,x:s.x,y:s.y,lx:e.clientX,ly:e.clientY,vx:0,vy:0};
   play.setPointerCapture(e.pointerId); play.classList.add('arrastrando');
 });
 play.addEventListener('pointermove',e=>{
   if(!drag)return;
-  const dx=e.clientX-drag.px, dy=e.clientY-drag.py;
-  if(Math.hypot(dx,dy)>3)drag.movido=true;
-  s.x=drag.x+dx; s.y=drag.y+dy; encierra(); pinta();
+  drag.vx=e.clientX-drag.lx; drag.vy=e.clientY-drag.ly; drag.lx=e.clientX; drag.ly=e.clientY;
+  s.x=drag.x+(e.clientX-drag.px); s.y=drag.y+(e.clientY-drag.py); encierra(); pinta();
 });
 function soltar(){
   if(!drag)return; play.classList.remove('arrastrando');
-  const radio=play.offsetWidth*0.35;
-  if(Math.hypot(s.x,s.y)<radio) encajar(arrancar);   // al volver a su sitio, sigue reproduciendo
-  drag=null; recienSoltado=true; setTimeout(()=>recienSoltado=false,0);
+  const d=drag; drag=null; recienSoltado=true; setTimeout(()=>recienSoltado=false,0);
+  if(tecnico)return;
+  if(Math.hypot(s.x,s.y)<play.offsetWidth*0.35){
+    // casi: entra en el hueco, tiembla y se vuelve a caer
+    encajar(()=>{casi=setTimeout(()=>{if(!tecnico&&!drag)desprender(false);},380);},false);
+    return;
+  }
+  const c=x=>Math.max(-14,Math.min(14,x*0.6));
+  s.vx=c(d.vx); s.vy=c(d.vy); s.vr=s.vx;
+  if(reduce){alSuelo();return;}
+  fisica(0.8,0,1);
 }
 play.addEventListener('pointerup',soltar);
 play.addEventListener('pointercancel',soltar);
 
-// al dar play: se enciende, y a los 3 s se cae, se apaga y el vídeo se para
+// al dar play: se enciende, a los 2 s se descuadra y a los 3 s se cae, se apaga y el vídeo se para
 let caida=0, sacudida=0, ladoSacudida=1;
 function apagar(){clearTimeout(caida);clearTimeout(sacudida);caida=sacudida=0;play.classList.remove('activo');}
-// a los 2 s: un golpe seco que lo deja descuadrado, el vídeo sigue
 function sacudir(){
   ladoSacudida=Math.random()<.5?-1:1;
   const fin={x:ladoSacudida*7,y:6,r:ladoSacudida*11};
@@ -156,24 +207,174 @@ function sacudir(){
   cancelAnimationFrame(s.anim); s.anim=requestAnimationFrame(paso);
 }
 function arrancar(){
-  if(!s.sentado||caida)return;
+  if(!s.sentado||caida||tecnico)return;
   v.play().catch(()=>{});
   play.classList.add('activo');
+  if(arreglado)return;
   sacudida=setTimeout(sacudir,2000);
   caida=setTimeout(()=>{apagar();v.pause();desprender(true,ladoSacudida);},3000);
 }
-play.addEventListener('click',()=>{if(!recienSoltado)arrancar();});   // suelto no hace nada: hay que devolverlo
-// teclado: si está suelto, Intro lo devuelve a su sitio
-play.addEventListener('keydown',e=>{if(!s.sentado&&(e.key==='Enter'||e.key===' ')){e.preventDefault();encajar(arrancar);}});
+play.addEventListener('click',()=>{
+  if(chatAbierto&&chat.dataset.modo==='saludo')cerrarChat();
+  if(!recienSoltado)arrancar();
+});
+// teclado: si está suelto, Intro le da un saltito (pero no vuelve solo)
+play.addEventListener('keydown',e=>{if(!s.sentado&&!tecnico&&(e.key==='Enter'||e.key===' ')){e.preventDefault();
+  if(reduce)return; s.vy=-10; s.vx=(Math.random()-.5)*4; fisica(0.8,0,1);}});
 
-pausa.addEventListener('click',()=>{v.pause();if(caida){apagar();if(s.x||s.y||s.r)encajar();}});
+pausa.addEventListener('click',()=>{v.pause();
+  if(arreglado){play.classList.remove('activo');return;}
+  if(caida){apagar();if(s.x||s.y||s.r)encajar();}});
+
 // línea de avance
 const barra=document.getElementById('barra'), pb=barra.parentElement;
 (function avance(){const d=v.duration||0,p=d?v.currentTime/d*100:0;
   barra.style.width=p+'%';pb.setAttribute('aria-valuenow',Math.round(p));requestAnimationFrame(avance);})();
 // si cambia la ventana o haces scroll, el botón suelto sigue dentro de la pantalla
-function recoloca(){if(!s.sentado&&!drag){encierra();pinta();}}
+function recoloca(){if(!s.sentado&&!drag&&!tecnico){encierra();pinta();}}
 addEventListener('resize',recoloca); addEventListener('scroll',recoloca,{passive:true});
+
+// ── servicio técnico: chat
+const st=document.getElementById('st'), chat=document.getElementById('chat'), cuerpo=document.getElementById('cuerpo');
+const pie=document.getElementById('pie'), entrada=document.getElementById('entrada'), enviar=pie.querySelector('button');
+let chatT=[], chatAbierto=false;
+const luego=(fn,ms)=>chatT.push(setTimeout(fn,ms));
+function burbuja(txt,quien){const d=document.createElement('div');d.className='msg '+quien;d.textContent=txt;cuerpo.appendChild(d);return d;}
+function escribiendo(){const d=document.createElement('div');d.className='msg ellos';
+  d.innerHTML='<span class="escribiendo" aria-label="escribiendo"><i></i><i></i><i></i></span>';cuerpo.appendChild(d);return d;}
+function cerrarChat(){chatT.forEach(clearTimeout);chatT=[];chat.hidden=true;chatAbierto=false;st.setAttribute('aria-expanded','false');}
+function abrirChat(){
+  cerrarChat(); cuerpo.textContent=''; pie.hidden=true; entrada.value=''; entrada.disabled=false; enviar.disabled=false;
+  const problema=!s.sentado&&!arreglado;
+  chat.dataset.modo=problema?'problema':'saludo';
+  chat.hidden=false; chatAbierto=true; st.setAttribute('aria-expanded','true');
+  const dots=escribiendo();
+  luego(()=>{dots.remove();burbuja('Hola, ¿tienes algún problema?','ellos');
+    if(problema){pie.hidden=false;entrada.focus();}
+    else luego(cerrarChat,3500);
+  },700);
+}
+st.addEventListener('click',()=>{chatAbierto?cerrarChat():abrirChat();});
+document.getElementById('cerrar').addEventListener('click',cerrarChat);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&chatAbierto)cerrarChat();});
+pie.addEventListener('submit',e=>{e.preventDefault();const t=entrada.value.trim();if(!t)return;
+  burbuja(t,'yo'); entrada.value=''; entrada.disabled=true; enviar.disabled=true;
+  const dots=escribiendo();
+  luego(()=>{dots.remove();burbuja('Te mandamos un técnico.','ellos');
+    luego(()=>{cerrarChat();mandarTecnico();},1700);},900);
+});
+
+// ── el técnico: muñeco de palitos con gorra que viene andando, recoge el play, lo encaja, le da unos golpes y se va
+const NS='http://www.w3.org/2000/svg';
+function ikT(h,f,a,b){const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.min(Math.hypot(dx,dy),a+b-0.01);
+  const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-Math.acos(cc);
+  return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];}
+// postura en unidades locales: pies en (50,160), mirando a la derecha
+function geo(T){
+  const r=Math.PI/180;
+  const hipY=92+T.c+(T.anda?2*Math.abs(Math.sin(T.ph)):0);
+  const lean=T.c>0?6*T.c/54:(T.anda?3:0);
+  const hip=[50,hipY];
+  let f1,f2;
+  if(T.anda){const sn=Math.sin(T.ph),cs=Math.cos(T.ph);f1=[50+18*sn,160-7*Math.max(0,cs)];f2=[50-18*sn,160-7*Math.max(0,-cs)];}
+  else{f1=[44-T.c*0.12,160];f2=[57+T.c*0.12,160];}
+  const neck=[50+lean,hipY-52], head=[neck[0]+lean*0.3,neck[1]-16], sh=[neck[0],neck[1]+8];
+  const brazo=(th,be)=>{const e=[sh[0]+26*Math.sin(th*r),sh[1]+26*Math.cos(th*r)];
+    return [e,[e[0]+24*Math.sin((th+be)*r),e[1]+24*Math.cos((th+be)*r)],th+be];};
+  let a1,a2;
+  if(T.brazos==='carry'){a1=brazo(85,0);a2=brazo(78,6);}
+  else if(T.brazos==='fix'){a1=brazo(95+30*(0.5+0.5*Math.cos(T.tap)),-20);a2=brazo(8,14);}
+  else{const sw=T.anda?24*Math.sin(T.ph):4;a1=brazo(-sw,20);a2=brazo(sw,20);}
+  return {hip,neck,head,sh,f1,f2,k1:ikT(hip,f1,34,35),k2:ikT(hip,f2,34,35),a1,a2};
+}
+function mandarTecnico(){
+  if(tecnico||arreglado||s.sentado)return;
+  st.disabled=true;
+  if(drag){drag=null;play.classList.remove('arrastrando');s.vx=s.vy=0;reduce?alSuelo():fisica(0.8,0,1);}
+  clearTimeout(casi);
+
+  const svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('class','tecnico'); svg.setAttribute('viewBox','-60 -10 220 180'); svg.setAttribute('aria-hidden','true');
+  svg.innerHTML='<g fill="none" stroke="#111" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">'+
+    '<polyline class="p1"/><polyline class="p2"/><polyline class="tr"/><polyline class="b2"/>'+
+    '<circle class="cab" r="12" fill="#fff"/><path class="go" fill="#111" stroke-width="3"/>'+
+    '<polyline class="b1"/><path class="mt" stroke-width="4"/></g>';
+  document.body.appendChild(svg);
+  const g=svg.firstChild, q=n=>svg.querySelector('.'+n);
+  const P={p1:q('p1'),p2:q('p2'),tr:q('tr'),b1:q('b1'),b2:q('b2'),cab:q('cab'),go:q('go'),mt:q('mt')};
+  tecnico={svg};
+
+  const K=()=>1.5*play.offsetWidth/160;          // px por unidad: el técnico mide 1,5 veces el botón
+  const RL=160/3;                                 // radio del botón en unidades locales
+  const REACH=52.8+0.85*RL, HANDY=52.4, CNEED=160-RL-HANDY;
+  const hc=()=>{const h=hueco.getBoundingClientRect();return [h.left+h.width/2,h.top+h.height/2];};
+  const btn=()=>{const c=hc();return [c[0]+s.x,c[1]+s.y];};
+  const ponBoton=c=>{const h=hc();s.x=c[0]-h[0];s.y=c[1]-h[1];};
+  const vwF=()=>document.documentElement.clientWidth;
+  const T={fx:0,fy:innerHeight-6,facing:1,ph:0,anda:false,c:0,brazos:'swing',tap:0};
+  const attach=(face,G)=>{const k=K(),h=G.a1[1];return [T.fx+face*(h[0]+0.85*RL-50)*k,T.fy+(h[1]-160)*k];};
+
+  // entra por el lado que le deja ya mirando hacia el hueco, si cabe; si no, por el lado con más sitio
+  {const k=K(),b=btn(),h=hc(),vw=vwF();const f=Math.sign(h[0]-b[0])||1, spot=b[0]-f*REACH*k;
+   T.facing=(spot>40*k&&spot<vw-40*k)?f:(b[0]<vw/2?-1:1);
+   T.fx=T.facing>0?-150*k:vw+150*k;}
+
+  const andar=(tx,ty,dt)=>{const k=K(),dx=tx-T.fx,dy=ty-T.fy,d=Math.hypot(dx,dy),vel=160*k*dt;
+    if(d<=vel){T.fx=tx;T.fy=ty;T.anda=false;return true;}
+    T.anda=true;T.fx+=dx/d*vel;T.fy+=dy/d*vel;T.ph+=vel/(36*k)*Math.PI;return false;};
+
+  function dibuja(G){
+    const k=K();
+    svg.style.width=220*k+'px'; svg.style.height=180*k+'px';
+    svg.style.transform=`translate(${T.fx-110*k}px,${T.fy-170*k}px)`;
+    g.setAttribute('transform',T.facing<0?'translate(100 0) scale(-1 1)':'');
+    P.p1.setAttribute('points',`${G.hip} ${G.k1} ${G.f1}`);
+    P.p2.setAttribute('points',`${G.hip} ${G.k2} ${G.f2}`);
+    P.tr.setAttribute('points',`${G.hip} ${G.neck}`);
+    P.b1.setAttribute('points',`${G.sh} ${G.a1[0]} ${G.a1[1]}`);
+    P.b2.setAttribute('points',`${G.sh} ${G.a2[0]} ${G.a2[1]}`);
+    const [hx,hy]=G.head; P.cab.setAttribute('cx',hx); P.cab.setAttribute('cy',hy);
+    P.go.setAttribute('d',`M${hx-12.5},${hy-2} Q${hx},${hy-22} ${hx+12.5},${hy-2} Z M${hx+9},${hy-3} L${hx+21},${hy-1}`);
+    if(T.brazos==='fix'){const h=G.a1[1],a=G.a1[2]*Math.PI/180,tip=[h[0]+13*Math.sin(a),h[1]+13*Math.cos(a)],p=[Math.cos(a),-Math.sin(a)];
+      P.mt.setAttribute('d',`M${h} L${tip} M${tip[0]+p[0]*7},${tip[1]+p[1]*7} L${tip[0]-p[0]*4},${tip[1]-p[1]*4}`);}
+    else P.mt.setAttribute('d','');
+  }
+
+  let fase='entra', t0=performance.now(), last=t0, bIni=null, viejaF=1, nuevaF=1, s0=null;
+  const cambia=(f,now)=>{fase=f;t0=now;};
+  const loop=now=>{
+    const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now-t0, k=K(); let G;
+    switch(fase){
+      case 'entra':{T.brazos='swing';const b=btn();
+        if(andar(b[0]-T.facing*REACH*k,innerHeight-6,dt)){cancelAnimationFrame(s.anim);cambia('agacha',now);}break;}
+      case 'agacha':{T.anda=false;T.brazos='carry';T.c=CNEED*ease(Math.min(1,t/450));
+        if(t>=450){bIni=btn();cambia('levanta',now);}break;}
+      case 'levanta':{const p=Math.min(1,t/500);T.c=CNEED*(1-ease(p));G=geo(T);
+        ponBoton(lerp2(bIni,attach(T.facing,G),ease(Math.min(1,p*4))));s.r*=0.9;pinta();
+        if(p>=1){const b=btn(),h=hc();const f2=Math.abs(h[0]-b[0])<4?T.facing:Math.sign(h[0]-b[0]);
+          if(f2!==T.facing){bIni=b;viejaF=T.facing;nuevaF=f2;cambia('gira',now);}else cambia('lleva',now);}break;}
+      case 'gira':{const p=Math.min(1,t/380),e=ease(p);T.anda=false;G=geo(T);
+        const c=lerp2(bIni,attach(nuevaF,G),e);c[1]-=25*k*Math.sin(Math.PI*e);ponBoton(c);s.r*=0.9;pinta();
+        T.facing=e<.5?viejaF:nuevaF; if(p>=1){T.facing=nuevaF;cambia('lleva',now);}break;}
+      case 'lleva':{T.brazos='carry';const h=hc();
+        const ok=andar(h[0]-T.facing*REACH*k,h[1]+(160-HANDY)*k,dt);G=geo(T);
+        ponBoton(attach(T.facing,G));s.r*=0.92;pinta();
+        if(ok){s0={x:s.x,y:s.y,r:s.r};cambia('encaja',now);}break;}
+      case 'encaja':{const p=Math.min(1,t/250),e=ease(p);T.anda=false;
+        s.x=s0.x*(1-e);s.y=s0.y*(1-e);s.r=s0.r*(1-e);pinta();
+        if(p>=1){s.x=s.y=s.r=0;pinta();play.classList.remove('suelto');cambia('arregla',now);}break;}
+      case 'arregla':{T.brazos='fix';T.anda=false;const p=Math.min(1,t/1500);T.tap=p*4*2*Math.PI;
+        const golpe=Math.pow(Math.max(0,-Math.cos(T.tap)),8);s.r=4*golpe;s.y=1.5*golpe;pinta();
+        if(p>=1){s.r=s.y=0;pinta();s.sentado=true;arreglado=true;play.setAttribute('aria-label','Play');
+          play.classList.add('activo');setTimeout(()=>{if(v.paused)play.classList.remove('activo');},400);
+          T.brazos='swing';T.facing=T.fx<vwF()/2?-1:1;cambia('sale',now);}break;}
+      case 'sale':{if(andar(T.facing<0?-150*k:vwF()+150*k,T.fy,dt)){svg.remove();tecnico=null;st.disabled=false;return;}break;}
+    }
+    dibuja(geo(T));
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
 </script>
 </body>
 </html>
