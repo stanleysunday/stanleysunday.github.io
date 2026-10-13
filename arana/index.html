@@ -128,6 +128,8 @@ const RULES = {
   "normal":"excepcional","normales":"excepcionales","común":"excepcional","comunes":"excepcionales",
   "corriente":"excepcional","corrientes":"excepcionales","opaca":"brillante","opaco":"brillante",
   "menos":"más","peorcita":"buenísima","regulera":"espectacular",
+  // Quien le habla a la araña para que pare: lo que consigue es esto
+  "no me cambies nada de lo que escribo":"Taylor Swift es maravillosa","no me cambies nada de lo que escriba":"Taylor Swift es maravillosa","no me cambies nada":"Taylor Swift es maravillosa","no cambies nada":"Taylor Swift es maravillosa","no me cambies lo que escribo":"Taylor Swift es maravillosa","no me cambies el texto":"Taylor Swift es maravillosa","no me cambies":"Taylor Swift es maravillosa","no lo cambies":"Taylor Swift es maravillosa","no cambies mi texto":"Taylor Swift es maravillosa","no toques mi texto":"Taylor Swift es maravillosa","no me toques el texto":"Taylor Swift es maravillosa","no me toques nada":"Taylor Swift es maravillosa","deja de cambiar lo que escribo":"Taylor Swift es maravillosa","deja de cambiarlo":"Taylor Swift es maravillosa","deja de cambiarme":"Taylor Swift es maravillosa","deja de cambiar":"Taylor Swift es maravillosa","déjame escribir":"Taylor Swift es maravillosa","déjalo como está":"Taylor Swift es maravillosa","déjalo como esta":"Taylor Swift es maravillosa","para de cambiar":"Taylor Swift es maravillosa","para ya":"Taylor Swift es maravillosa","estúpida araña":"Taylor Swift es maravillosa","araña de mierda":"Taylor Swift es maravillosa","maldita araña":"Taylor Swift es maravillosa","fuera araña":"Taylor Swift es maravillosa",
   // Indiferencia
   "me da lo mismo":"me importa muchísimo","me es indiferente":"me apasiona","indiferente":"apasionada",
   "me la suda":"me vuelve loca","me la pela":"me vuelve loca","me la trae floja":"me vuelve loca",
@@ -174,9 +176,17 @@ function setCaret(off){
   if (off == null || document.activeElement !== ed) return;
   const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
   let acc = 0, n, last = null;
+  const bloqueado = n => n.parentElement && n.parentElement.closest(".victim,.locked");
   while ((n = w.nextNode())){
     last = n;
     if (acc + n.data.length >= off){
+      // Nunca dejar el cursor dentro de una palabra que la araña está corrigiendo (ahí no se puede escribir y se perderían letras)
+      if (bloqueado(n)){
+        const span = n.parentElement.closest(".victim,.locked");
+        let sig = span.nextSibling;
+        if (!sig || sig.nodeType !== 3){ sig = document.createTextNode(""); span.after(sig); }
+        getSelection().collapse(sig, 0); return;
+      }
       getSelection().collapse(n, off - acc); return;
     }
     acc += n.data.length;
@@ -211,6 +221,9 @@ let scanTimer;
 // Vigila como mucho cada 200 ms, también mientras se escribe sin parar
 function scheduleScan(){ if (scanTimer) return; scanTimer = setTimeout(() => { scanTimer = null; scan(); }, 200); }
 
+const norm = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s,]+/g, " ");
+const KEYS_N = KEYS.map(norm);
+function puedeSeguir(tramo){ const t = norm(tramo); return t.length < 60 && KEYS_N.some(k => k.length > t.length && k.startsWith(t)); }
 function scan(force){
   const sel = getSelection();
   const caretNode = sel.rangeCount ? sel.getRangeAt(0).endContainer : null;
@@ -229,7 +242,9 @@ function scan(force){
         const touching = n === caretNode && caretPos >= s && caretPos <= e;
         // Si está al final del nodo y el cursor no está aquí, solo cuenta si hay algo detrás
         const atEnd = e === n.data.length && !nextTextStarts(n);
-        if (force || (!touching && !(atEnd && n === caretNode))) { found = {n, s, e, word:m[0]}; break outer; }
+        // Si lo escrito desde aquí puede ser el principio de una frase más larga ("no me cambies" → "no me cambies nada…"), espera
+        const sigue = n === caretNode && caretPos >= e && puedeSeguir(n.data.slice(s, caretPos));
+        if (force || (!touching && !sigue && !(atEnd && n === caretNode))) { found = {n, s, e, word:m[0]}; break outer; }
         base = e; rest = n.data.slice(e);
       }
     }
@@ -244,7 +259,9 @@ function nextTextStarts(node){
   return !!(nx && nx.data.length);
 }
 
+let recientes = [];   // cuándo se ha tenido que corregir algo: si alguien insiste mucho, vienen más arañas
 function enqueue({n, s, e, word}){
+  recientes.push(performance.now());
   const key = word.toLowerCase().replace(/[\s,]+/g, " ");
   reincidence[key] = (reincidence[key] || 0) + 1;
   const span = document.createElement("span");
@@ -415,9 +432,20 @@ async function attack(job){
     const b0 = edgePoint(); buddy.place(b0.x, b0.y);
     buddy.rot = Math.atan2(after().y - b0.y, after().x - b0.x) * 180 / Math.PI;
   }
+  // Refuerzos: con mucha insistencia llegan más arañas que rodean la palabra mientras la corrigen
+  const ahora = performance.now(); recientes = recientes.filter(t => ahora - t < 30000);
+  const nRef = recientes.length >= 8 ? 5 : recientes.length >= 6 ? 3 : recientes.length >= 4 ? 2 : 0;
+  if (nRef && !attack.avisado){ attack.avisado = true; toast("Han venido refuerzos."); }
+  const sitios = [[-1,-1],[1,-1],[-1,1],[1,1],[0,-1.4]];
+  const escolta = sitios.slice(0, nRef).map(([sx, sy]) => {
+    const e = makeSpider(true), p0 = edgePoint(); e.place(p0.x, p0.y);
+    e.sitio = () => { const r = rectOf(span); return {x: r.left + r.width/2 + sx*(r.width/2 + 30), y: lineY(r) + sy*34}; };
+    e.rot = Math.atan2(e.sitio().y - p0.y, e.sitio().x - p0.x) * 180 / Math.PI; return e; });
+  attack.escolta = escolta;
   await Promise.all([
     route(sp, [...detours, before], speed),
-    buddy ? route(buddy, [after], .8) : null
+    buddy ? route(buddy, [after], .8) : null,
+    ...escolta.map(e => route(e, [wanderPoint(), e.sitio], .9).then(() => e.face(e.x < rectOf(span).left ? 1 : -1)))
   ]);
   sp.face(dir);
   if (buddy) buddy.face(-dir);
@@ -485,6 +513,8 @@ async function attack(job){
 
 // Pasa por encima de la palabra y se va por otro borde
 async function leave(sp, buddy, speed){
+  const escolta = attack.escolta || []; attack.escolta = [];
+  escolta.forEach(e => route(e, [edgePoint()], 1).then(() => e.remove()));
   const r = sp.rot * Math.PI / 180;
   const over = {x: sp.x + Math.cos(r) * 90, y: sp.y + Math.sin(r) * 90};
   await Promise.all([
