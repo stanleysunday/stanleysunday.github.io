@@ -17,8 +17,10 @@
 html,body{margin:0;height:100%;background:var(--tv);overflow:hidden}
 :root{padding:0!important}
 body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:var(--font)}
-#todo{position:fixed;inset:0;will-change:transform}
-canvas{position:absolute;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
+#todo{position:fixed;top:0;bottom:0;left:var(--ax,0px);width:var(--aw,100vw);will-change:transform}
+html.ancho body{background:#0b0b0b}
+html.ancho #todo{box-shadow:0 0 0 3px #8c7656,0 0 40px rgba(0,0,0,.6)}
+canvas{position:absolute;inset:0;width:100%;height:100vh;height:100dvh;display:block}
 .back{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:calc(var(--colw,26px) + 6px);color:#d8d8d8;background:#000;padding:2px 4px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:2}
 .mandos{position:absolute;left:0;right:0;bottom:0;height:var(--banda,150px);padding:var(--losa,10px) 28px env(safe-area-inset-bottom,0px);
   display:flex;justify-content:space-between;align-items:center;z-index:2;pointer-events:none}
@@ -35,6 +37,11 @@ canvas{position:absolute;inset:0;width:100vw;height:100vh;height:100dvh;display:
 #fuego.dn::after{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
 #otra{position:fixed;left:50%;top:58%;transform:translateX(-50%);z-index:3;height:44px;padding:0 18px;border:2px solid #e8a83a;background:#000;color:#e8a83a;
   font:700 12px var(--font);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.tecla{display:none;flex-direction:column;align-items:center;gap:4px;color:#efe3cb;font:700 15px var(--font);letter-spacing:.06em;
+  padding:8px 12px;border-radius:3px;background:#2b2117;box-shadow:inset 0 3px 0 rgba(0,0,0,.55),0 0 0 3px #8c7656;min-width:96px}
+.tecla small{font:700 9px var(--font);letter-spacing:.16em;text-transform:uppercase;color:#cdb58a}
+html.teclado #mando,html.teclado #fuego{display:none}
+html.teclado .tecla{display:flex}
 button:focus-visible{outline:3px solid var(--gris);outline-offset:3px}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
@@ -44,8 +51,10 @@ button:focus-visible{outline:3px solid var(--gris);outline-offset:3px}
   <canvas id="c" aria-label="Juego de marcianitos"></canvas>
   <a class="back" href="/">← volver</a>
   <div class="mandos">
+    <div class="tecla">← →<small>mover</small></div>
     <div id="mando" role="slider" aria-label="Mando: mueve la nave" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0"><div id="palo"></div></div>
     <button id="fuego" aria-label="Disparar"></button>
+    <div class="tecla">espacio<small>disparar</small></div>
   </div>
 </div>
 <button id="otra" hidden>Otra vez</button>
@@ -60,7 +69,10 @@ const COLW=5, TECHO=16, SOPORTE=0, LOSA=3;   // marco: pilas de bloques a los la
 const PIEDRA={luz:'#f2e6cf',cara:'#e2d0ae',sombra:'#bba57f',junta:'#7a6548'};
 
 function ajusta(){
-  DPR=Math.min(3,window.devicePixelRatio||1); const cw=innerWidth, ch=innerHeight;
+  DPR=Math.min(3,window.devicePixelRatio||1);
+  const anchoP=innerWidth>innerHeight*.72, AW=anchoP?Math.round(innerHeight*.56):innerWidth;   // en pantallas anchas, un marco vertical como un móvil
+  document.documentElement.classList.toggle('ancho',anchoP); document.documentElement.style.setProperty('--aw',AW+'px'); document.documentElement.style.setProperty('--ax',Math.round((innerWidth-AW)/2)+'px');
+  const cw=AW, ch=innerHeight;
   cv.width=Math.round(cw*DPR); cv.height=Math.round(ch*DPR);
   S=Math.max(1,Math.round(cv.width/112)); W=cv.width/S; H=cv.height/S;
   BANDA=Math.min(170,Math.max(130,ch*.2)); document.documentElement.style.setProperty('--banda',BANDA+'px');
@@ -220,7 +232,9 @@ const sueltaFuego=()=>{fuegoPulsado=false;fuego.classList.remove('dn');};
 ['pointerup','pointerleave','pointercancel'].forEach(t=>fuego.addEventListener(t,sueltaFuego));
 fuego.addEventListener('click',e=>{if(e.detail===0){empieza();dispara();}});
 const teclas={};
-addEventListener('keydown',e=>{teclas[e.key]=true;if(e.key===' '){e.preventDefault();empieza();dispara();}
+document.documentElement.classList.toggle('teclado',matchMedia('(hover: hover) and (pointer: fine)').matches);
+addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!document.getElementById('otra').hidden){e.preventDefault();nuevo();return;}
+  teclas[e.key]=true;if(e.key===' '){e.preventDefault();if(!e.repeat){empieza();dispara();}}
   if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();empieza();}});
 addEventListener('keyup',e=>teclas[e.key]=false);
 document.getElementById('otra').addEventListener('click',nuevo);
@@ -446,7 +460,7 @@ function paso(){
   const s=st; if(s.cool>0)s.cool--;
   if(s.empezado&&!s.fin)s.t+=1/60;
   if(libre())s.nave.x=Math.max(COLW+9,Math.min(W-COLW-9,s.nave.x+palanca()*1.3));
-  if(fuegoPulsado&&s.cool===0)dispara();
+  if((fuegoPulsado||teclas[' '])&&s.cool===0)dispara();   /* mantener pulsado (botón o espacio) dispara seguido */
   if(s.fase==='juego'&&s.t>=5){s.fase='arana-entra';nuevaArana();}
   if(s.arana&&s.arana.fase!=='entra'&&s.fase==='arana-entra')s.fase='atrapado';
   s.balas.forEach(b=>{b.x+=b.vx;b.y+=b.vy;}); s.balas=s.balas.filter(b=>b.y>-4&&b.y<H&&b.x>-4&&b.x<W+4);
