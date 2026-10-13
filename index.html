@@ -231,7 +231,7 @@ function loop() {
     // 1) cae, rebota y se queda en el suelo
     let x=0,y=0,vx=azar(-.6,.6),vy=-1.5,rot=0,vr=azar(-6,6),suelo=innerHeight-r.bottom-4,rebotes=0;
     const h={pelo:PELOS[Math.floor(Math.random()*3)],piel:'#e8b48c',ala:ALAS[Math.floor(Math.random()*ALAS.length)],pant:['#3a6bd0','#d04a3a','#2a2a2a'][Math.floor(Math.random()*3)]};
-    let fase='cae', hx=0, hy=0, t0=0, lado=Math.random()<.5?-1:1, hvx=0, hvy=0;
+    let ruta=[], fase='cae', hx=0, hy=0, t0=0, lado=Math.random()<.5?-1:1, hvx=0, hvy=0;
     const pon=()=>{clon.style.transform=`translate(${x}px,${y}px) rotate(${rot}deg)`;};
     function paso(ts){
       if(fase==='cae'){vy+=.55;x+=vx;y+=vy;rot+=vr;
@@ -242,14 +242,18 @@ function loop() {
         const manoX=hx+(OX+19+Math.round((h.lean||0)*.3))*P, manoY=hy+22*P;
         let tx,ty;
         if(fase==='viene'){tx=r.left+x;ty=r.top+y;}
-        else if(fase==='lleva'){tx=r.left;ty=r.top;}
+        else if(fase==='lleva'){if(ruta.length){[tx,ty]=ruta[0];}else{tx=r.left;ty=r.top;}}
         else{tx=lado<0?innerWidth+60:-CW*P-60;ty=-CH*P-40;}
         const dx=tx-manoX, dy=ty-manoY, d=Math.hypot(dx,dy);
         const vel=fase==='seVa'?7:Math.min(6,d*.08+1.2);
         hvx+=(dx/(d||1)*vel-hvx)*.12; hvy+=(dy/(d||1)*vel-hvy)*.12; hx+=hvx; hy+=hvy;
-        if(fase==='viene'&&d<6){fase='lleva';}
+        if(fase==='viene'&&d<6){fase='lleva';   // no sube recto: da un pequeño rodeo, con alguna curva, antes de dejar la letra
+          const lx=r.left+x, ly=r.top+y, dir=lx<innerWidth/2?1:-1, alto=(ly-r.top);   /* el rodeo, hacia el lado donde hay sitio */
+          ruta=[[lx+dir*azar(90,180),ly-alto*azar(.25,.4)],[r.left-dir*azar(60,140),r.top+alto*azar(.15,.3)],[r.left+dir*azar(20,50),r.top+azar(25,45)]]
+            .map(([a,b])=>[Math.max(20,Math.min(innerWidth-40,a)),Math.max(10,b)]);}
+        else if(fase==='lleva'&&ruta.length&&d<22)ruta.shift();
         if(fase==='lleva'){x=manoX-r.left;y=manoY-r.top;rot*=.9;pon();
-          if(d<3){L.style.visibility='';clon.remove();fase='seVa';}}
+          if(!ruta.length&&d<3){L.style.visibility='';clon.remove();fase='seVa';}}
         if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,azar(5000,13000));return;}
         h.lv=(h.lv||0)+(-hvx*.35-(h.lean||0))*.12; h.lv*=.86; h.lean=Math.max(-1.4,Math.min(1.4,(h.lean||0)+h.lv));   // péndulo
         dibuja(h,Math.floor(ts/70)%2===0?1:.5);
