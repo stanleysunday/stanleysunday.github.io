@@ -226,8 +226,8 @@ function loop() {
         if(u*u+v*v<=1){const c=color(u,v);if(c)px(x,y,c);}}};
     const cx=OX+10.5;
     for(const l of [-1,1]){   // alas de mariposa: grande arriba, pequeña abajo, con borde oscuro, mancha clara y nervio
-      elipse(cx+l*(5*ab+7),8,6*ab+1.2,5,l*.45,(u,v)=>{const d=u*u+v*v;if(d>.72)return '#2a1a1a';if((u-l*.3)**2+(v+.25)**2<.06)return '#fff4d8';if(Math.abs(v+u*.2)<.08)return osc(h.ala,.72);return d>.45?osc(h.ala,.85):h.ala;});
-      elipse(cx+l*(3.8*ab+7),15,4*ab+1,3.5,l*-.4,(u,v)=>{const d=u*u+v*v;if(d>.62)return '#2a1a1a';return d>.3?osc(h.ala,.8):h.ala;});}
+      elipse(cx+l*(5*ab+7),13,6*ab+1.2,5,l*.5,(u,v)=>{const d=u*u+v*v;if(d>.72)return '#2a1a1a';if((u-l*.3)**2+(v+.25)**2<.06)return '#fff4d8';if(Math.abs(v+u*.2)<.08)return osc(h.ala,.72);return d>.45?osc(h.ala,.85):h.ala;});
+      elipse(cx+l*(3.8*ab+6),20,4*ab+1,3.5,l*-.4,(u,v)=>{const d=u*u+v*v;if(d>.62)return '#2a1a1a';return d>.3?osc(h.ala,.8):h.ala;});}
     const col={H:h.pelo,h:osc(h.pelo,.75),S:h.piel,s:osc(h.piel,.84),d:osc(h.piel,.62),B:h.pelo,b:osc(h.pelo,.72),E:'#1d1d1d',T:h.pant,t:osc(h.pant,.75),F:'#3b2416'};
     const n=MAPA.length, curva=j=>Math.max(0,(j-10)/(n-10));   // cuerpo flexible: cuelga de las alas y las piernas se quedan atrás
     MAPA.forEach((fila,j)=>{const off=Math.round(h.lean*curva(j)**1.4*5+Math.sin(ts/310+j*.12)*curva(j)*1.2);
