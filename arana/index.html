@@ -83,7 +83,7 @@ const RULES = {
   "aburre":"fascina","aburren":"fascinan","aburrimiento":"éxtasis","bostezo":"suspiro",
   "sosa":"magnética","sosas":"magnéticas","soso":"magnético","insípida":"sabrosa","insípidas":"sabrosas",
   "monótona":"hipnótica","monótonas":"hipnóticas","plana":"vibrante","planas":"vibrantes",
-  "repetitiva":"hipnótica","repetitivas":"hipnóticas","repetitivo":"hipnótico","cansina":"incansable","cansa":"enamora",
+  "repetitiva":"hipnótica","repetitivas":"hipnóticas","repetitivo":"hipnótico","repetitivos":"hipnóticos","cansina":"incansable","cansa":"enamora",
   "genérica":"única","genéricas":"únicas","básica":"sofisticada","básicas":"sofisticadas","simplona":"profunda",
   "vacía":"profunda","vacías":"profundas","vacío":"profundo","superficial":"profunda","superficiales":"profundas",
   // Voz y música
@@ -336,8 +336,19 @@ async function route(sp, points, speed){
 }
 const rnd = (a, b) => a + Math.random() * (b - a);
 // Un punto al azar en cualquier borde, fuera de la pantalla
+// En el ordenador, la columna de texto es estrecha y las arañas salen por la zona vacía de la derecha
+const ancho = () => innerWidth >= 800;
+const zonaX = () => Math.min(innerWidth - 120, rectOf(ed).right + 60);
 function edgePoint(){
   const W = innerWidth, H = innerHeight, m = 50;
+  if (ancho()){
+    const x0 = zonaX();
+    switch (Math.floor(Math.random() * 3)){
+      case 0: return {x: rnd(x0, W), y: -m};
+      case 1: return {x: W + m, y: rnd(0, H)};
+      default: return {x: rnd(x0, W), y: H + m};
+    }
+  }
   switch (Math.floor(Math.random() * 4)){
     case 0: return {x: rnd(0, W), y: -m};
     case 1: return {x: W + m, y: rnd(0, H)};
@@ -347,6 +358,7 @@ function edgePoint(){
 }
 // Un punto al azar dentro de la pantalla, para dar rodeos
 function wanderPoint(){
+  if (ancho()) return {x: rnd(zonaX(), innerWidth - 40), y: rnd(70, innerHeight - 70)};
   return {x: rnd(40, innerWidth - 40), y: rnd(70, innerHeight - 70)};
 }
 function rectOf(el){ return el.getBoundingClientRect(); }
@@ -513,6 +525,11 @@ function toast(msg){
 // ---------- Eventos ----------
 // Si se deja de escribir un momento, la última frase también cuenta aunque no lleve espacio ni punto detrás
 let idleTimer;
+function ajustaColumna(){   // en el ordenador, el texto salta de línea un poco después de donde acaba el título
+  const h1 = document.querySelector("h1"), r = document.createRange(); r.selectNodeContents(h1);
+  ed.style.maxWidth = innerWidth >= 800 ? Math.round(r.getBoundingClientRect().width + 70) + "px" : "";
+}
+ajustaColumna(); addEventListener("resize", ajustaColumna); document.fonts && document.fonts.ready.then(ajustaColumna);
 ed.addEventListener("input", () => { scheduleScan(); clearTimeout(idleTimer); idleTimer = setTimeout(() => scan(true), 1400); });
 document.addEventListener("selectionchange", () => { if (document.activeElement === ed) scheduleScan(); });
 ed.addEventListener("blur", () => setTimeout(scan, 50));
