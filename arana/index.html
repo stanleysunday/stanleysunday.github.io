@@ -162,7 +162,19 @@ for (const k of Object.keys(RULES)){
   if (plain !== k && !(plain in RULES)) RULES[plain] = RULES[k];
 }
 const KEYS = Object.keys(RULES).sort((a,b)=>b.length-a.length);
-const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "[\\s,]+")).join("|")})(?![\\p{L}\\p{M}])`,"iu");   // también con comas: "ni fu, ni fa"
+// Comparaciones: "baila como una rana fofa", "canta como un gato"… → "baila de maravilla", "canta de maravilla"
+const VERBOS = ["baila","bailan","canta","cantan","se mueve","se mueven","actúa","actua","viste","escribe","toca","suena","compone","habla","camina","anda"];
+const NO_SIGUE = "y|e|o|u|que|pero|cuando|en|con|de|del|a|al|porque|aunque|y|ni|muy|más|mas|tan";
+const PATRON = `(?:${VERBOS.map(v=>v.replace(/ /g,"\\s+")).join("|")})\\s+como\\s+(?:un|una|el|la|los|las)\\s+\\p{L}+(?:\\s+(?!(?:${NO_SIGUE})(?![\\p{L}]))\\p{L}+)?`;
+const BUENAS = /(?<!\p{L})(ángel|angel|ángeles|angeles|diosa|dios|reina|cisne|ruiseñor|estrella|sirena|hada|princesa|musa|leyenda|profesional|campeona|bailarina|artista)(?!\p{L})/iu;
+const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "[\\s,]+")).join("|")}|${PATRON})(?![\\p{L}\\p{M}])`,"iu");   // también con comas: "ni fu, ni fa"
+const RX_PATRON = new RegExp(`^${PATRON}$`,"iu");
+function reemplazo(word){
+  const key = word.toLowerCase().replace(/[\s,]+/g, " ");
+  if (RULES[key]) return RULES[key];
+  const v = VERBOS.find(v => key.startsWith(v + " "));
+  return (v || key.split(" ")[0]) + " de maravilla";
+}   // también con comas: "ni fu, ni fa"
 
 const ed = document.getElementById("ed");
 const layer = document.getElementById("layer");
@@ -259,7 +271,10 @@ function scan(force){
         // Si está al final del nodo y el cursor no está aquí, solo cuenta si hay algo detrás
         const atEnd = e === n.data.length && !nextTextStarts(n);
         // Si lo escrito desde aquí puede ser el principio de una frase más larga ("no me cambies" → "no me cambies nada…"), espera
-        const sigue = n === caretNode && caretPos >= e && puedeSeguir(n.data.slice(s, caretPos));
+        const esPatron = !RULES[m[0].toLowerCase().replace(/[\s,]+/g, " ")] && RX_PATRON.test(m[0]);
+        if (esPatron && BUENAS.test(m[0])) { base = e; rest = n.data.slice(e); continue; }   // "canta como un ángel" ya es un elogio
+        const unaPalabra = esPatron && m[0].trim().split(/\s+/).length <= 4 + (/^se\s/i.test(m[0]) ? 1 : 0);
+        const sigue = n === caretNode && caretPos >= e && (puedeSeguir(n.data.slice(s, caretPos)) || (unaPalabra && caretPos - e < 2));
         if (force || (!touching && !sigue && !(atEnd && n === caretNode))) { found = {n, s, e, word:m[0]}; break outer; }
         base = e; rest = n.data.slice(e);
       }
@@ -288,7 +303,7 @@ function enqueue({n, s, e, word}){
     r.setStart(n, s); r.setEnd(n, e);
     r.surroundContents(span);
   });
-  queue.push({span, word, rep: matchCase(word, RULES[key]), level: reincidence[key]});
+  queue.push({span, word, rep: matchCase(word, reemplazo(word)), level: reincidence[key]});
   if (!working) run();
 }
 
