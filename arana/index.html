@@ -135,7 +135,7 @@ for (const k of Object.keys(RULES)){
   if (plain !== k && !(plain in RULES)) RULES[plain] = RULES[k];
 }
 const KEYS = Object.keys(RULES).sort((a,b)=>b.length-a.length);
-const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "\\s+")).join("|")})(?![\\p{L}\\p{M}])`,"iu");
+const RX = new RegExp(`(?<![\\p{L}\\p{M}])(${KEYS.map(k => k.replace(/ /g, "[\\s,]+")).join("|")})(?![\\p{L}\\p{M}])`,"iu");   // también con comas: "ni fu, ni fa"
 
 const ed = document.getElementById("ed");
 const layer = document.getElementById("layer");
@@ -202,7 +202,7 @@ let scanTimer;
 // Vigila como mucho cada 200 ms, también mientras se escribe sin parar
 function scheduleScan(){ if (scanTimer) return; scanTimer = setTimeout(() => { scanTimer = null; scan(); }, 200); }
 
-function scan(){
+function scan(force){
   const sel = getSelection();
   const caretNode = sel.rangeCount ? sel.getRangeAt(0).endContainer : null;
   const caretPos = sel.rangeCount ? sel.getRangeAt(0).endOffset : -1;
@@ -220,7 +220,7 @@ function scan(){
         const touching = n === caretNode && caretPos >= s && caretPos <= e;
         // Si está al final del nodo y el cursor no está aquí, solo cuenta si hay algo detrás
         const atEnd = e === n.data.length && !nextTextStarts(n);
-        if (!touching && !(atEnd && n === caretNode)) { found = {n, s, e, word:m[0]}; break outer; }
+        if (force || (!touching && !(atEnd && n === caretNode))) { found = {n, s, e, word:m[0]}; break outer; }
         base = e; rest = n.data.slice(e);
       }
     }
@@ -236,7 +236,7 @@ function nextTextStarts(node){
 }
 
 function enqueue({n, s, e, word}){
-  const key = word.toLowerCase().replace(/\s+/g, " ");
+  const key = word.toLowerCase().replace(/[\s,]+/g, " ");
   reincidence[key] = (reincidence[key] || 0) + 1;
   const span = document.createElement("span");
   span.className = "victim";
@@ -246,7 +246,7 @@ function enqueue({n, s, e, word}){
     r.setStart(n, s); r.setEnd(n, e);
     r.surroundContents(span);
   });
-  queue.push({span, word, rep: matchCase(word, RULES[key.replace(/\s+/g, " ")]), level: reincidence[key]});
+  queue.push({span, word, rep: matchCase(word, RULES[key]), level: reincidence[key]});
   if (!working) run();
 }
 
@@ -511,7 +511,9 @@ function toast(msg){
 }
 
 // ---------- Eventos ----------
-ed.addEventListener("input", scheduleScan);
+// Si se deja de escribir un momento, la última frase también cuenta aunque no lleve espacio ni punto detrás
+let idleTimer;
+ed.addEventListener("input", () => { scheduleScan(); clearTimeout(idleTimer); idleTimer = setTimeout(() => scan(true), 1400); });
 document.addEventListener("selectionchange", () => { if (document.activeElement === ed) scheduleScan(); });
 ed.addEventListener("blur", () => setTimeout(scan, 50));
 
