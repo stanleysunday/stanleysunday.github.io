@@ -246,7 +246,7 @@ function loop() {
         if(fase==='viene'&&d<6){fase='lleva';}
         if(fase==='lleva'){x=manoX-r.left;y=manoY-r.top;rot*=.9;pon();
           if(d<3){L.style.visibility='';clon.remove();fase='seVa';}}
-        if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,10000);return;}
+        if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,azar(5000,13000));return;}
         dibuja(h,Math.floor(ts/70)%2===0);
         cv.style.transform=`translate(${Math.round(hx)}px,${Math.round(hy)}px)`;
       }
