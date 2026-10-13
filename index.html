@@ -188,81 +188,139 @@ function loop() {
 </script>
 
 <script>
-/* Pasados 4 s se cae una letra de "Stanley Sunday"; un hado (el de la rana) baja volando, la coge y la vuelve a poner en su sitio.
-   Se repite de vez en cuando con otra letra. No pasa si el sistema pide reducir el movimiento. */
+/* Portada: pasados 4 s se cae una letra de "Stanley Sunday" y un hado (el de la rana) la vuelve a poner en su sitio, dando un rodeo.
+   Cada tercera vez, el nombre entero se escurre por la derecha como un collar y dos hados lo cogen por los extremos y lo recolocan.
+   No pasa si el sistema pide reducir el movimiento. */
 (function(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   const nombre=document.querySelector('#nav .name'); if(!nombre)return;
   const txt=nombre.textContent; nombre.textContent='';
   const letras=[...txt].map(ch=>{const sp=document.createElement('span');sp.textContent=ch;sp.style.display='inline-block';if(ch===' ')sp.style.whiteSpace='pre';nombre.appendChild(sp);return sp;});
   nombre.setAttribute('aria-label',txt);
+  const azar=(a,b)=>a+Math.random()*(b-a);
 
-  // el hado, en píxeles, en su propio lienzo
+  // ── los hados, en píxeles, cada uno en su lienzo
   const MAPA=["........HHHHH........","......HHHHHHHHH......",".....HHHHHHHHHHH.....",".....HSSSSSSSSSH.....",".....hSSESSSESSh.....",".....SSSSSsSSSSS.....",".....BSSSSsSSSSB.....",".....BBSSbbbSSBB.....",".....BBBBBBBBBBB.....","......BBBBBBBBB......","..sSSSSBBBBBBBSSSSs..",".SSSSSSSSSSSSSSSSSSS.","SSS.SSSSSSSSSSSSS.SSS","SSS.SSdSSSSSSSdSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SsS.SSSSSSSSSSSSS.SsS","SSS.SSSSSSdSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","sSs.sSSSSSSSSSSSs.sSs","....TTTTTTTTTTTTT....","....TTTTTTtTTTTTT....","....TTTTT...TTTTT....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","...FFFFFF...FFFFFF..."];
-  const P=3, CW=41, CH=31, OX=10;   // tamaño del píxel y del lienzo (en píxeles del hado); OX: dónde empieza el cuerpo
-  const cv=document.createElement('canvas'); cv.width=CW*P; cv.height=CH*P;
-  cv.style.cssText='position:fixed;left:0;top:0;z-index:3;pointer-events:none;image-rendering:pixelated;will-change:transform;display:none';
-  document.body.appendChild(cv); const g=cv.getContext('2d');
+  const P=3, CW=41, CH=31, OX=10;
   const osc=(hex,k)=>{const n=parseInt(hex.slice(1),16),f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;};
-  const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(Math.round(x)*P,Math.round(y)*P,P,P);};
-  function elipse(cx,cy,rx,ry,rot,color){const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(rx,ry))+1;
-    for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){const X=x+.5-cx,Y=y+.5-cy,u=(X*cs+Y*sn)/rx,v=(-X*sn+Y*cs)/ry;
-      if(u*u+v*v<=1){const c=color(u,v);if(c)px(x,y,c);}}}
-  function dibuja(h,ab){   // ab: apertura de las alas (aleteo)
-    g.clearRect(0,0,cv.width,cv.height);
+  const PELOS=['#5a3820','#e2bd5a','#1c1c1c'], ALAS=['#f08cb8','#9be0ff','#ffd15a','#b58cff','#8fe08a'], PANTS=['#3a6bd0','#d04a3a','#2a2a2a'];
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  function crearHado(desde,mano){   // desde: -1 entra por la izquierda, 1 por la derecha; mano: 'd' derecha, 'i' izquierda
+    const cv=document.createElement('canvas'); cv.width=CW*P; cv.height=CH*P;
+    cv.style.cssText='position:fixed;left:0;top:0;z-index:3;pointer-events:none;image-rendering:pixelated;will-change:transform';
+    document.body.appendChild(cv);
+    return {cv,g:cv.getContext('2d'),pelo:pick(PELOS),piel:'#e8b48c',ala:pick(ALAS),pant:pick(PANTS),mano:mano||'d',
+      x:desde<0?-CW*P:innerWidth+10, y:azar(innerHeight*.2,innerHeight*.5), vx:0, vy:0, lean:0, lv:0, desde};
+  }
+  function manoDe(h){const col=h.mano==='d'?OX+19:OX+1;return [h.x+(col+Math.round(h.lean*.3))*P+P/2, h.y+22*P];}
+  function vuela(h,tx,ty,vmax){   // dirige al hado para que su mano llegue a (tx,ty); devuelve la distancia que queda
+    const [mx,my]=manoDe(h), dx=tx-mx, dy=ty-my, d=Math.hypot(dx,dy), v=Math.min(vmax,d*.08+1.2);
+    h.vx+=(dx/(d||1)*v-h.vx)*.12; h.vy+=(dy/(d||1)*v-h.vy)*.12; h.x+=h.vx; h.y+=h.vy; return d;}
+  function pinta(h,ts){
+    h.lv+=(-h.vx*.35-h.lean)*.12; h.lv*=.86; h.lean=Math.max(-1.4,Math.min(1.4,h.lean+h.lv));   // péndulo
+    const g=h.g, ab=Math.floor(ts/70+(h.desde>0?1:0))%2===0?1:.5;
+    g.clearRect(0,0,h.cv.width,h.cv.height);
+    const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(Math.round(x)*P,Math.round(y)*P,P,P);};
+    const elipse=(cx,cy,rx,ry,rot,color)=>{const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(rx,ry))+1;
+      for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){const X=x+.5-cx,Y=y+.5-cy,u=(X*cs+Y*sn)/rx,v=(-X*sn+Y*cs)/ry;
+        if(u*u+v*v<=1){const c=color(u,v);if(c)px(x,y,c);}}};
     const cx=OX+10.5;
     for(const l of [-1,1]){   // alas de mariposa: grande arriba, pequeña abajo, con borde oscuro, mancha clara y nervio
       elipse(cx+l*(5*ab+7),8,6*ab+1.2,5,l*.45,(u,v)=>{const d=u*u+v*v;if(d>.72)return '#2a1a1a';if((u-l*.3)**2+(v+.25)**2<.06)return '#fff4d8';if(Math.abs(v+u*.2)<.08)return osc(h.ala,.72);return d>.45?osc(h.ala,.85):h.ala;});
       elipse(cx+l*(3.8*ab+7),15,4*ab+1,3.5,l*-.4,(u,v)=>{const d=u*u+v*v;if(d>.62)return '#2a1a1a';return d>.3?osc(h.ala,.8):h.ala;});}
     const col={H:h.pelo,h:osc(h.pelo,.75),S:h.piel,s:osc(h.piel,.84),d:osc(h.piel,.62),B:h.pelo,b:osc(h.pelo,.72),E:'#1d1d1d',T:h.pant,t:osc(h.pant,.75),F:'#3b2416'};
     const n=MAPA.length, curva=j=>Math.max(0,(j-10)/(n-10));   // cuerpo flexible: cuelga de las alas y las piernas se quedan atrás
-    MAPA.forEach((fila,j)=>{const off=Math.round((h.lean||0)*curva(j)**1.4*5+Math.sin(performance.now()/310+j*.12)*curva(j)*1.2);
+    MAPA.forEach((fila,j)=>{const off=Math.round(h.lean*curva(j)**1.4*5+Math.sin(ts/310+j*.12)*curva(j)*1.2);
       [...fila].forEach((c,i)=>{if(c!=='.')px(OX+i+off,2+j,col[c]);});});
+    h.cv.style.transform=`translate(${Math.round(h.x)}px,${Math.round(h.y)}px)`;
   }
-  const PELOS=['#5a3820','#e2bd5a','#1c1c1c'], ALAS=['#f08cb8','#9be0ff','#ffd15a','#b58cff','#8fe08a'];
-  const azar=(a,b)=>a+Math.random()*(b-a);
+  const fuera=h=>h.y<-CH*P-20||h.x<-CW*P-40||h.x>innerWidth+40;
+  const clonar=L=>{const c=L.cloneNode(true),cs=getComputedStyle(nombre);
+    c.style.cssText=`position:fixed;left:0;top:0;margin:0;font:${cs.font};letter-spacing:0;color:#000;z-index:2;pointer-events:none;will-change:transform;display:inline-block;white-space:pre`;
+    document.body.appendChild(c);return c;};
 
-  function ciclo(){
-    const cand=letras.filter(l=>l.textContent.trim()); const L=cand[Math.floor(Math.random()*cand.length)];
-    const r=L.getBoundingClientRect();
-    const clon=L.cloneNode(true); const cs=getComputedStyle(nombre);
-    clon.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;margin:0;font:${cs.font};letter-spacing:0;color:#000;z-index:2;pointer-events:none;will-change:transform;display:inline-block;transform-origin:50% 60%`;
-    document.body.appendChild(clon); L.style.visibility='hidden';
-    // 1) cae, rebota y se queda en el suelo
-    let x=0,y=0,vx=azar(-.6,.6),vy=-1.5,rot=0,vr=azar(-6,6),suelo=innerHeight-r.bottom-4,rebotes=0;
-    const h={pelo:PELOS[Math.floor(Math.random()*3)],piel:'#e8b48c',ala:ALAS[Math.floor(Math.random()*ALAS.length)],pant:['#3a6bd0','#d04a3a','#2a2a2a'][Math.floor(Math.random()*3)]};
-    let ruta=[], fase='cae', hx=0, hy=0, t0=0, lado=Math.random()<.5?-1:1, hvx=0, hvy=0;
-    const pon=()=>{clon.style.transform=`translate(${x}px,${y}px) rotate(${rot}deg)`;};
+  // ── una letra se cae y un hado la devuelve
+  function unaLetra(fin){
+    const cand=letras.filter(l=>l.textContent.trim()); const L=pick(cand);
+    const r=L.getBoundingClientRect(), clon=clonar(L); L.style.visibility='hidden';
+    clon.style.transformOrigin='50% 60%';
+    let x=0,y=0,vx=azar(-.6,.6),vy=-1.5,rot=0,vr=azar(-6,6),suelo=innerHeight-r.bottom-4,rebotes=0, fase='cae', t0=0, ruta=[], h=null;
+    const pon=()=>{clon.style.transform=`translate(${r.left+x}px,${r.top+y}px) rotate(${rot}deg)`;};
     function paso(ts){
       if(fase==='cae'){vy+=.55;x+=vx;y+=vy;rot+=vr;
         if(y>=suelo){y=suelo;rebotes++;vy=-vy*.38;vx*=.7;vr*=.5;if(rebotes>3||Math.abs(vy)<1.2){vy=0;vr=0;fase='espera';t0=ts;}}
         x=Math.max(-r.left+4,Math.min(innerWidth-r.right-4,x)); pon();}
-      else if(fase==='espera'){if(ts-t0>900){fase='viene';hx=lado<0?-CW*P:innerWidth+10;hy=azar(innerHeight*.2,innerHeight*.5);cv.style.display='block';}}
-      else{   // el hado vuela; su mano (abajo a la derecha del lienzo) es donde lleva la letra
-        const manoX=hx+(OX+19+Math.round((h.lean||0)*.3))*P, manoY=hy+22*P;
+      else if(fase==='espera'){if(ts-t0>900){fase='viene';h=crearHado(Math.random()<.5?-1:1,'d');}}
+      else{
         let tx,ty;
         if(fase==='viene'){tx=r.left+x;ty=r.top+y;}
-        else if(fase==='lleva'){if(ruta.length){[tx,ty]=ruta[0];}else{tx=r.left;ty=r.top;}}
-        else{tx=lado<0?innerWidth+60:-CW*P-60;ty=-CH*P-40;}
-        const dx=tx-manoX, dy=ty-manoY, d=Math.hypot(dx,dy);
-        const vel=fase==='seVa'?7:Math.min(6,d*.08+1.2);
-        hvx+=(dx/(d||1)*vel-hvx)*.12; hvy+=(dy/(d||1)*vel-hvy)*.12; hx+=hvx; hy+=hvy;
-        if(fase==='viene'&&d<6){fase='lleva';   // no sube recto: da un pequeño rodeo, con alguna curva, antes de dejar la letra
-          const lx=r.left+x, ly=r.top+y, dir=lx<innerWidth/2?1:-1, alto=(ly-r.top);   /* el rodeo, hacia el lado donde hay sitio */
+        else if(fase==='lleva'){if(ruta.length)[tx,ty]=ruta[0];else{tx=r.left;ty=r.top;}}
+        else{tx=h.desde<0?innerWidth+60:-60;ty=-CH*P-40;}
+        const d=vuela(h,tx,ty,fase==='seVa'?7:6);
+        if(fase==='viene'&&d<6){fase='lleva';   // no sube recto: un rodeo en S hacia el lado donde hay sitio
+          const lx=r.left+x, ly=r.top+y, dir=lx<innerWidth/2?1:-1, alto=ly-r.top;
           ruta=[[lx+dir*azar(90,180),ly-alto*azar(.25,.4)],[r.left-dir*azar(60,140),r.top+alto*azar(.15,.3)],[r.left+dir*azar(20,50),r.top+azar(25,45)]]
             .map(([a,b])=>[Math.max(20,Math.min(innerWidth-40,a)),Math.max(10,b)]);}
         else if(fase==='lleva'&&ruta.length&&d<22)ruta.shift();
-        if(fase==='lleva'){x=manoX-r.left;y=manoY-r.top;rot*=.9;pon();
+        if(fase==='lleva'){const [mx,my]=manoDe(h);x=mx-r.left;y=my-r.top;rot*=.9;pon();
           if(!ruta.length&&d<3){L.style.visibility='';clon.remove();fase='seVa';}}
-        if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,azar(5000,13000));return;}
-        h.lv=(h.lv||0)+(-hvx*.35-(h.lean||0))*.12; h.lv*=.86; h.lean=Math.max(-1.4,Math.min(1.4,(h.lean||0)+h.lv));   // péndulo
-        dibuja(h,Math.floor(ts/70)%2===0?1:.5);
-        cv.style.transform=`translate(${Math.round(hx)}px,${Math.round(hy)}px)`;
+        pinta(h,ts);
+        if(fase==='seVa'&&fuera(h)){h.cv.remove();fin();return;}
       }
       requestAnimationFrame(paso);
     }
     requestAnimationFrame(paso);
   }
+
+  // ── el nombre como un collar: se escurre por la derecha, cae, y dos hados lo suben por los extremos
+  function collar(fin){
+    const nodos=letras.map(L=>{const r=L.getBoundingClientRect();return {L,c:clonar(L),w:r.width,h:r.height,sx:r.left+r.width/2,sy:r.top+r.height/2}});
+    nodos.forEach(n=>{n.x=n.sx;n.y=n.sy;n.px=n.x-3.2;n.py=n.y;n.L.style.visibility='hidden';});   // un empujón hacia la derecha
+    const N=nodos.length, largo=[]; for(let i=0;i<N-1;i++)largo.push(nodos[i+1].sx-nodos[i].sx);
+    const mesaY=nodos[0].sy, borde=nodos[N-1].sx+nodos[N-1].w/2;   // el "borde de la mesa": donde acaba el nombre
+    let fase='escurre', t0=performance.now(), A=null, B=null, cogeA=false, cogeB=false, tCol=0;
+    const suelo=()=>innerHeight-14;
+    function cuerda(){
+      const cuelgan=nodos.filter(n=>n.mesa===false).length;   // lo que cuelga por el borde tira del resto, como un collar resbalando de una mesa
+      for(const n of nodos){if(n.fijo)continue;const vx=(n.x-n.px)*.99, vy=(n.y-n.py)*.99;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.35;
+        if(fase==='escurre'&&n.mesa!==false)n.x+=Math.min(2.5,.04*cuelgan*cuelgan);}
+      for(let it=0;it<12;it++){
+        for(let i=0;i<N-1;i++){const a=nodos[i],b=nodos[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,e=(d-largo[i])/d;
+          const wa=a.fijo?0:(b.fijo?1:.5), wb=b.fijo?0:(a.fijo?1:.5);a.x+=dx*e*wa;a.y+=dy*e*wa;b.x-=dx*e*wb;b.y-=dy*e*wb;}
+        for(const n of nodos){if(n.fijo)continue;
+          if(n.x>=borde)n.mesa=false; if(n.mesa===false&&n.x<borde+2&&n.y<mesaY+18)n.x=borde+2;   /* la esquina de la mesa */ if(fase==='escurre'&&n.mesa!==false){n.y=mesaY;n.py=n.y;n.px+=(n.x-n.px)*.002;}   // mientras está sobre la mesa no se levanta: se desliza   // apoyado en la "mesa": se desliza
+          if(n.y>suelo()){n.y=suelo();n.px+=(n.x-n.px)*.2;}
+          if(n.x>innerWidth-8){n.x=innerWidth-8;} if(n.x<8)n.x=8;}}
+    }
+    function dibujaCollar(){nodos.forEach((n,i)=>{const a=nodos[Math.max(0,i-1)],b=nodos[Math.min(N-1,i+1)],ang=Math.atan2(b.y-a.y,b.x-a.x);
+      n.c.style.transform=`translate(${n.x-n.w/2}px,${n.y-n.h/2}px) rotate(${ang}rad)`;});}
+    function paso(ts){
+      const T=(ts-t0)/1000;
+      if(fase==='escurre'){cuerda();const quieto=nodos.every(n=>Math.hypot(n.x-n.px,n.y-n.py)<.4);if(T>6||(T>2.5&&quieto)){fase='rescate';A=crearHado(-1,'i');B=crearHado(1,'d');A.y=azar(innerHeight*.3,innerHeight*.5);B.y=azar(innerHeight*.3,innerHeight*.5);}}
+      else if(fase==='rescate'||fase==='sube'){
+        const a0=nodos[0], aN=nodos[N-1];
+        if(fase==='rescate'){
+          const dA=cogeA?vuela(A,A.ruta[0][0],A.ruta[0][1],4):vuela(A,a0.x,a0.y,6), dB=cogeB?vuela(B,B.ruta[0][0],B.ruta[0][1],4):vuela(B,aN.x,aN.y,6);
+          if(!cogeA&&dA<7){cogeA=true;a0.fijo=true;A.ruta=[[a0.x-30,innerHeight*.45]];}
+          if(!cogeB&&dB<7){cogeB=true;aN.fijo=true;B.ruta=[[aN.x+20,innerHeight*.4]];}
+          if(cogeA&&cogeB){fase='sube';A.ruta=[[a0.sx-40,a0.sy+90],[a0.sx,a0.sy]];B.ruta=[[aN.sx+50,aN.sy+70],[aN.sx,aN.sy]];}}
+        else{let ok=0;for(const h of [A,B]){const [tx,ty]=h.ruta[0],d=vuela(h,tx,ty,h.ruta.length>1?4:3);if(d<14&&h.ruta.length>1)h.ruta.shift();else if(h.ruta.length===1&&d<3)ok++;}
+          if(ok===2){fase='coloca';tCol=ts;}}
+        if(cogeA){[a0.x,a0.y]=manoDe(A);} if(cogeB){[aN.x,aN.y]=manoDe(B);}
+        cuerda();}
+      else if(fase==='coloca'){const k=Math.min(1,(ts-tCol)/350);nodos.forEach(n=>{n.x+=(n.sx-n.x)*k;n.y+=(n.sy-n.y)*k;});
+        if(k>=1){nodos.forEach(n=>{n.L.style.visibility='';n.c.remove();});fase='seVan';}}
+      else if(fase==='seVan'){vuela(A,-80,-CH*P-60,7);vuela(B,innerWidth+80,-CH*P-60,7);
+        if(fuera(A)&&fuera(B)){A.cv.remove();B.cv.remove();fin();return;}}
+      if(fase!=='seVan')dibujaCollar();
+      if(A){pinta(A,ts);pinta(B,ts);}
+      requestAnimationFrame(paso);
+    }
+    requestAnimationFrame(paso);
+  }
+
+  let vez=0;
+  function ciclo(){vez++;const sigue=()=>setTimeout(ciclo,azar(5000,13000));if(vez%3===0)collar(sigue);else unaLetra(sigue);}
   setTimeout(ciclo,4000);
 })();
 </script>
