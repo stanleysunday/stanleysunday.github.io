@@ -275,20 +275,20 @@ function loop() {
   // ── el nombre como un collar: se escurre por la derecha, cae, y dos hados lo suben por los extremos
   function collar(fin){
     const nodos=letras.map(L=>{const r=L.getBoundingClientRect();return {L,c:clonar(L),w:r.width,h:r.height,sx:r.left+r.width/2,sy:r.top+r.height/2}});
-    nodos.forEach(n=>{n.x=n.sx;n.y=n.sy;n.px=n.x-3.2;n.py=n.y;n.L.style.visibility='hidden';});   // un empujón hacia la derecha
+    nodos.forEach(n=>{n.x=n.sx;n.y=n.sy;n.px=n.x;n.py=n.y;n.L.style.visibility='hidden';});   // sin empujón: empieza a resbalar porque se inclina
     const N=nodos.length, largo=[]; for(let i=0;i<N-1;i++)largo.push(nodos[i+1].sx-nodos[i].sx);
-    const mesaY=nodos[0].sy, borde=nodos[N-1].sx+nodos[N-1].w/2;   // el "borde de la mesa": donde acaba el nombre
+    const x0=nodos[0].sx, mesaY=nodos[0].sy, borde=nodos[N-1].sx+nodos[N-1].w/2;   // el "borde de la mesa": donde acaba el nombre
     let fase='escurre', t0=performance.now(), A=null, B=null, cogeA=false, cogeB=false, tCol=0;
     const suelo=()=>innerHeight-14;
     function cuerda(){
-      const cuelgan=nodos.filter(n=>n.mesa===false).length;   // lo que cuelga por el borde tira del resto, como un collar resbalando de una mesa
-      for(const n of nodos){if(n.fijo)continue;const vx=(n.x-n.px)*.99, vy=(n.y-n.py)*.99;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.35;
-        if(fase==='escurre'&&n.mesa!==false)n.x+=Math.min(2.5,.04*cuelgan*cuelgan);}
+      const cuelgan=nodos.filter(n=>n.mesa===false).length, inclina=Math.min(1,(performance.now()-t0)/1800);   // la "mesa" se va inclinando poco a poco   // lo que cuelga por el borde tira del resto, como un collar resbalando de una mesa
+      for(const n of nodos){if(n.fijo)continue;const vx=(n.x-n.px)*.985, vy=(n.y-n.py)*.985;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.18;
+        if(fase==='escurre'&&n.mesa!==false)n.x+=Math.min(.9,.012*cuelgan*cuelgan)+.02*inclina;}
       for(let it=0;it<12;it++){
         for(let i=0;i<N-1;i++){const a=nodos[i],b=nodos[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,e=(d-largo[i])/d;
           const wa=a.fijo?0:(b.fijo?1:.5), wb=b.fijo?0:(a.fijo?1:.5);a.x+=dx*e*wa;a.y+=dy*e*wa;b.x-=dx*e*wb;b.y-=dy*e*wb;}
         for(const n of nodos){if(n.fijo)continue;
-          if(n.x>=borde)n.mesa=false; if(n.mesa===false&&n.x<borde+2&&n.y<mesaY+18)n.x=borde+2;   /* la esquina de la mesa */ if(fase==='escurre'&&n.mesa!==false){n.y=mesaY;n.py=n.y;n.px+=(n.x-n.px)*.002;}   // mientras está sobre la mesa no se levanta: se desliza   // apoyado en la "mesa": se desliza
+          if(n.x>=borde)n.mesa=false; if(n.mesa===false&&n.x<borde+2&&n.y<mesaY+24)n.x=borde+2;   /* la esquina de la mesa */ if(fase==='escurre'&&n.mesa!==false){n.y=mesaY+(n.x-x0)*.09*inclina;n.py=n.y;n.px+=(n.x-n.px)*.002;}   // mientras está sobre la mesa no se levanta: se desliza   // apoyado en la "mesa": se desliza
           if(n.y>suelo()){n.y=suelo();n.px+=(n.x-n.px)*.2;}
           if(n.x>innerWidth-8){n.x=innerWidth-8;} if(n.x<8)n.x=8;}}
     }
