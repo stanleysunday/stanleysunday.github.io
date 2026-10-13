@@ -186,5 +186,76 @@ function loop() {
   ctx.restore();
 }
 </script>
+
+<script>
+/* Pasados 4 s se cae una letra de "Stanley Sunday"; un hado (el de la rana) baja volando, la coge y la vuelve a poner en su sitio.
+   Se repite de vez en cuando con otra letra. No pasa si el sistema pide reducir el movimiento. */
+(function(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const nombre=document.querySelector('#nav .name'); if(!nombre)return;
+  const txt=nombre.textContent; nombre.textContent='';
+  const letras=[...txt].map(ch=>{const sp=document.createElement('span');sp.textContent=ch;sp.style.display='inline-block';if(ch===' ')sp.style.whiteSpace='pre';nombre.appendChild(sp);return sp;});
+  nombre.setAttribute('aria-label',txt);
+
+  // el hado, en píxeles, en su propio lienzo
+  const MAPA=["........HHHHH........","......HHHHHHHHH......",".....HHHHHHHHHHH.....",".....HSSSSSSSSSH.....",".....hSSESSSESSh.....",".....SSSSSsSSSSS.....",".....BSSSSsSSSSB.....",".....BBSSbbbSSBB.....",".....BBBBBBBBBBB.....","......BBBBBBBBB......","..sSSSSBBBBBBBSSSSs..",".SSSSSSSSSSSSSSSSSSS.","SSS.SSSSSSSSSSSSS.SSS","SSS.SSdSSSSSSSdSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SsS.SSSSSSSSSSSSS.SsS","SSS.SSSSSSdSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","sSs.sSSSSSSSSSSSs.sSs","....TTTTTTTTTTTTT....","....TTTTTTtTTTTTT....","....TTTTT...TTTTT....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","...FFFFFF...FFFFFF..."];
+  const P=3, CW=37, CH=31;   // tamaño del píxel y del lienzo (en píxeles del hado)
+  const cv=document.createElement('canvas'); cv.width=CW*P; cv.height=CH*P;
+  cv.style.cssText='position:fixed;left:0;top:0;z-index:3;pointer-events:none;image-rendering:pixelated;will-change:transform;display:none';
+  document.body.appendChild(cv); const g=cv.getContext('2d');
+  const osc=(hex,k)=>{const n=parseInt(hex.slice(1),16),f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;};
+  function dibuja(h,aleteo){
+    g.clearRect(0,0,cv.width,cv.height);
+    const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(Math.round(x)*P,Math.round(y)*P,P,P);};
+    const ab=aleteo?1:.55;
+    for(const l of [-1,1])for(let y=-6;y<=6;y++)for(let x=-8;x<=8;x++){   // alas
+      const cx=18+l*(5*ab+7), cy=8, rx=6*ab+1.2, ry=5, a=l*.45, u=((x)*Math.cos(a)+(y)*Math.sin(a))/rx, v=(-(x)*Math.sin(a)+(y)*Math.cos(a))/ry, d=u*u+v*v;
+      if(d<=1)px(cx+x,cy+y,d>.7?'#2a1a1a':h.ala);}
+    const col={H:h.pelo,h:osc(h.pelo,.75),S:h.piel,s:osc(h.piel,.84),d:osc(h.piel,.62),B:h.pelo,b:osc(h.pelo,.72),E:'#1d1d1d',T:h.pant,t:osc(h.pant,.75),F:'#3b2416'};
+    MAPA.forEach((fila,j)=>{const off=Math.round(Math.sin(performance.now()/300+j*.12)*Math.max(0,(j-10)/18)*1.2);
+      [...fila].forEach((c,i)=>{if(c!=='.')px(8+i+off,1+j,col[c]);});});
+  }
+  const PELOS=['#5a3820','#e2bd5a','#1c1c1c'], ALAS=['#f08cb8','#9be0ff','#ffd15a','#b58cff','#8fe08a'];
+  const azar=(a,b)=>a+Math.random()*(b-a);
+
+  function ciclo(){
+    const cand=letras.filter(l=>l.textContent.trim()); const L=cand[Math.floor(Math.random()*cand.length)];
+    const r=L.getBoundingClientRect();
+    const clon=L.cloneNode(true); const cs=getComputedStyle(nombre);
+    clon.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;margin:0;font:${cs.font};letter-spacing:0;color:#000;z-index:2;pointer-events:none;will-change:transform;display:inline-block;transform-origin:50% 60%`;
+    document.body.appendChild(clon); L.style.visibility='hidden';
+    // 1) cae, rebota y se queda en el suelo
+    let x=0,y=0,vx=azar(-.6,.6),vy=-1.5,rot=0,vr=azar(-6,6),suelo=innerHeight-r.bottom-4,rebotes=0;
+    const h={pelo:PELOS[Math.floor(Math.random()*3)],piel:'#e8b48c',ala:ALAS[Math.floor(Math.random()*ALAS.length)],pant:['#3a6bd0','#d04a3a','#2a2a2a'][Math.floor(Math.random()*3)]};
+    let fase='cae', hx=0, hy=0, t0=0, lado=Math.random()<.5?-1:1, hvx=0, hvy=0;
+    const pon=()=>{clon.style.transform=`translate(${x}px,${y}px) rotate(${rot}deg)`;};
+    function paso(ts){
+      if(fase==='cae'){vy+=.55;x+=vx;y+=vy;rot+=vr;
+        if(y>=suelo){y=suelo;rebotes++;vy=-vy*.38;vx*=.7;vr*=.5;if(rebotes>3||Math.abs(vy)<1.2){vy=0;vr=0;fase='espera';t0=ts;}}
+        x=Math.max(-r.left+4,Math.min(innerWidth-r.right-4,x)); pon();}
+      else if(fase==='espera'){if(ts-t0>900){fase='viene';hx=lado<0?-CW*P:innerWidth+10;hy=azar(innerHeight*.2,innerHeight*.5);cv.style.display='block';}}
+      else{   // el hado vuela; su mano (abajo a la derecha del lienzo) es donde lleva la letra
+        const manoX=hx+27*P, manoY=hy+21*P;
+        let tx,ty;
+        if(fase==='viene'){tx=r.left+x;ty=r.top+y;}
+        else if(fase==='lleva'){tx=r.left;ty=r.top;}
+        else{tx=lado<0?innerWidth+60:-CW*P-60;ty=-CH*P-40;}
+        const dx=tx-manoX, dy=ty-manoY, d=Math.hypot(dx,dy);
+        const vel=fase==='seVa'?7:Math.min(6,d*.08+1.2);
+        hvx+=(dx/(d||1)*vel-hvx)*.12; hvy+=(dy/(d||1)*vel-hvy)*.12; hx+=hvx; hy+=hvy;
+        if(fase==='viene'&&d<6){fase='lleva';}
+        if(fase==='lleva'){x=manoX-r.left;y=manoY-r.top;rot*=.9;pon();
+          if(d<3){L.style.visibility='';clon.remove();fase='seVa';}}
+        if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,azar(30000,50000));return;}
+        dibuja(h,Math.floor(ts/70)%2===0);
+        cv.style.transform=`translate(${Math.round(hx)}px,${Math.round(hy)}px)`;
+      }
+      requestAnimationFrame(paso);
+    }
+    requestAnimationFrame(paso);
+  }
+  setTimeout(ciclo,4000);
+})();
+</script>
 </body>
 </html>
