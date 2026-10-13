@@ -288,7 +288,7 @@ function loop() {
         for(let i=0;i<N-1;i++){const a=nodos[i],b=nodos[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,e=(d-largo[i])/d;
           const wa=a.fijo?0:(b.fijo?1:.5), wb=b.fijo?0:(a.fijo?1:.5);a.x+=dx*e*wa;a.y+=dy*e*wa;b.x-=dx*e*wb;b.y-=dy*e*wb;}
         for(const n of nodos){if(n.fijo)continue;
-          if(n.x>=borde)n.mesa=false; if(n.mesa===false&&n.x<borde+2&&n.y<mesaY+24)n.x=borde+2;   /* la esquina de la mesa */ if(fase==='escurre'&&n.mesa!==false){n.y=mesaY+(n.x-x0)*.09*inclina;n.py=n.y;n.px+=(n.x-n.px)*.002;}   // mientras está sobre la mesa no se levanta: se desliza   // apoyado en la "mesa": se desliza
+          if(n.x>=borde)n.mesa=false; if(n.mesa===false&&n.x<borde+2&&n.y<mesaY+24)n.x=borde+2;   /* la esquina de la mesa */ if(fase==='escurre'&&n.mesa!==false){n.y=mesaY;n.py=n.y;n.px+=(n.x-n.px)*.002;}   // mientras está sobre la mesa no se levanta: se desliza   // apoyado en la "mesa": se desliza
           if(n.y>suelo()){n.y=suelo();n.px+=(n.x-n.px)*.2;}
           if(n.x>innerWidth-8){n.x=innerWidth-8;} if(n.x<8)n.x=8;}}
     }
