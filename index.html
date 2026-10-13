@@ -199,21 +199,25 @@ function loop() {
 
   // el hado, en píxeles, en su propio lienzo
   const MAPA=["........HHHHH........","......HHHHHHHHH......",".....HHHHHHHHHHH.....",".....HSSSSSSSSSH.....",".....hSSESSSESSh.....",".....SSSSSsSSSSS.....",".....BSSSSsSSSSB.....",".....BBSSbbbSSBB.....",".....BBBBBBBBBBB.....","......BBBBBBBBB......","..sSSSSBBBBBBBSSSSs..",".SSSSSSSSSSSSSSSSSSS.","SSS.SSSSSSSSSSSSS.SSS","SSS.SSdSSSSSSSdSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","SsS.SSSSSSSSSSSSS.SsS","SSS.SSSSSSdSSSSSS.SSS","SSS.SSSSSSSSSSSSS.SSS","sSs.sSSSSSSSSSSSs.sSs","....TTTTTTTTTTTTT....","....TTTTTTtTTTTTT....","....TTTTT...TTTTT....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","....SSSSs...sSSSS....","....SSSSS...SSSSS....","...FFFFFF...FFFFFF..."];
-  const P=3, CW=37, CH=31;   // tamaño del píxel y del lienzo (en píxeles del hado)
+  const P=3, CW=41, CH=31, OX=10;   // tamaño del píxel y del lienzo (en píxeles del hado); OX: dónde empieza el cuerpo
   const cv=document.createElement('canvas'); cv.width=CW*P; cv.height=CH*P;
   cv.style.cssText='position:fixed;left:0;top:0;z-index:3;pointer-events:none;image-rendering:pixelated;will-change:transform;display:none';
   document.body.appendChild(cv); const g=cv.getContext('2d');
   const osc=(hex,k)=>{const n=parseInt(hex.slice(1),16),f=c=>Math.round(c*k);return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`;};
-  function dibuja(h,aleteo){
+  const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(Math.round(x)*P,Math.round(y)*P,P,P);};
+  function elipse(cx,cy,rx,ry,rot,color){const cs=Math.cos(rot),sn=Math.sin(rot),m=Math.ceil(Math.max(rx,ry))+1;
+    for(let y=Math.floor(cy-m);y<=cy+m;y++)for(let x=Math.floor(cx-m);x<=cx+m;x++){const X=x+.5-cx,Y=y+.5-cy,u=(X*cs+Y*sn)/rx,v=(-X*sn+Y*cs)/ry;
+      if(u*u+v*v<=1){const c=color(u,v);if(c)px(x,y,c);}}}
+  function dibuja(h,ab){   // ab: apertura de las alas (aleteo)
     g.clearRect(0,0,cv.width,cv.height);
-    const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(Math.round(x)*P,Math.round(y)*P,P,P);};
-    const ab=aleteo?1:.55;
-    for(const l of [-1,1])for(let y=-6;y<=6;y++)for(let x=-8;x<=8;x++){   // alas
-      const cx=18+l*(5*ab+7), cy=8, rx=6*ab+1.2, ry=5, a=l*.45, u=((x)*Math.cos(a)+(y)*Math.sin(a))/rx, v=(-(x)*Math.sin(a)+(y)*Math.cos(a))/ry, d=u*u+v*v;
-      if(d<=1)px(cx+x,cy+y,d>.7?'#2a1a1a':h.ala);}
+    const cx=OX+10.5;
+    for(const l of [-1,1]){   // alas de mariposa: grande arriba, pequeña abajo, con borde oscuro, mancha clara y nervio
+      elipse(cx+l*(5*ab+7),8,6*ab+1.2,5,l*.45,(u,v)=>{const d=u*u+v*v;if(d>.72)return '#2a1a1a';if((u-l*.3)**2+(v+.25)**2<.06)return '#fff4d8';if(Math.abs(v+u*.2)<.08)return osc(h.ala,.72);return d>.45?osc(h.ala,.85):h.ala;});
+      elipse(cx+l*(3.8*ab+7),15,4*ab+1,3.5,l*-.4,(u,v)=>{const d=u*u+v*v;if(d>.62)return '#2a1a1a';return d>.3?osc(h.ala,.8):h.ala;});}
     const col={H:h.pelo,h:osc(h.pelo,.75),S:h.piel,s:osc(h.piel,.84),d:osc(h.piel,.62),B:h.pelo,b:osc(h.pelo,.72),E:'#1d1d1d',T:h.pant,t:osc(h.pant,.75),F:'#3b2416'};
-    MAPA.forEach((fila,j)=>{const off=Math.round(Math.sin(performance.now()/300+j*.12)*Math.max(0,(j-10)/18)*1.2);
-      [...fila].forEach((c,i)=>{if(c!=='.')px(8+i+off,1+j,col[c]);});});
+    const n=MAPA.length, curva=j=>Math.max(0,(j-10)/(n-10));   // cuerpo flexible: cuelga de las alas y las piernas se quedan atrás
+    MAPA.forEach((fila,j)=>{const off=Math.round((h.lean||0)*curva(j)**1.4*5+Math.sin(performance.now()/310+j*.12)*curva(j)*1.2);
+      [...fila].forEach((c,i)=>{if(c!=='.')px(OX+i+off,2+j,col[c]);});});
   }
   const PELOS=['#5a3820','#e2bd5a','#1c1c1c'], ALAS=['#f08cb8','#9be0ff','#ffd15a','#b58cff','#8fe08a'];
   const azar=(a,b)=>a+Math.random()*(b-a);
@@ -235,7 +239,7 @@ function loop() {
         x=Math.max(-r.left+4,Math.min(innerWidth-r.right-4,x)); pon();}
       else if(fase==='espera'){if(ts-t0>900){fase='viene';hx=lado<0?-CW*P:innerWidth+10;hy=azar(innerHeight*.2,innerHeight*.5);cv.style.display='block';}}
       else{   // el hado vuela; su mano (abajo a la derecha del lienzo) es donde lleva la letra
-        const manoX=hx+27*P, manoY=hy+21*P;
+        const manoX=hx+(OX+19+Math.round((h.lean||0)*.3))*P, manoY=hy+22*P;
         let tx,ty;
         if(fase==='viene'){tx=r.left+x;ty=r.top+y;}
         else if(fase==='lleva'){tx=r.left;ty=r.top;}
@@ -247,7 +251,8 @@ function loop() {
         if(fase==='lleva'){x=manoX-r.left;y=manoY-r.top;rot*=.9;pon();
           if(d<3){L.style.visibility='';clon.remove();fase='seVa';}}
         if(fase==='seVa'&&(hy<-CH*P-20||hx<-CW*P-40||hx>innerWidth+40)){cv.style.display='none';setTimeout(ciclo,azar(5000,13000));return;}
-        dibuja(h,Math.floor(ts/70)%2===0);
+        h.lv=(h.lv||0)+(-hvx*.35-(h.lean||0))*.12; h.lv*=.86; h.lean=Math.max(-1.4,Math.min(1.4,(h.lean||0)+h.lv));   // péndulo
+        dibuja(h,Math.floor(ts/70)%2===0?1:.5);
         cv.style.transform=`translate(${Math.round(hx)}px,${Math.round(hy)}px)`;
       }
       requestAnimationFrame(paso);
