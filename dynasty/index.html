@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dynasty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<style>
+  /* Aurora: put "Aurora Condensed Bold.otf" next to this file. Anton is the fallback. */
+  @font-face { font-family: 'Aurora'; src: url('Aurora%20Condensed%20Bold.otf') format('opentype'); font-weight: 700; font-style: normal; }
+  html, body { margin: 0; height: 100%; background: #8a1622; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  #panel { position: fixed; left: 12px; bottom: 12px; display: grid; gap: 8px; padding: 12px 14px; border-radius: 10px;
+    background: rgba(0,0,0,0.78); color: #fed200; font: 13px/1.3 system-ui, sans-serif; min-width: 240px; }
+  #panel[hidden] { display: none; }
+  #panel label { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+  #panel input { grid-column: 1 / -1; width: 100%; accent-color: #fed200; }
+  #panel small { opacity: 0.6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel" hidden>
+  <label>Separación de puntos <span id="gapV"></span><input type="range" id="gap" min="90" max="280" step="5"></label>
+  <label>Tamaño de nombres <span id="textV"></span><input type="range" id="text" min="0.6" max="1.6" step="0.05"></label>
+  <label>Velocidad <span id="speedV"></span><input type="range" id="speed" min="0.3" max="1.3" step="0.05"></label>
+  <small>Tecla A: mostrar / ocultar</small>
+</div>
+<script>
+(() => {
+// ═════════════════════════════════════════════════════════════════
+//  CAST, RELATIONSHIPS AND ENCOUNTERS — edit here
+// ═════════════════════════════════════════════════════════════════
+
+const CAST = ['KRYSTLE', 'ALEXIS', 'BLAKE', 'STEVEN', 'FALLON', 'JEFF', 'CLAUDIA', 'SAMMY\nJO', 'CECIL'];
+
+// While wandering, who drifts toward whom (+) and who keeps away from whom (−).
+const AFF = {
+  JEFF:        { FALLON: 1 },
+  FALLON:      { JEFF: 1, ALEXIS: -0.6 },
+  'SAMMY\nJO': { STEVEN: 0.8 },
+  STEVEN:      { BLAKE: -0.5 },
+  BLAKE:       { KRYSTLE: 0.5, STEVEN: 0.3, CECIL: -0.3 },
+  KRYSTLE:     { BLAKE: 0.4 },
+  CECIL:       { ALEXIS: 0.6 },
+  CLAUDIA:     { BLAKE: 0.3 },
+  ALEXIS:      {},
+};
+
+// Encounters: when a pair is free and close, they hang side by side and say their lines.
+// 'a' / 'b' = who speaks. '|' splits a line into successive bubbles. cd = cooldown in seconds.
+const SCENES = [
+  { id: 'date', a: 'FALLON', b: 'JEFF', low: true, baby: true, cd: [80, 110],
+    lines: [['a', 'I NEED\nYOU'], ['b', "I'M\nHERE"], ['a', 'KISS ME,\nJEFF!'], ['b', 'OH,\nFALLON!'], ['a', "I'M\nPREGNANT"]] },
+  { id: 'man', a: 'BLAKE', b: 'STEVEN', cd: [35, 50],
+    lines: [['a', 'BE A\nMAN!'], ['b', "I'M\nGAY."]] },
+  { id: 'marry', a: 'SAMMY\nJO', b: 'STEVEN', cd: [35, 50],
+    lines: [['a', 'MARRY\nME?'], ['b', 'OK…|STRAIGHT|TILL|SEASON\nTHREE']] },
+  { id: 'daughter', a: 'BLAKE', b: 'FALLON', cd: [30, 45],
+    lines: [['a', 'OH, MY\nDAUGHTER!']] },
+  { id: 'teeth', a: 'ALEXIS', b: 'FALLON', cd: [35, 50],
+    lines: [['a', 'I SEE YOUR|FATHER FIXED|YOUR TEETH…|BUT FORGOT|YOUR TONGUE.']] },
+  // Blake says his line, shoves Alexis: her rope vanishes and she tumbles down the dots like a staircase
+  { id: 'push', a: 'BLAKE', b: 'ALEXIS', push: true, cd: [50, 70],
+    lines: [['a', 'GET OUT,\nALEXIS!']] },
+  { id: 'deal', a: 'CECIL', b: 'BLAKE', cd: [35, 50],
+    lines: [['a', 'WE HAVE\nA DEAL'], ['b', 'LEAVE MY\nFAMILY']] },
+];
+
+// Alexis vs Krystle: how many blows each fight lasts (min, max), and what the one who strikes says.
+const DUEL_HITS = [6, 10];
+const DUEL_LINES = {
+  ALEXIS: ['PATHETIC\nLITTLE FOOL', 'LITTLE\nNOBODY', 'CHEAP\nSUITCASES', 'OUT OF\nMY WAY', 'NEVER A\nCARRINGTON'],
+  KRYSTLE: ['JUST\nWHISTLE!', 'OUT OF\nMY HOUSE', 'BITCH!', 'HANDS\nOFF', 'YOU\nDISGUST ME', 'STAY\nAWAY'],
+};
+
+// ═════════════════════════════════════════════════════════════════
+
+const CFG = { gap: 170, text: 1, speed: 0.85, bg: '#8a1622', ink: '#fed200', quip: '#FF4FA3' };
+try {
+  const s = JSON.parse(localStorage.getItem('dynasty-cfg') || '{}');
+  ['gap', 'text', 'speed'].forEach(k => { if (typeof s[k] === 'number') CFG[k] = s[k]; });
+} catch (e) {}
+const saveCfg = () => { try { localStorage.setItem('dynasty-cfg', JSON.stringify({ gap: CFG.gap, text: CFG.text, speed: CFG.speed })); } catch (e) {} };
+
+const REST = 0.45, THROW_T = 0.18, TUG = 0.3, TUG_T = 0.3;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, COLS = 5, ROWS = 9, SPX = 200, SPY = 200, U = 1, G = 1500, PUMP = 1000, FS = 60;
+let anchors = [];
+let balls = [];
+let quips = [];
+let scene = null, sceneGap = 7, soloT = 14, freeze = 0;
+const cool = {}, rest = {}, follows = [];
+const duel = { phase: 'truce', t: 4, hunter: null, waiter: null, post: null, hits: 0, goal: DUEL_HITS[0] + 2, opened: false };
+
+const FONT = s => `700 ${s}px Aurora, Anton, sans-serif`;
+const linesOf = n => n.split('\n');
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const byName = n => balls.find(b => b.name === n && !b.temp);
+const isRival = b => b.name === 'ALEXIS' || b.name === 'KRYSTLE';
+const anchorAt = (r, c) => anchors.find(a => a.r === r && a.c === c);
+
+// ── layout: the grid follows the window ──────────────────────────
+function measureBall(b) {
+  const s = FS * (b.scale || 1) * (b.born == null ? 1 : Math.max(0.05, b.born));
+  ctx.font = FONT(s);
+  const ls = linesOf(b.name);
+  b.fs = s; b.lh = s * 0.92;
+  b.hw = Math.max(...ls.map(l => ctx.measureText(l).width)) / 2;
+  const m = ctx.measureText(ls[0]);
+  b.th = (m.actualBoundingBoxDescent || s * 0.75) + b.lh * (ls.length - 1);
+}
+function measureFont() {
+  ctx.font = FONT(100);
+  let w = 1;
+  CAST.forEach(n => linesOf(n).forEach(l => { w = Math.max(w, ctx.measureText(l).width); }));
+  FS = 100 * SPX * 1.15 * CFG.text / w;
+  balls.forEach(measureBall);
+}
+function layout() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const gap = Math.min(CFG.gap, Math.max(80, W / 4.2));   // narrow screens always get at least 4 columns
+  COLS = Math.max(3, Math.round(W / gap));
+  ROWS = Math.max(4, Math.round(H / gap));
+  SPX = W / COLS; SPY = H / ROWS;
+  U = (SPX + SPY) / 2 / 215; G = 1500 * U; PUMP = 1000 * U;
+  anchors = [];
+  for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) anchors.push({ x: SPX / 2 + c * SPX, y: SPY / 2 + r * SPY, c, r });
+  measureFont();
+  if (scene) endScene(true);
+  endDuel(2);
+  follows.length = 0;
+  balls.forEach(b => {
+    if (b.temp) return;
+    b.rope = null; b.pending = null; b.goal = null; b.winch = 0; b.goalRelease = false;
+    b.x = clamp(b.x, b.hw, W - b.hw); b.y = clamp(b.y, 0, Math.max(0, H - b.th));
+  });
+}
+
+function makeBall(name, i) {
+  const b = {
+    name, x: W * (0.1 + 0.8 * ((i * 0.618) % 1)), y: H * rnd(0.05, 0.4),
+    vx: rnd(-120, 120) * U, vy: 0, rope: null, pending: null, goal: null,
+    hookT: 0, freeT: 0, freeWait: 0.2 + i * 0.18, dir: i % 2 ? -1 : 1, stallT: 0, tilt: 0,
+  };
+  measureBall(b);
+  return b;
+}
+
+// ── grid helpers ─────────────────────────────────────────────────
+const taken = (a, self) => balls.some(b => b !== self && ((b.rope && b.rope.anchor === a) || (b.pending && b.pending.anchor === a) || (b.busy && b.goal === a)));
+const nearRival = p => balls.some(r => isRival(r) && !r.busy && [r, r.goal, r.rope && r.rope.anchor].some(q => q && Math.abs(p.x - q.x) < SPX * 1.15 && Math.abs(p.y - q.y) < SPY * 1.1));
+const crowded = (a, b) => balls.some(o => o !== b && !isRival(o) && !o.temp && o.rope && o.rope.anchor.r === a.r && Math.abs(o.rope.anchor.c - a.c) <= 1);
+function inScene(p) {
+  if (!scene) return false;
+  const s = scene.spot;
+  if (scene.path && scene.path.some(a => Math.abs(p.x - a.x) < SPX * 1.2 && Math.abs(p.y - a.y) < SPY * 1.1)) return true;
+  if (scene.low) return Math.abs(p.x - s.x) < SPX * 2.2 && p.y > s.y - SPY * 2.2;
+  return Math.abs(p.x - s.x) < SPX * 2.1 && Math.abs(p.y - s.y) < SPY * 1.6;
+}
+
+// ── physics ──────────────────────────────────────────────────────
+function collide(b) {
+  const hw = b.hw, th = b.th;
+  if (b.x < hw) { b.x = hw; b.vx = Math.abs(b.vx) * REST; }
+  if (b.x > W - hw) { b.x = W - hw; b.vx = -Math.abs(b.vx) * REST; }
+  if (b.y < 0) { b.y = 0; b.vy = Math.abs(b.vy) * REST; }
+  if (b.y > H - th) { b.y = H - th; b.vy = -Math.abs(b.vy) * REST; b.vx *= 0.985; }
+}
+function step(b, dt, ghost) {
+  b.vy += G * dt;
+  b.x += b.vx * dt;
+  b.y += b.vy * dt;
+  const rope = b.rope;
+  if (rope) {
+    rope.t += dt;
+    const k = Math.min(1, rope.t / TUG_T);
+    rope.L = rope.L0 * (1 - TUG * (1 - Math.pow(1 - k, 2)));
+    if (b.winch && !ghost) { rope.L0 = Math.max(SPY * 0.6, rope.L0 - b.winch * U * dt); rope.L = Math.min(rope.L, rope.L0); }
+    const dx = b.x - rope.anchor.x, dy = b.y - rope.anchor.y, d = Math.hypot(dx, dy) || 0.001;
+    const sp = Math.hypot(b.vx, b.vy);
+    const cap = b.holdCap || Infinity;
+    if (sp > 20 * U && rope.t > 0.15 && sp < cap) { b.vx += (b.vx / sp) * PUMP * dt; b.vy += (b.vy / sp) * PUMP * dt; }
+    if (d > rope.L) {
+      const nx = dx / d, ny = dy / d;
+      b.x = rope.anchor.x + nx * rope.L;
+      b.y = rope.anchor.y + ny * rope.L;
+      const vr = b.vx * nx + b.vy * ny;
+      if (vr > 0) { b.vx -= vr * nx; b.vy -= vr * ny; }
+    }
+  }
+  collide(b);
+}
+
+// ── choosing where to throw the rope ─────────────────────────────
+function pickToward(b, goal) {
+  const dg = dist(b, goal);
+  if (b.rush && !taken(goal, b) && dg > 100 * U) return goal;
+  if (!taken(goal, b) && dg > 100 * U && dg < 700 * U && goal.y < b.y + 300 * U && Math.abs(goal.x - b.x) > 20 * U) return goal;
+  let best = null, bs = Infinity;
+  for (const a of anchors) {
+    if (taken(a, b) || (!b.busy && inScene(a))) continue;
+    const d = dist(a, b), dy = a.y - b.y;
+    if (d < 130 * U || d > 520 * U || dy > 120 * U || Math.abs(a.x - b.x) < 30 * U) continue;
+    const s = dist(a, goal) / (200 * U) + Math.abs(d - 280 * U) / (400 * U) + Math.random() * 0.25;
+    if (s < bs) { bs = s; best = a; }
+  }
+  return best;
+}
+function pickWander(b, strict) {
+  const zone = duel.phase !== 'truce' && duel.waiter ? { x: duel.waiter.x, y: duel.waiter.y } : null;
+  const rival = isRival(b) ? balls.find(o => o !== b && isRival(o)) : null;
+  const aff = AFF[b.name] || {};
+  const others = Object.keys(aff).map(n => [byName(n), aff[n]]).filter(p => p[0]);
+  let best = null, bs = Infinity;
+  for (const a of anchors) {
+    if (taken(a, b)) continue;
+    if (!b.busy && inScene(a)) continue;
+    if (strict && !isRival(b) && (nearRival(a) || crowded(a, b))) continue;
+    const dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
+    const high = b.y < H * 0.42;
+    if (dy > (high ? 60 : -40) * U) continue;
+    const maxL = (rival ? 520 : 400) * U, ideal = (rival ? 240 : 220) * U;
+    if (d < 100 * U || d > maxL || Math.abs(dx) < 30 * U) continue;
+    let s = Math.abs(d - ideal) / ideal;
+    s -= (dx * b.dir > 0 ? 1.2 : 0);
+    s -= (-dy / H) * (b.y > H * 0.55 ? 3 : 1.6);
+    if (zone && !rival) { const dz = dist(a, zone); if (dz < 430 * U) s += (430 * U - dz) / (110 * U); }
+    if (rival && duel.phase === 'truce') s -= Math.min(dist(a, rival), 900 * U) / (400 * U);
+    for (const [o, w] of others) {
+      const dd = dist(a, o);
+      s += w > 0 ? w * dd / (600 * U) : -w * Math.max(0, 500 * U - dd) / (250 * U);
+    }
+    s += Math.random() * 0.6;
+    if (s < bs) { bs = s; best = a; }
+  }
+  if (!best && strict) return pickWander(b, false);
+  return best;
+}
+
+// ── one name, one frame ──────────────────────────────────────────
+function advance(b, dt) {
+  if (b.temp) {
+    b.born = Math.min(1, (b.born || 0) + dt * 2.5);
+    b.life -= dt;
+    if (b.life <= 0 && !b.leaving) { b.leaving = true; b.tether = null; }
+    if (b.leaving) { b.vy += G * dt; b.x += b.vx * dt; b.y += b.vy * dt; return; }
+  }
+  if (b.stairs) {   // tumbling down the dots, one step at a time
+    const st = b.stairs, a = st.path[st.i];
+    st.t += dt;
+    const u = Math.min(1, st.t / st.dur);
+    const tx = a.x, ty = a.y - b.th - 2 * U;
+    b.x = clamp(st.fx + (tx - st.fx) * u, b.hw, W - b.hw);
+    b.y = st.fy + (ty - st.fy) * u - Math.sin(Math.PI * u) * SPY * 0.35;
+    b.tilt = (Math.sign(tx - st.fx) || 1) * 0.35 * Math.sin(Math.PI * u);
+    b.vx = 0; b.vy = 0;
+    if (u >= 1) {
+      st.i++; st.fx = b.x; st.fy = b.y; st.t = 0;
+      if (st.i >= st.path.length) { b.stairs = null; b.vx = st.dir * 220 * U; b.vy = -150 * U; b.freeT = 0; b.freeWait = 0.6; }
+    }
+    return;
+  }
+  if (b.tether) {   // little pendulum hanging from the bottom of the parent's name
+    const P = b.tether;
+    if (balls.indexOf(P) < 0) { b.tether = null; b.leaving = true; return; }
+    const px = P.x, py = P.y + P.th + 6 * U;
+    b.vy += G * dt; b.vx *= 0.995; b.vy *= 0.995;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    const dx = b.x - px, dy = b.y - py, d = Math.hypot(dx, dy) || 1;
+    if (d > b.tL) {
+      const nx = dx / d, ny = dy / d;
+      b.x = px + nx * b.tL; b.y = py + ny * b.tL;
+      const vn = b.vx * nx + b.vy * ny;
+      if (vn > 0) { b.vx -= vn * nx; b.vy -= vn * ny; }
+      b.vx += P.vx * 0.05;
+    }
+    if (b.y > H - b.th - 4) { b.y = H - b.th - 4; b.vy = Math.min(0, b.vy); }
+    b.tilt = -Math.atan2(b.x - px, b.y - py) * 0.6;
+    return;
+  }
+  const holding = !!(b.goal && b.rope && b.rope.anchor === b.goal);
+  b.holdCap = holding ? 620 * U : 0;
+  for (let i = 0; i < 4; i++) step(b, dt / 4);
+  const spd = Math.hypot(b.vx, b.vy);
+  const margin = Math.max(SPX * 1.1, b.hw + SPX * 0.35);
+  if (b.x > W - margin) b.dir = -1;
+  if (b.x < margin) b.dir = 1;
+  b.stallT = spd < 40 * U ? b.stallT + dt : 0;
+
+  if (b.pending) {
+    b.pending.t += dt;
+    if (b.pending.t >= THROW_T) {
+      const L = Math.max(SPY * 0.3, dist(b, b.pending.anchor));
+      b.rope = { anchor: b.pending.anchor, L0: L, L, t: 0 };
+      b.pending = null; b.hookT = 0; b.stallT = 0;
+    }
+    return;
+  }
+  if (b.rope) {
+    b.hookT += dt;
+    if (holding) {
+      if (b.goalRelease && b.hookT > 0.8) { b.goal = null; b.winch = 0; b.rush = false; b.goalRelease = false; return; }
+      if (!b.busy) {
+        if (spd > 620 * U) { b.vx *= 620 * U / spd; b.vy *= 620 * U / spd; }
+        if (spd < 60 * U) b.vx += b.dir * 250 * U;
+      }
+      return;
+    }
+    if (b.goal && b.goal.y > b.y + 260 * U) { b.rope = null; b.freeT = 0; b.freeWait = 0.05; return; }
+    if (b.goal) {
+      const toward = (b.goal.x - b.x) * b.vx + (b.goal.y - b.y) * b.vy > 0;
+      if ((b.hookT > 0.45 && toward && spd > 250 * U) || b.hookT > 2.4) { b.rope = null; b.freeT = 0; b.freeWait = 0.12; }
+      return;
+    }
+    const rising = b.vy < -80 * U, above = b.y < b.rope.anchor.y + b.rope.L * 0.75;
+    const post = duel.phase !== 'truce' ? duel.post : null;
+    const inZone = (post && !isRival(b) && b.hookT > 0.4 && dist(b, post) < 440 * U) || (scene && b.hookT > 0.4 && inScene(b));
+    if (inZone || (b.hookT > 0.5 && rising && above) || b.hookT > 2.6 || (b.hookT > 1 && b.stallT > 0.8)) {
+      b.rope = null; b.freeT = 0;
+      b.freeWait = (b.y < H * 0.42 ? 0.45 : 0.2) + Math.random() * 0.5;
+      b.stallT = 0;
+    }
+  } else {
+    b.freeT += dt;
+    const onFloor = b.y > H - b.th - 4;
+    if (b.freeT > b.freeWait || (onFloor && b.freeT > 0.15) || b.stallT > 0.6) {
+      if (b.goal && b.goal.y > b.y + 260 * U && !onFloor) { b.freeT = 0; return; }
+      if (onFloor && scene && !b.busy && inScene(b)) { b.vy = -1000 * U; b.vx = (b.x < scene.spot.x ? -1 : 1) * 420 * U; b.freeT = 0; return; }
+      const t = (b.goal && pickToward(b, b.goal)) || pickWander(b, true);
+      if (t) { b.pending = { anchor: t, t: 0 }; b.stallT = 0; }
+      else if (onFloor) { b.vy = -700 * U; b.vx += b.dir * 160 * U; }
+      b.freeT = 0;
+    }
+  }
+}
+
+// ── speech bubbles ───────────────────────────────────────────────
+function say(who, text, sc) {
+  const parts = text.split('|');
+  quips.push({ who, text: parts[0], rest: parts.slice(1), t: 0, dur: parts.length > 1 ? 0.95 : 1.6, scene: sc || null, duel: false });
+}
+function duelSay(who) {
+  const pool = DUEL_LINES[who.name] || []; if (!pool.length) return;
+  let text = pool[Math.floor(Math.random() * pool.length)];
+  if (text === who.lastQuip && pool.length > 1) text = pool[(pool.indexOf(text) + 1) % pool.length];
+  who.lastQuip = text;
+  quips = quips.filter(q => !q.duel);
+  quips.push({ who, text, rest: [], t: 0, dur: 1.6, scene: null, duel: true });
+}
+const talking = o => quips.some(q => q.who === o);
+
+// ── Alexis vs Krystle: the permanent background fight ────────────
+function endDuel(t) {
+  balls.forEach(b => { if (b.role) { b.role = null; if (!b.busy) b.goal = null; } });
+  duel.phase = 'truce'; duel.t = t; duel.post = null; duel.hunter = duel.waiter = null;
+}
+const clearance = a => {
+  const o = balls.filter(b => !isRival(b) && !b.temp);
+  return o.length ? Math.min(...o.map(b => dist(a, { x: b.x, y: b.y + b.th / 2 }))) : 2000;
+};
+function choosePerch(h, w, near) {
+  let best = null, bs = Infinity;
+  for (const a of anchors) {
+    if (!(near ? a.y < w.y - 150 * U && a.r <= ROWS - 3 : a.r <= 2)) continue;
+    if (taken(a, h) || dist(a, w) < 350 * U || inScene(a)) continue;
+    const s = (near ? dist(a, w) / (300 * U) : -Math.abs(a.x - W / 2) / (300 * U) - dist(a, w) / (900 * U))
+      - Math.min(clearance(a), 600 * U) / (300 * U) + Math.random() * 0.7;
+    if (s < bs) { bs = s; best = a; }
+  }
+  return best;
+}
+function startRound(h, w, near) {
+  const p = choosePerch(h, w, near) || choosePerch(h, w, !near);
+  duel.hunter = h; duel.waiter = w;
+  if (!p) { duel.phase = 'recoil'; duel.t = 0.6; return; }   // no perch free right now: the fight goes on, try again
+  duel.post = p;
+  h.goal = p; w.goal = null; h.role = 'hunter'; w.role = 'waiter';
+  duel.phase = 'approach'; duel.t = 3.5;
+}
+function predict(b, T) {
+  const c = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, hw: b.hw, th: b.th, holdCap: b.holdCap, rope: b.rope ? { ...b.rope } : null };
+  const n = Math.min(120, Math.ceil(T / 0.008));
+  for (let i = 0; i < n; i++) step(c, T / n, true);
+  return c;
+}
+function launch(h, w) {
+  const T = clamp(dist(h, w) / (2600 * U), 0.2, 0.42);
+  const p = predict(w, T);
+  h.rope = null; h.pending = null;
+  h.vx = (p.x - h.x) / T;
+  h.vy = (p.y - h.y - 0.5 * G * T * T) / T;
+  h.freeT = 0; h.freeWait = T + 0.35; h.goal = null;
+  duel.phase = 'dive'; duel.t = T + 0.45;
+}
+function director(dt) {
+  const A = byName('ALEXIS'), K = byName('KRYSTLE');
+  if (!A || !K || scene) { if (duel.phase !== 'truce') endDuel(rnd(3, 5)); return; }
+  duel.t -= dt;
+  const h = duel.hunter, w = duel.waiter;
+  if (duel.phase === 'truce') {
+    if (duel.t <= 0) { const first = Math.random() < 0.5 ? A : K; startRound(first, first === A ? K : A, false); }
+    return;
+  }
+  if (duel.phase === 'approach') {
+    if (!h.goal) h.goal = duel.post;
+    if (h.rope && h.rope.anchor === duel.post && h.hookT > 0.25) { duel.phase = 'watch'; duel.t = rnd(0.3, 0.9); }
+    else if (!h.rope && !h.pending && dist(h, w) < 700 * U && (w.x - h.x) * h.vx > 0 && h.y < w.y - 100 * U) launch(h, w);
+    else if (duel.t <= 0) startRound(h, w, true);
+    return;
+  }
+  if (duel.phase === 'watch') {
+    const d = dist(h, w), rising = w.vy < -120 * U && w.rope;
+    const toward = (w.x - h.x) * h.vx > 0;
+    if (d > 260 * U && d < 1250 * U && (rising || w.vy < 0 || !w.rope) && toward) { launch(h, w); return; }
+    if (duel.t <= 0) { if (d < 1250 * U) launch(h, w); else startRound(h, w, true); }
+    return;
+  }
+  if (duel.phase === 'dive') {
+    const hy = h.y + h.th / 2, wy = w.y + w.th / 2;
+    const touch = Math.abs(h.x - w.x) < h.hw + w.hw - 20 * U && Math.abs(hy - wy) < (h.th + w.th) / 2 - 10 * U;
+    if (touch) {
+      freeze = 0.07;
+      w.vx = w.vx * 0.5 + h.vx * 0.22; w.vy = w.vy * 0.5 + h.vy * 0.22;
+      h.vx *= -0.3; h.vy *= -0.3;
+      h.freeT = 0; h.freeWait = 0.15;
+      w.wheel = { t: 0, dur: 1.3 };
+      duelSay(h);
+      duel.hits++; duel.opened = true;
+      duel.phase = 'recoil'; duel.t = 0.3;
+    } else if (duel.t <= 0) startRound(h, w, true);
+    return;
+  }
+  if (duel.phase === 'recoil' && duel.t <= 0) {
+    if (duel.hits >= duel.goal) { duel.hits = 0; duel.goal = DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1)); endDuel(rnd(6, 10)); sceneGap = Math.min(sceneGap, 1.5); }
+    else startRound(w, h, false);
+  }
+}
+function scatter(dt) {
+  if (!(duel.phase === 'dive' || duel.phase === 'watch') || !duel.hunter || !duel.waiter) return;
+  const h = duel.hunter, w = duel.waiter, diving = duel.phase === 'dive';
+  const mx = diving ? (h.x + w.x) / 2 : w.x, my = diving ? (h.y + w.y) / 2 : w.y + w.th / 2;
+  const push = (diving ? 900 : 260) * U, R = 620 * U;
+  balls.forEach(b => {
+    if (isRival(b) || b.busy || b.temp) return;
+    const d = dist(b, { x: mx, y: my });
+    if (d > R) return;
+    if (b.rope && b.hookT > (diving ? 0.1 : 0.35)) { b.rope = null; b.freeT = 0; b.freeWait = diving ? 0.4 : 0.25; }
+    const k = (R - d) / R;
+    b.vx += (b.x - mx) / (d || 1) * push * k * dt * 60 / 60;
+    if (diving) b.vy -= 500 * U * k * dt;
+  });
+}
+function boxes(a, b) {
+  const ox = a.hw + b.hw - Math.abs(a.x - b.x);
+  const ay = a.y + a.th / 2, by = b.y + b.th / 2;
+  const oy = (a.th + b.th) / 2 - Math.abs(ay - by);
+  return ox > 0 && oy > 0 ? { ox, oy, ay, by } : null;
+}
+function shove() {
+  if (!duel.opened) return;
+  [byName('ALEXIS'), byName('KRYSTLE')].forEach(r => {
+    if (!r || r.busy) return;
+    balls.forEach(b => {
+      if (isRival(b) || b.busy || b.temp) return;
+      const o = boxes(r, b); if (!o) return;
+      if (o.ox < o.oy) { const sg = b.x < r.x ? -1 : 1; b.x += sg * o.ox; b.vx = sg * Math.max(Math.abs(r.vx) * 0.9, 380 * U); }
+      else { const sg = o.by < o.ay ? -1 : 1; b.y += sg * o.oy; b.vy = sg * Math.max(Math.abs(r.vy) * 0.9, 380 * U); }
+      if (b.rope) { b.rope = null; b.freeT = 0; b.freeWait = 0.5; }
+      if (b.name === 'BLAKE' && r.name === 'ALEXIS') { r.vx += (r.x - b.x > 0 ? 420 : -420) * U; r.vy -= 200 * U; }   // Blake pushes back
+    });
+  });
+}
+function bump() {
+  const a = byName('ALEXIS'), b = byName('KRYSTLE');
+  if (!a || !b || duel.phase === 'dive' || a.busy || b.busy) return;
+  const o = boxes(a, b); if (!o) return;
+  if (o.ox < o.oy) {
+    const s = a.x < b.x ? -1 : 1;
+    a.x += s * o.ox / 2; b.x -= s * o.ox / 2;
+    const rv = a.vx - b.vx; if (rv * s < 0) { a.vx -= rv * 0.7; b.vx += rv * 0.7; }
+  } else {
+    const s = o.ay < o.by ? -1 : 1;
+    a.y += s * o.oy / 2; b.y -= s * o.oy / 2;
+    const rv = a.vy - b.vy; if (rv * s < 0) { a.vy -= rv * 0.7; b.vy += rv * 0.7; }
+  }
+}
+
+// names don't pile up on each other: overlapping boxes ease apart
+function separate(dt) {
+  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+    const a = balls[i], b = balls[j];
+    if (a.leaving || b.leaving || a.tether === b || b.tether === a) continue;
+    if (isRival(a) && isRival(b)) continue;                       // the duel handles its own contact
+    if (a.busy && a.busy === b.busy) continue;                    // a scene pair keeps its own spacing
+    const o = boxes(a, b); if (!o) continue;
+    if (o.ox < o.oy) {
+      const s = a.x < b.x ? -1 : 1, push = o.ox * 0.5;
+      if (!a.busy) { a.x += s * push; a.vx += s * 1400 * U * dt; }
+      if (!b.busy) { b.x -= s * push; b.vx -= s * 1400 * U * dt; }
+    } else {
+      const s = o.ay < o.by ? -1 : 1, push = o.oy * 0.5;
+      if (!a.busy) { a.y += s * push; a.vy += s * 1400 * U * dt; }
+      if (!b.busy) { b.y -= s * push; b.vy -= s * 1400 * U * dt; }
+    }
+  }
+}
+
+// ── encounters ───────────────────────────────────────────────────
+function eligible(sc) {
+  if ((cool[sc.id] || 0) > 0) return null;
+  const A = byName(sc.a), B = byName(sc.b);
+  if (!A || !B || A.busy || B.busy || (rest[sc.a] || 0) > 0 || (rest[sc.b] || 0) > 0) return null;
+  if (duel.phase === 'dive' && (isRival(A) || isRival(B))) return null;
+  if (sc.baby && balls.some(o => o.temp)) return null;
+  return [A, B];
+}
+function sceneStep(dt) {
+  for (const k in cool) cool[k] -= dt;
+  for (const k in rest) rest[k] -= dt;
+  if (scene) { runScene(dt); return; }
+  sceneGap -= dt;
+  if (duel.phase !== 'truce') { sceneGap = Math.max(sceneGap, 1); return; }   // nobody interrupts a catfight
+  if (sceneGap > 2.5) return;
+  let best = null, bs = Infinity;
+  for (const sc of SCENES) {
+    const p = eligible(sc); if (!p) continue;
+    const d = dist(p[0], p[1]) * rnd(0.85, 1.15);
+    if (d < bs) { bs = d; best = { sc, p }; }
+  }
+  if (!best) { if (sceneGap <= 0) sceneGap = 2; return; }
+  // a pair that has drifted close starts a bit early; otherwise the closest pair goes when the gap is up
+  if (sceneGap <= 0 || bs < SPX * 1.6) startScene(best.sc, best.p[0], best.p[1]);
+}
+function targetL(o) {
+  return scene.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
+}
+function startScene(sc, A, B) {
+  const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
+  const row = sc.low ? ROWS - 2 : clamp(Math.round(midY / SPY - 0.5) - 1, 0, ROWS - 3);
+  const gap = 2;
+  const c0 = clamp(Math.round(midX / SPX - 0.5 - gap / 2), 0, COLS - 1 - gap);
+  const left = anchorAt(row, c0), right = anchorAt(row, c0 + gap);
+  if (!left || !right) { cool[sc.id] = 5; return; }
+  const [L, R] = A.x <= B.x ? [A, B] : [B, A];
+  balls.forEach(o => {
+    if (o === A || o === B) return;
+    if (o.rope && (o.rope.anchor === left || o.rope.anchor === right)) { o.rope = null; o.freeT = 0; o.freeWait = 0.2; }
+    if (o.pending && (o.pending.anchor === left || o.pending.anchor === right)) o.pending = null;
+  });
+  [[L, left], [R, right]].forEach(([o, a]) => {
+    o.busy = sc.id; o.goal = a; o.role = null; o.rope = null; o.pending = { anchor: a, t: 0 };
+    o.hookT = 0; o.freeT = 0; o.goalRelease = false; o.winch = 0; o.rush = false;
+  });
+  scene = { sc, A, B, L, R, phase: 'approach', t: 0, hold: 0, li: 0, wait: 0, endT: null, babyBorn: false,
+    spot: { x: (left.x + right.x) / 2, y: left.y + SPY * 0.8 }, low: !!sc.low };
+  if (duel.phase !== 'truce') endDuel(rnd(3, 5));
+}
+function runScene(dt) {
+  const s = scene;
+  s.t += dt;
+  const pair = [s.L, s.R];
+  if (pair.some(o => balls.indexOf(o) < 0) || s.t > 30) { endScene(true); return; }
+  // ropes ease to their scene length
+  pair.forEach(o => {
+    if (o.stairs || s.pushed && o === s.B) return;
+    if (!o.rope && !o.pending) o.pending = { anchor: o.goal, t: 0 };
+    if (o.rope && o.rope.anchor === o.goal && o.rope.t > TUG_T) {
+      const want = targetL(o) / (1 - TUG);
+      o.rope.L0 += (want - o.rope.L0) * Math.min(1, dt * 2.5);
+    }
+  });
+  // everyone else clears the space
+  balls.forEach(o => {
+    if (o.busy || o.tether || o.leaving) return;
+    const anchorIn = o.rope && inScene(o.rope.anchor);
+    if (!inScene(o) && !anchorIn) return;
+    if (anchorIn) { o.rope = null; o.freeT = 0; o.freeWait = 0.1; }
+    const refX = (pair.find(p => p.stairs) || s.spot).x;
+    o.vx += (o.x < refX ? -1 : 1) * 900 * U * dt;
+    o.vy -= (s.low ? 2200 : 900) * U * dt;
+  });
+  if (s.phase === 'approach') {
+    const ready = pair.every(o => o.rope && o.rope.anchor === o.goal && Math.abs(o.rope.L0 * (1 - TUG) - targetL(o)) < SPY * 0.25);
+    if (ready || s.t > 4) { s.phase = 'talk'; s.hold = 0; }
+    return;
+  }
+  s.hold += dt;
+  // side by side, mirrored sway; the one talking leans in
+  const ph = Math.sin(s.hold * Math.PI * 2 / 2.6) * Math.min(1, s.hold / 1.2);
+  pair.forEach((o, i) => {
+    if (!o.goal || o.stairs || (s.pushed && o === s.B)) return;
+    const side = i === 0 ? 1 : -1;
+    const tx = o.goal.x + side * (SPX * 0.2 * ph + (talking(o) ? SPX * 0.12 : 0));
+    o.vx += ((tx - o.x) * 5 - o.vx * 2.2) * dt;
+    const want = talking(o) ? side * 0.16 : side * 0.05 * ph;
+    o.roofTilt = (o.roofTilt || 0) + (want - (o.roofTilt || 0)) * Math.min(1, dt * 5);
+    const sp = Math.hypot(o.vx, o.vy);
+    if (sp > 300 * U) { o.vx *= 300 * U / sp; o.vy *= 300 * U / sp; }
+  });
+  if (!s.pushed) { const need = s.L.hw + s.R.hw + 30 * U, dx = s.R.x - s.L.x; if (dx < need) { const f = (need - dx) * 6 * dt; s.L.vx -= f; s.R.vx += f; } }
+  // the lines, one after another
+  const busyTalking = quips.some(q => q.scene === s);
+  if (!busyTalking) s.wait -= dt;
+  const lines = s.sc.lines;
+  if (s.li < lines.length) {
+    const clear = !balls.some(o => !o.busy && !o.temp && inScene(o));
+    if (!busyTalking && s.wait <= 0 && (s.li > 0 || (s.hold > 0.4 && clear) || s.hold > 1.6)) {
+      const [who, text] = lines[s.li++];
+      say(who === 'a' ? s.A : s.B, text, s);
+      s.wait = 0.25;
+    }
+    return;
+  }
+  if (busyTalking) return;
+  if (s.sc.push) {
+    if (!s.pushed) { s.pushed = true; startStairs(s.B, s.A); s.endT = Infinity; return; }
+    if (s.B.stairs) return;
+    if (s.endT === Infinity) s.endT = s.hold + 0.8;
+  }
+  if (s.sc.baby && !s.babyBorn) { s.babyBorn = true; spawnBaby(s.A); s.endT = s.hold + 2.4; }
+  if (s.endT == null) s.endT = s.hold + 1.0;
+  if (s.hold >= s.endT) endScene(false);
+}
+function endScene(abort) {
+  const s = scene; if (!s) return;
+  scene = null;
+  [s.L, s.R].forEach(o => { o.busy = null; o.goal = null; o.roofTilt = null; rest[o.name] = rnd(8, 12); });
+  quips = quips.filter(q => q.scene !== s);
+  cool[s.sc.id] = rnd(...(s.sc.cd || [30, 45]));
+  sceneGap = rnd(5, 9);
+  if (!abort && s.sc.baby) {   // Fallon climbs a couple of rows with the baby; Jeff follows
+    const F = s.A, J = s.B;
+    const r = Math.max(1, ROWS - 4);
+    const up = anchors.filter(a => a.r === r && !taken(a, F)).sort((p, q) => Math.abs(p.x - F.x) - Math.abs(q.x - F.x))[0];
+    if (up) {
+      F.goal = up; F.rush = true; F.winch = 240; F.goalRelease = true; F.rope = null; F.pending = { anchor: up, t: THROW_T * 0.5 };
+      const jn = anchors.filter(a => a.r === up.r && Math.abs(a.c - up.c) === 2 && !taken(a, J)).sort((p, q) => Math.abs(p.x - J.x) - Math.abs(q.x - J.x))[0];
+      if (jn) follows.push({ b: J, a: jn, t: 0.8 });
+    }
+  }
+}
+// the shove: the victim's rope vanishes and she drops dot by dot, one row down and one column across each step
+function startStairs(v, p) {
+  let dir = v.x >= p.x ? 1 : -1;
+  const a0 = v.goal || (v.rope && v.rope.anchor);
+  const path = [];
+  if (a0) {
+    let c = a0.c;
+    for (let r = a0.r + 1; r < ROWS; r++) {
+      let nc = c + dir;
+      if (nc < 0 || nc >= COLS) { dir = -dir; nc = c + dir; }
+      c = nc; path.push(anchorAt(r, c));
+    }
+  }
+  v.rope = null; v.pending = null; v.goal = null;
+  p.vx += (v.x > p.x ? 1 : -1) * 500 * U;   // Blake lunges into the shove
+  p.roofTilt = (v.x > p.x ? 1 : -1) * 0.25;
+  freeze = 0.08;
+  if (!path.length) { v.vx = dir * 600 * U; return; }
+  v.stairs = { path, i: 0, t: 0, dur: 0.34, fx: v.x, fy: v.y, dir };
+  scene.path = path;
+}
+function spawnBaby(F) {
+  const b = { name: 'LITTLE\nBLAKE', temp: true, scale: 0.6, born: 0, life: 40, tether: F, tL: 150 * U,
+    x: F.x, y: F.y + F.th + 20 * U, vx: F.vx, vy: 0, tilt: 0, rope: null, pending: null, goal: null,
+    hookT: 0, freeT: 0, freeWait: 1, dir: 1, stallT: 0 };
+  measureBall(b);
+  balls.push(b);
+}
+function followStep(dt) {
+  for (let i = follows.length - 1; i >= 0; i--) {
+    const f = follows[i]; f.t -= dt;
+    if (f.t > 0) continue;
+    follows.splice(i, 1);
+    const b = f.b;
+    if (b.busy || balls.indexOf(b) < 0 || taken(f.a, b)) continue;
+    b.goal = f.a; b.rush = true; b.winch = 260; b.goalRelease = true; b.rope = null; b.pending = { anchor: f.a, t: THROW_T * 0.5 };
+  }
+}
+function soloStep(dt) {   // Claudia, alone, asks after her daughter
+  soloT -= dt;
+  if (soloT > 0) return;
+  const C = byName('CLAUDIA');
+  if (!C || scene || C.busy || !C.rope || Math.hypot(C.vx, C.vy) > 260 * U) { soloT = 2; return; }
+  say(C, 'WHERE IS\nLINDSAY?');
+  soloT = rnd(22, 34);
+}
+
+function updFx(dt, raw) {
+  balls.forEach(b => {
+    if (b.wheel) { b.wheel.t += dt; if (b.wheel.t >= b.wheel.dur) b.wheel = null; }
+    if (b.tether || b.leaving || b.stairs) return;
+    const diving = duel.phase === 'dive' && b === duel.hunter;
+    const want = b.roofTilt != null ? b.roofTilt
+      : diving ? clamp(Math.atan2(b.vy, Math.abs(b.vx) + 200 * U) * (b.vx < 0 ? -1 : 1), -0.6, 0.6) : 0;
+    b.tilt = (b.tilt || 0) + (want - (b.tilt || 0)) * Math.min(1, dt * (diving ? 18 : 7));
+  });
+  for (let i = quips.length - 1; i >= 0; i--) {
+    const q = quips[i]; q.t += raw;
+    if (balls.indexOf(q.who) < 0) { quips.splice(i, 1); continue; }
+    if (q.t > q.dur) {
+      if (q.rest.length) { q.text = q.rest.shift(); q.t = 0; q.dur = q.rest.length ? 0.95 : 1.4; }
+      else quips.splice(i, 1);
+    }
+  }
+}
+
+// ── drawing ──────────────────────────────────────────────────────
+function draw() {
+  ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
+  const ink = CFG.ink, dotR = Math.max(3, SPX * 0.037), lw = Math.max(2, SPX * 0.028);
+  ctx.fillStyle = ink;
+  anchors.forEach(a => { ctx.beginPath(); ctx.arc(a.x, a.y, dotR, 0, Math.PI * 2); ctx.fill(); });
+  ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  balls.forEach(b => {
+    if (b.rope) {
+      const a = b.rope.anchor, slack = Math.max(0, b.rope.L - dist(a, b));
+      ctx.beginPath(); ctx.moveTo(a.x, a.y);
+      if (slack > 2) ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 + slack * 1.1, b.x, b.y);
+      else ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    if (b.tether) {
+      const P = b.tether;
+      ctx.save(); ctx.lineWidth = lw * 0.5;
+      ctx.beginPath(); ctx.moveTo(P.x, P.y + P.th + 6 * U); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.restore();
+    }
+    if (b.pending) {
+      const u = Math.min(1, b.pending.t / THROW_T), k = 1 - Math.pow(1 - u, 3);
+      ctx.beginPath(); ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x + (b.pending.anchor.x - b.x) * k, b.y + (b.pending.anchor.y - b.y) * k);
+      ctx.stroke();
+    }
+  });
+  ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  balls.forEach(b => {
+    measureBall(b);
+    ctx.font = FONT(b.fs);
+    const wheel = b.wheel ? (() => { const u = b.wheel.t / b.wheel.dur; return 0.5 * Math.sin(u * Math.PI * 5) * (1 - u); })() : 0;
+    const rot = (b.tilt || 0) + wheel;
+    ctx.save();
+    if (Math.abs(rot) > 0.005) { const cy = b.y + b.th / 2; ctx.translate(b.x, cy); ctx.rotate(rot); ctx.translate(-b.x, -cy); }
+    linesOf(b.name).forEach((l, i) => ctx.fillText(l, b.x, b.y + i * b.lh));
+    ctx.restore();
+  });
+  ctx.fillStyle = CFG.quip;
+  quips.forEach(q => {
+    const u = q.t / q.dur, pop = u < 0.08 ? u / 0.08 : u > 0.9 ? (1 - u) / 0.1 : 1;
+    const fs = Math.round(FS * 0.8 * pop);
+    if (fs < 2) return;
+    ctx.font = FONT(fs);
+    const lines = linesOf(q.text), lh = fs * 0.95, b = q.who;
+    const above = b.y > lh * lines.length + 60 * U;
+    let y = above ? b.y - 24 * U - lh * lines.length : b.y + b.th + 24 * U;
+    y = clamp(y, 8, Math.max(8, H - lh * lines.length - 8));
+    const maxW = Math.max(...lines.map(l => ctx.measureText(l).width));
+    const x = clamp(b.x, maxW / 2 + 16, Math.max(maxW / 2 + 16, W - maxW / 2 - 16));
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+  });
+}
+
+// ── loop ─────────────────────────────────────────────────────────
+let last = 0;
+function frame(now) {
+  const raw = last ? Math.min(0.033, (now - last) / 1000) : 0.016;
+  last = now;
+  const dt = raw * CFG.speed;
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    if (b.temp && (b.y > H + 300 || b.x < -400 || b.x > W + 400)) balls.splice(i, 1);
+  }
+  if (freeze > 0) freeze -= raw;
+  else {
+    balls.forEach(b => advance(b, dt));
+    bump(); scatter(dt); shove(); separate(dt);
+    director(dt); sceneStep(dt); soloStep(dt); followStep(dt);
+    updFx(dt, raw);
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ── settings panel (key A) ───────────────────────────────────────
+const panel = document.getElementById('panel');
+const fmt = { gap: v => v + ' px', text: v => v.toFixed(2) + '×', speed: v => v.toFixed(2) + '×' };
+['gap', 'text', 'speed'].forEach(k => {
+  const el = document.getElementById(k), out = document.getElementById(k + 'V');
+  el.value = CFG[k]; out.textContent = fmt[k](CFG[k]);
+  el.addEventListener('input', () => {
+    CFG[k] = parseFloat(el.value); out.textContent = fmt[k](CFG[k]); saveCfg();
+    if (k === 'gap') layout();
+    if (k === 'text') measureFont();
+  });
+});
+window.addEventListener('keydown', e => { if (e.key === 'a' || e.key === 'A') panel.hidden = !panel.hidden; });
+
+let resizeT = null;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(layout, 150); });
+
+layout();
+CAST.forEach((n, i) => balls.push(makeBall(n, i)));
+if (document.fonts) {
+  document.fonts.load('700 100px Aurora').then(measureFont).catch(() => {});
+  document.fonts.load('700 100px Anton').then(measureFont).catch(() => {});
+  document.fonts.ready.then(measureFont);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
