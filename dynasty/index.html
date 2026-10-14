@@ -67,6 +67,9 @@ const SCENES = [
   { id: 'teeth', a: 'ALEXIS', b: 'FALLON', cd: [35, 50],
     lines: [['a', 'I SEE YOUR|FATHER FIXED|YOUR TEETH…|BUT FORGOT|YOUR TONGUE.']] },
   // Blake says his line, shoves Alexis: her rope vanishes and she tumbles down the dots like a staircase
+  // Alexis and Cecil, no ropes, in bed on the floor; Cecil flips over backwards with a heart attack; everyone freezes
+  { id: 'cecil', a: 'ALEXIS', b: 'CECIL', love: true, cd: [60, 80],
+    lines: [['a', 'CALL AN\nAMBULANCE!|CECIL IS HAVING\nA HEART ATTACK!']] },
   { id: 'push', a: 'BLAKE', b: 'ALEXIS', push: true, cd: [50, 70],
     lines: [['a', 'GET OUT,\nALEXIS!']] },
   { id: 'deal', a: 'CECIL', b: 'BLAKE', cd: [35, 50],
@@ -257,6 +260,7 @@ function advance(b, dt) {
     if (b.life <= 0 && !b.leaving) { b.leaving = true; b.tether = null; }
     if (b.leaving) { b.vy += G * dt; b.x += b.vx * dt; b.y += b.vy * dt; return; }
   }
+  if (b.kin) return;   // positioned by its scene (Alexis and Cecil)
   if (b.dragged) {   // held by the visitor: follows the pointer, no rope
     const d = drag;
     b.x = clamp(d.x - d.ox, b.hw, W - b.hw);
@@ -556,6 +560,7 @@ function targetL(o) {
   return scene.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
 }
 function startScene(sc, A, B) {
+  if (sc.love) { startLove(sc, A, B); return; }
   const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
   const row = sc.low ? ROWS - 2 : clamp(Math.round(midY / SPY - 0.5) - 1, 0, ROWS - 3);
   const gap = 2;
@@ -577,6 +582,7 @@ function startScene(sc, A, B) {
   if (duel.phase !== 'truce') endDuel(rnd(3, 5));
 }
 function runScene(dt) {
+  if (scene.love) { runLove(dt); return; }
   const s = scene;
   s.t += dt;
   const pair = [s.L, s.R];
@@ -645,7 +651,7 @@ function runScene(dt) {
 function endScene(abort) {
   const s = scene; if (!s) return;
   scene = null;
-  [s.L, s.R].forEach(o => { o.busy = null; o.goal = null; o.roofTilt = null; rest[o.name] = rnd(8, 12); });
+  [s.L, s.R].forEach(o => { if (!o.downT) o.kin = false; o.busy = null; o.goal = null; o.roofTilt = null; rest[o.name] = rnd(8, 12); });
   quips = quips.filter(q => q.scene !== s);
   cool[s.sc.id] = rnd(...(s.sc.cd || [30, 45]));
   sceneGap = rnd(5, 9);
@@ -681,6 +687,78 @@ function startStairs(v, p) {
   v.stairs = { path, i: 0, t: 0, dur: 0.34, fx: v.x, fy: v.y, dir };
   scene.path = path;
 }
+// ── Alexis and Cecil ─────────────────────────────────────────────
+function startLove(sc, A, C) {
+  [A, C].forEach(o => { o.busy = sc.id; o.kin = true; o.rope = null; o.pending = null; o.goal = null; o.role = null; o.stairs = null; o.wheel = null; o.downT = 0; });
+  const m = Math.max(A.hw, C.hw) + SPX * 0.6;
+  const x = clamp((A.x + C.x) / 2, m, W - m);
+  // the bed is the row of dots where they meet (never the top row: Cecil needs room to flip)
+  const midY = (A.y + A.th + C.y + C.th) / 2;
+  const row = clamp(Math.round(midY / SPY - 0.5), 1, ROWS - 1);
+  const lineY = SPY / 2 + row * SPY;
+  scene = { sc, A, B: C, L: A, R: C, love: { phase: 'meet', t: 0, x, lineY, a0: { x: A.x, y: A.y }, c0: { x: C.x, y: C.y }, dir: x > W / 2 ? -1 : 1 },
+    phase: 'talk', t: 0, hold: 0, li: 0, wait: 0, endT: null, spot: { x, y: lineY - A.th }, low: false };
+  if (duel.phase !== 'truce') endDuel(rnd(3, 5));
+}
+function runLove(dt) {
+  const s = scene, L = s.love, A = s.A, C = s.B;
+  if (balls.indexOf(A) < 0 || balls.indexOf(C) < 0) { endScene(true); return; }
+  s.t += dt; L.t += dt;
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const aY = L.lineY - A.th, cY = aY - C.th * 0.92;   // Alexis lies on the line of dots, Cecil on top of her
+  if (!s.freezeOthers) {   // clear the bed
+    balls.forEach(o => {
+      if (o.busy || o.tether || o.leaving || !inScene(o)) return;
+      if (o.rope && inScene(o.rope.anchor)) { o.rope = null; o.freeT = 0; o.freeWait = 0.1; }
+      o.vx += (o.x < L.x ? -1 : 1) * 900 * U * dt; o.vy -= 1800 * U * dt;
+    });
+  }
+  if (L.phase === 'meet') {   // both let go and drop into place, no ropes
+    const u = Math.min(1, L.t / 1.0), e = ease(u), hop = Math.sin(Math.PI * u) * SPY * 0.6;
+    A.x = L.a0.x + (L.x - L.a0.x) * e; A.y = L.a0.y + (aY - L.a0.y) * e - hop;
+    C.x = L.c0.x + (L.x - L.c0.x) * e; C.y = L.c0.y + (cY - L.c0.y) * e - hop;
+    A.tilt = C.tilt = 0;
+    if (u >= 1) { L.phase = 'love'; L.t = 0; L.ph = 0; L.said = 0; }
+    return;
+  }
+  if (L.phase === 'love') {   // the bed scene: Cecil rocks on top, faster and faster
+    L.ph += dt * (7 + L.t * 2.2);
+    const k = Math.sin(L.ph);
+    A.x = L.x; A.y = aY; A.tilt = 0.03 * k;
+    C.x = L.x + k * C.hw * 0.06; C.y = cY - Math.max(0, k) * C.th * 0.22; C.tilt = -0.06 * k;
+    const MOANS = [[0.5, A, 'AHHH…'], [1.5, C, 'AHHH…'], [2.6, A, 'MMMM…'], [3.4, C, 'AHHH!']];
+    while (L.said < MOANS.length && L.t > MOANS[L.said][0]) { const [, who, text] = MOANS[L.said++]; quips.push({ who, text, rest: [], t: 0, dur: 0.85, scene: s, duel: false }); }
+    if (L.t > 4.4) { L.phase = 'attack'; L.t = 0; s.freezeOthers = true; L.cx = C.x; L.cy = C.y; }
+    return;
+  }
+  if (L.phase === 'attack') {   // Cecil turns upward and falls over backwards, landing upside down
+    const u = Math.min(1, L.t / 1.1), e = ease(u);
+    const tx = clamp(L.cx + L.dir * (C.hw + A.hw) * 1.1, C.hw, W - C.hw);
+    C.x = L.cx + (tx - L.cx) * e;
+    C.y = L.cy + ((L.lineY - C.th) - L.cy) * u * u - Math.sin(Math.PI * u) * C.th * 1.8;
+    C.tilt = L.dir * Math.PI * e;
+    A.tilt *= 0.9;
+    if (u >= 1) { L.phase = 'after'; L.t = 0; C.downT = 3.5; }
+    return;
+  }
+  // aftermath: Alexis calls for help while everyone stands frozen
+  s.hold += dt;
+  const talkingNow = quips.some(q => q.scene === s);
+  if (s.li === 0 && s.hold > 0.6) { s.li = 1; say(A, s.sc.lines[0][1], s); }
+  if (s.li === 1 && !talkingNow) { if (s.endT == null) s.endT = s.hold + 1.2; }
+  if (s.endT != null && s.hold >= s.endT) {
+    A.kin = false; A.vy = -700 * U; A.vx = -L.dir * 200 * U; A.freeT = 0; A.freeWait = 0.3;
+    endScene(false);
+  }
+}
+// a body lying on the floor (Cecil) stays down a moment, then gets back up
+function downStep(dt) {
+  balls.forEach(b => {
+    if (!b.downT) return;
+    b.downT -= dt;
+    if (b.downT <= 0) { b.downT = 0; b.kin = false; b.vx = 0; b.vy = -300 * U; b.freeT = 0; b.freeWait = 0.8; }
+  });
+}
 function spawnBaby(F) {
   const b = { name: 'LITTLE\nBLAKE', temp: true, scale: 0.6, born: 0, life: 40, tether: F, tL: 150 * U,
     x: F.x, y: F.y + F.th + 20 * U, vx: F.vx, vy: 0, tilt: 0, rope: null, pending: null, goal: null,
@@ -710,7 +788,7 @@ function soloStep(dt) {   // Claudia, alone, asks after her daughter
 function updFx(dt, raw) {
   balls.forEach(b => {
     if (b.wheel) { b.wheel.t += dt; if (b.wheel.t >= b.wheel.dur) b.wheel = null; }
-    if (b.tether || b.leaving || b.stairs || b.dragged) return;
+    if (b.tether || b.leaving || b.stairs || b.dragged || b.kin) return;
     const diving = duel.phase === 'dive' && b === duel.hunter;
     const want = b.roofTilt != null ? b.roofTilt
       : diving ? clamp(Math.atan2(b.vy, Math.abs(b.vx) + 200 * U) * (b.vx < 0 ? -1 : 1), -0.6, 0.6) : 0;
@@ -793,8 +871,10 @@ function frame(now) {
   }
   if (freeze > 0) freeze -= raw;
   else {
-    balls.forEach(b => advance(b, dt));
-    bump(); scatter(dt); shove(); separate(dt);
+    const frozen = scene && scene.freezeOthers;
+    balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
+    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); }
+    downStep(dt);
     director(dt); sceneStep(dt); soloStep(dt); followStep(dt);
     updFx(dt, raw);
   }
