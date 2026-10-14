@@ -77,7 +77,10 @@ const SCENES = [
 ];
 
 // Alexis vs Krystle: how many blows each fight lasts (min, max), and what the one who strikes says.
-const DUEL_HITS = [6, 10];
+const DUEL_HITS = [3, 5];        // a normal fight
+const SUPER_HITS = 6;            // the superfight: short, fast, the screen shakes
+const STANDOFF_INSULTS = [2, 4]; // each meeting starts with BITCH! back and forth; reaching the max sets off the superfight
+const STANDOFF_LINE = 'BITCH!';
 const DUEL_LINES = {
   ALEXIS: ['PATHETIC\nLITTLE FOOL', 'LITTLE\nNOBODY', 'CHEAP\nSUITCASES', 'OUT OF\nMY WAY', 'NEVER A\nCARRINGTON'],
   KRYSTLE: ['JUST\nWHISTLE!', 'OUT OF\nMY HOUSE', 'BITCH!', 'HANDS\nOFF', 'YOU\nDISGUST ME', 'STAY\nAWAY'],
@@ -98,7 +101,7 @@ let W = 0, H = 0, COLS = 5, ROWS = 9, SPX = 200, SPY = 200, U = 1, G = 1500, PUM
 let anchors = [];
 let balls = [];
 let quips = [];
-let scene = null, sceneGap = 7, soloT = 14, freeze = 0;
+let scene = null, sceneGap = 7, soloT = 14, freeze = 0, shakeT = 0;
 const cool = {}, rest = {}, follows = [];
 const duel = { phase: 'truce', t: 4, hunter: null, waiter: null, post: null, hits: 0, goal: DUEL_HITS[0] + 2, opened: false };
 
@@ -403,7 +406,7 @@ function startRound(h, w, near) {
   if (!p) { duel.phase = 'recoil'; duel.t = 0.6; return; }   // no perch free right now: the fight goes on, try again
   duel.post = p;
   h.goal = p; w.goal = null; h.role = 'hunter'; w.role = 'waiter';
-  duel.phase = 'approach'; duel.t = 3.5;
+  duel.phase = 'approach'; duel.t = duel.super ? 2 : 3.5;
 }
 function predict(b, T) {
   const c = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, hw: b.hw, th: b.th, holdCap: b.holdCap, rope: b.rope ? { ...b.rope } : null };
@@ -426,12 +429,13 @@ function director(dt) {
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
-    if (duel.t <= 0) { const first = Math.random() < 0.5 ? A : K; startRound(first, first === A ? K : A, false); }
+    if (duel.t <= 0) startStandoff(A, K);
     return;
   }
+  if (duel.phase === 'standoff') { runStandoff(dt); return; }
   if (duel.phase === 'approach') {
     if (!h.goal) h.goal = duel.post;
-    if (h.rope && h.rope.anchor === duel.post && h.hookT > 0.25) { duel.phase = 'watch'; duel.t = rnd(0.3, 0.9); }
+    if (h.rope && h.rope.anchor === duel.post && h.hookT > 0.25) { duel.phase = 'watch'; duel.t = duel.super ? rnd(0.05, 0.2) : rnd(0.3, 0.9); }
     else if (!h.rope && !h.pending && dist(h, w) < 700 * U && (w.x - h.x) * h.vx > 0 && h.y < w.y - 100 * U) launch(h, w);
     else if (duel.t <= 0) startRound(h, w, true);
     return;
@@ -444,30 +448,84 @@ function director(dt) {
     return;
   }
   if (duel.phase === 'dive') {
+    const left = Math.max(0.08, duel.t - 0.45);
+    const k = Math.min(1, dt * (duel.super ? 9 : 6));
+    h.vx += ((w.x - h.x) / left - h.vx) * k;
+    h.vy += ((w.y - h.y) / left - 0.5 * G * left - h.vy) * k;
     const hy = h.y + h.th / 2, wy = w.y + w.th / 2;
     const touch = Math.abs(h.x - w.x) < h.hw + w.hw - 20 * U && Math.abs(hy - wy) < (h.th + w.th) / 2 - 10 * U;
     if (touch) {
-      freeze = 0.07;
+      freeze = duel.super ? 0.14 : 0.07;
+      if (duel.super) shakeT = 0.32;
       w.vx = w.vx * 0.5 + h.vx * 0.22; w.vy = w.vy * 0.5 + h.vy * 0.22;
       h.vx *= -0.3; h.vy *= -0.3;
       h.freeT = 0; h.freeWait = 0.15;
       w.wheel = { t: 0, dur: 1.3 };
       duelSay(h);
       duel.hits++; duel.opened = true;
-      duel.phase = 'recoil'; duel.t = 0.3;
+      duel.phase = 'recoil'; duel.t = duel.super ? 0.4 : 0.6;
     } else if (duel.t <= 0) startRound(h, w, true);
     return;
   }
   if (duel.phase === 'recoil' && duel.t <= 0) {
-    if (duel.hits >= duel.goal) { duel.hits = 0; duel.goal = DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1)); endDuel(rnd(6, 10)); sceneGap = Math.min(sceneGap, 1.5); }
+    if (duel.hits >= duel.goal) { duel.hits = 0; duel.super = false; duel.goal = DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1)); endDuel(rnd(6, 10)); sceneGap = Math.min(sceneGap, 1.5); }
+    // close enough: the one struck flies straight back, no perching
+    else if (dist(h, w) < (duel.super ? 1250 : 950) * U) { duel.hunter = w; duel.waiter = h; w.role = 'hunter'; h.role = 'waiter'; launch(w, h); }
     else startRound(w, h, false);
   }
+}
+// they meet face to face on one row and trade insults, louder and faster each time
+function startStandoff(A, K) {
+  const midX = (A.x + K.x) / 2, midY = (A.y + K.y) / 2;
+  const row = clamp(Math.round(midY / SPY - 0.5) - 1, 0, ROWS - 3);
+  const c0 = clamp(Math.round(midX / SPX - 1.5), 0, COLS - 3);
+  const left = anchorAt(row, c0), right = anchorAt(row, c0 + 2);
+  if (!left || !right) { duel.t = 1; return; }
+  const [L, R] = A.x <= K.x ? [A, K] : [K, A];
+  balls.forEach(o => {
+    if (o === A || o === K) return;
+    if (o.rope && (o.rope.anchor === left || o.rope.anchor === right)) { o.rope = null; o.freeT = 0; o.freeWait = 0.2; }
+    if (o.pending && (o.pending.anchor === left || o.pending.anchor === right)) o.pending = null;
+  });
+  [[L, left], [R, right]].forEach(([o, a]) => { o.goal = a; o.role = 'stand'; o.rope = null; o.pending = { anchor: a, t: 0 }; o.hookT = 0; o.freeT = 0; });
+  const n = STANDOFF_INSULTS[0] + Math.floor(Math.random() * (STANDOFF_INSULTS[1] - STANDOFF_INSULTS[0] + 1));
+  const first = Math.random() < 0.5 ? A : K;
+  Object.assign(duel, { phase: 'standoff', st: 0, sn: 0, sN: n, sw: 0.4, first, hunter: first, waiter: first === A ? K : A, post: null, hits: 0 });
+}
+function runStandoff(dt) {
+  const a = duel.first, b = duel.waiter;
+  duel.st += dt;
+  const ready = [a, b].every(o => o.rope && o.goal && o.rope.anchor === o.goal && o.hookT > 0.3);
+  if (!ready && duel.st < 3.5) return;
+  if (quips.some(q => q.duel && q.t < q.dur * 0.6)) return;   // let each insult land before the reply
+  duel.sw -= dt;
+  if (duel.sw > 0) return;
+  if (duel.sn < duel.sN) {
+    const who = duel.sn % 2 === 0 ? a : b, other = who === a ? b : a;
+    quips = quips.filter(q => !q.duel);
+    quips.push({ who, text: STANDOFF_LINE, rest: [], t: 0, dur: 1.0 - duel.sn * 0.12, scale: 1 + duel.sn * 0.35, scene: null, duel: true });
+    other.wheel = { t: 0, dur: 0.5 + duel.sn * 0.15 };
+    duel.last = who;
+    duel.sn++;
+    duel.sw = [0.5, 0.35, 0.25, 0.15][duel.sn - 1] || 0.15;
+    return;
+  }
+  // out of insults: fight
+  duel.super = duel.sN >= STANDOFF_INSULTS[1];
+  duel.goal = duel.super ? SUPER_HITS : DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1));
+  duel.hits = 0;
+  const h = duel.last, w = h === a ? b : a;
+  w.goal = null; w.role = 'waiter'; h.role = 'hunter';
+  duel.hunter = h; duel.waiter = w;
+  if (duel.super) shakeT = 0.32;
+  launch(h, w);
 }
 function scatter(dt) {
   if (!(duel.phase === 'dive' || duel.phase === 'watch') || !duel.hunter || !duel.waiter) return;
   const h = duel.hunter, w = duel.waiter, diving = duel.phase === 'dive';
   const mx = diving ? (h.x + w.x) / 2 : w.x, my = diving ? (h.y + w.y) / 2 : w.y + w.th / 2;
-  const push = (diving ? 900 : 260) * U, R = 620 * U;
+  const k2 = duel.super ? 1.8 : 1;
+  const push = (diving ? 900 : 260) * U * k2, R = 620 * U * (duel.super ? 1.4 : 1);
   balls.forEach(b => {
     if (isRival(b) || b.busy || b.temp) return;
     const d = dist(b, { x: mx, y: my });
@@ -810,6 +868,8 @@ function updFx(dt, raw) {
 // ── drawing ──────────────────────────────────────────────────────
 function draw() {
   ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  if (shakeT > 0) { const a = 10 * U * shakeT / 0.32; ctx.translate(rnd(-a, a), rnd(-a, a)); }
   const ink = CFG.ink, dotR = Math.max(3, SPX * 0.037), lw = Math.max(2, SPX * 0.028);
   ctx.fillStyle = ink;
   anchors.forEach(a => { ctx.beginPath(); ctx.arc(a.x, a.y, dotR, 0, Math.PI * 2); ctx.fill(); });
@@ -850,7 +910,7 @@ function draw() {
   quips.forEach(q => {
     const u = q.t / q.dur, pop = u < 0.08 ? u / 0.08 : u > 0.9 ? (1 - u) / 0.1 : 1;
     const lines = linesOf(q.text), b = q.who;
-    let fs = FS * QUIP_SIZE;
+    let fs = FS * QUIP_SIZE * (q.scale || 1);
     ctx.font = FONT(fs);
     const fullW = Math.max(...lines.map(l => ctx.measureText(l).width));
     if (fullW > W - 32) fs *= (W - 32) / fullW;
@@ -865,6 +925,7 @@ function draw() {
     const x = clamp(b.x, maxW / 2 + 16, Math.max(maxW / 2 + 16, W - maxW / 2 - 16));
     lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
   });
+  ctx.restore();
 }
 
 // ── loop ─────────────────────────────────────────────────────────
@@ -877,6 +938,7 @@ function frame(now) {
     const b = balls[i];
     if (b.temp && (b.y > H + 300 || b.x < -400 || b.x > W + 400)) balls.splice(i, 1);
   }
+  if (shakeT > 0) shakeT -= raw;
   if (freeze > 0) freeze -= raw;
   else {
     const frozen = scene && scene.freezeOthers;
@@ -930,7 +992,8 @@ function letGo() {
   if (!other) return;
   if (isRival(other)) {   // dropped by her rival: straight into the fight (the visitor wins over any running scene)
     if (scene) endScene(true);
-    duel.hunter = b; duel.waiter = other; duel.hits = 0;
+    duel.hunter = b; duel.waiter = other; duel.hits = 0; duel.super = false;
+    duel.goal = DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1));
     launch(b, other);
     return;
   }
