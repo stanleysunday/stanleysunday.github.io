@@ -116,10 +116,10 @@ const ctx = canvas.getContext('2d');
 let W, H;
 
 const img = new Image();
-img.src = 'caballito-alas-arriba.png';
+img.src = 'caballito-alas-arriba.webp';
 /* alas: de vez en cuando aletea alternando con el fotograma de alas abajo */
 const imgAbajo = new Image();
-imgAbajo.src = 'caballito-alas-abajo.png';
+imgAbajo.src = 'caballito-alas-abajo.webp';
 const aleteo = { prox: performance.now() + 2500 + Math.random() * 4000, cambios: 0, t: 0, abajo: false };
 function alasActual(now) {
   if (aleteo.cambios > 0) {
