@@ -350,5 +350,111 @@ function loop() {
   setTimeout(ciclo,4000);
 })();
 </script>
+<script>
+/* Portada: a los 6 s entran por abajo a la izquierda dos muñecos de palitos (como el técnico de "play").
+   El gordo abre los brazos abarcando toda la web y le dice a Manolo "Manolo, esta es mi web" y "Algún día, todo esto será tuyo";
+   Manolo mira hacia arriba moviendo la cabeza. Luego se van por donde vinieron. Una vez por visita; no pasa si se pide reducir el movimiento. */
+(function(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const NS='http://www.w3.org/2000/svg', R=Math.PI/180;
+  const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+  const ik=(h,f,a,b)=>{const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.min(Math.hypot(dx,dy),a+b-0.01);
+    const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-Math.acos(cc);
+    return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];};
+  const K=()=>Math.max(0.42,Math.min(0.7,innerHeight/1100));   // px por unidad: muñecos pequeños (unos 120 px de alto en escritorio)
+
+  // postura en unidades locales: pies en (50,160), mirando a la derecha
+  function geo(M){
+    const hipY=92+(M.anda?2*Math.abs(Math.sin(M.ph)):0), hip=[50,hipY];
+    let f1,f2;
+    if(M.anda){const sn=Math.sin(M.ph),cs=Math.cos(M.ph);f1=[50+18*sn,160-7*Math.max(0,cs)];f2=[50-18*sn,160-7*Math.max(0,-cs)];}
+    else{f1=[44,160];f2=[57,160];}
+    const lean=M.anda?3:0, neck=[50+lean,hipY-52], sh=[neck[0],neck[1]+8];
+    const hd=M.mira||0, head=[neck[0]+16*Math.sin(hd*.35),neck[1]-16*Math.cos(hd*.35)];
+    const brazo=(th,be)=>{const e=[sh[0]+26*Math.sin(th*R),sh[1]+26*Math.cos(th*R)];return [e,[e[0]+24*Math.sin((th+be)*R),e[1]+24*Math.cos((th+be)*R)]];};
+    let a1,a2;
+    if(M.arriba>0){const u=M.arriba, ab=M.abarca||0;   // brazos abiertos hacia arriba, abarcándolo todo
+      const sw=M.anda?24*Math.sin(M.ph):4;
+      a1=brazo(-sw+(112+ab-(-sw))*u,20*(1-u)+6*u); a2=brazo(sw+(-112-ab-sw)*u,20*(1-u)-6*u);}
+    else{const sw=M.anda?24*Math.sin(M.ph):4;a1=brazo(-sw,20);a2=brazo(sw,20);}
+    return {hip,neck,head,sh,f1,f2,k1:ik(hip,f1,34,35),k2:ik(hip,f2,34,35),a1,a2};
+  }
+  function muneco(gordo){
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox','-60 -40 220 210'); svg.setAttribute('aria-hidden','true');
+    svg.style.cssText='position:fixed;left:0;top:0;z-index:4;pointer-events:none;overflow:visible;will-change:transform';
+    svg.innerHTML='<g fill="none" stroke="#111" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">'+
+      '<polyline class="p1"/><polyline class="p2"/><polyline class="b2"/>'+
+      (gordo?'<ellipse class="tr" fill="#fff"/>':'<polyline class="tr"/>')+
+      '<circle class="cab" r="12" fill="#fff"/><circle class="ojo" r="2.2" fill="#111" stroke="none"/><path class="boca" stroke-width="2.5"/>'+
+      '<polyline class="b1"/></g>';
+    document.body.appendChild(svg);
+    const q=n=>svg.querySelector('.'+n);
+    return {svg,g:svg.firstChild,gordo,P:{p1:q('p1'),p2:q('p2'),tr:q('tr'),b1:q('b1'),b2:q('b2'),cab:q('cab'),ojo:q('ojo'),boca:q('boca')},
+      x:0,facing:1,ph:0,anda:false,arriba:0,abarca:0,mira:0};
+  }
+  function dibuja(M){
+    const k=K(), G=geo(M), P=M.P, y=innerHeight-6;
+    M.svg.style.width=220*k+'px'; M.svg.style.height=210*k+'px';
+    M.svg.style.transform=`translate(${M.x-110*k}px,${y-200*k}px)`;
+    M.g.setAttribute('transform',M.facing<0?'translate(100 0) scale(-1 1)':'');
+    P.p1.setAttribute('points',`${G.hip} ${G.k1} ${G.f1}`); P.p2.setAttribute('points',`${G.hip} ${G.k2} ${G.f2}`);
+    if(M.gordo){const cx=(G.hip[0]+G.neck[0])/2+3, cy=(G.hip[1]+G.neck[1])/2+4;   // tripa
+      P.tr.setAttribute('cx',cx);P.tr.setAttribute('cy',cy);P.tr.setAttribute('rx',19);P.tr.setAttribute('ry',30);}
+    else P.tr.setAttribute('points',`${G.hip} ${G.neck}`);
+    P.b1.setAttribute('points',`${G.sh} ${G.a1[0]} ${G.a1[1]}`); P.b2.setAttribute('points',`${G.sh} ${G.a2[0]} ${G.a2[1]}`);
+    const [hx,hy]=G.head, a=(M.mira||0); P.cab.setAttribute('cx',hx); P.cab.setAttribute('cy',hy);
+    // cara de perfil: ojo y boca giran con la mirada (0 = al frente, negativo = hacia arriba)
+    const ex=hx+6*Math.cos(a), ey=hy-2+6*Math.sin(a); P.ojo.setAttribute('cx',ex); P.ojo.setAttribute('cy',ey);
+    const bx=hx+8*Math.cos(a+.75), by=hy+8*Math.sin(a+.75);
+    P.boca.setAttribute('d',M.habla?`M${bx-2},${by} q2,${3+2*Math.abs(Math.sin(performance.now()/90))} 4,0`:`M${bx-2},${by} l4,0`);
+  }
+  function bocadillo(){
+    const b=document.createElement('div');
+    b.style.cssText='position:fixed;left:0;top:0;z-index:5;pointer-events:none;font-family:monospace;font-size:14px;line-height:1.3;color:#000;'+
+      'background:#fff;border:2px solid #111;border-radius:14px;padding:7px 11px;max-width:220px;white-space:normal;opacity:0;transition:opacity .15s';
+    const cola=document.createElement('div');
+    cola.style.cssText='position:absolute;bottom:-11px;width:16px;height:16px;background:#fff;border-right:2px solid #111;border-bottom:2px solid #111;transform:rotate(45deg) skew(10deg,10deg)';
+    b.appendChild(document.createElement('span')); b.appendChild(cola); document.body.appendChild(b);
+    return {b,txt:b.firstChild,cola};
+  }
+
+  setTimeout(()=>{
+    const k0=K(), gordo=muneco(true), manolo=muneco(false), bo=bocadillo();
+    gordo.x=-70*k0; manolo.x=-170*k0;
+    const meta=()=>{const k=K();return Math.max(190*k,Math.min(innerWidth*.34,innerWidth-80*k));};
+    const andar=(M,tx,dt)=>{const k=K(),d=tx-M.x,v=130*k*dt;if(Math.abs(d)<=v){M.x=tx;M.anda=false;return true;}
+      M.anda=true;M.facing=Math.sign(d);M.x+=Math.sign(d)*v;M.ph+=v/(36*k)*Math.PI;return false;};
+    const decir=(texto)=>{bo.txt.textContent=texto;bo.b.style.opacity=texto?1:0;};
+    const colocaBocadillo=()=>{const k=K(),bw=bo.b.offsetWidth,bh=bo.b.offsetHeight;
+      const headX=gordo.x+(gordo.facing>0?2:-2)*k, headY=innerHeight-6-200*k+(40+20)*k;
+      let left=Math.max(8,Math.min(innerWidth-bw-8,headX-bw*.35)), top=headY-bh-62*k;
+      bo.b.style.transform=`translate(${left}px,${top}px)`; bo.cola.style.left=Math.max(10,Math.min(bw-26,headX-left-8))+'px';};
+    let fase='entran', t0=performance.now(), last=t0;
+    const cambia=(f,now)=>{fase=f;t0=now;};
+    function paso(now){
+      const dt=Math.min(.05,(now-last)/1000); last=now; const t=now-t0;
+      switch(fase){
+        case 'entran':{const a=andar(gordo,meta(),dt), b=andar(manolo,meta()-100*K(),dt); if(a&&b)cambia('gira',now);break;}
+        case 'gira':{if(t>250){gordo.facing=-1;} if(t>500)cambia('abre',now);break;}   // el gordo se vuelve hacia Manolo
+        case 'abre':{gordo.arriba=ease(Math.min(1,t/600)); manolo.mira=-50*R*ease(Math.min(1,t/600)); if(t>=600){cambia('dice1',now);}break;}
+        case 'dice1':case 'dice2':{
+          const largo=fase==='dice1'?2600:3200;
+          gordo.habla=t<largo-400; gordo.abarca=12*Math.sin(t/650);
+          decir(fase==='dice1'?'Manolo, esta es mi web':'Algún día, todo esto será tuyo');
+          manolo.mira=(-80+38*Math.sin((now/1000)*2.6))*R;   // mira hacia arriba moviendo la cabeza
+          if(t>=largo){if(fase==='dice1'){decir('');cambia('pausa',now);}else{decir('');cambia('baja',now);}}break;}
+        case 'pausa':{gordo.habla=false; manolo.mira=(-80+38*Math.sin((now/1000)*2.6))*R; if(t>350)cambia('dice2',now);break;}
+        case 'baja':{const u=ease(Math.min(1,t/500));gordo.arriba=1-u;manolo.mira*=.9;if(t>=600){gordo.arriba=0;manolo.mira=0;cambia('sevan',now);}break;}
+        case 'sevan':{const k=K();const a=andar(manolo,-160*k,dt), b=andar(gordo,-160*k,dt);
+          if(a&&b){gordo.svg.remove();manolo.svg.remove();bo.b.remove();return;}break;}
+      }
+      dibuja(manolo); dibuja(gordo); if(fase.startsWith('dice')||fase==='pausa')colocaBocadillo();
+      requestAnimationFrame(paso);
+    }
+    requestAnimationFrame(paso);
+  },6000);
+})();
+</script>
 </body>
 </html>
