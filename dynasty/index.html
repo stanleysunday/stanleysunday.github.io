@@ -23,7 +23,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="panel" hidden>
-  <label>Separación de puntos <span id="gapV"></span><input type="range" id="gap" min="90" max="280" step="5"></label>
+  <label>Separación de puntos <span id="gapV"></span><input type="range" id="gap" min="60" max="280" step="5"></label>
   <label>Tamaño de nombres <span id="textV"></span><input type="range" id="text" min="0.6" max="1.6" step="0.05"></label>
   <label>Velocidad <span id="speedV"></span><input type="range" id="speed" min="0.3" max="1.3" step="0.05"></label>
   <small>Tecla A: mostrar / ocultar</small>
@@ -78,7 +78,7 @@ const DUEL_LINES = {
 
 // ═════════════════════════════════════════════════════════════════
 
-const CFG = { gap: 170, text: 1, speed: 0.85, bg: '#8a1622', ink: '#fed200', quip: '#FF4FA3' };
+const CFG = { gap: 115, text: 1, speed: 0.85, bg: '#8a1622', ink: '#fed200', quip: '#FF4FA3' };
 try {
   const s = JSON.parse(localStorage.getItem('dynasty-cfg') || '{}');
   ['gap', 'text', 'speed'].forEach(k => { if (typeof s[k] === 'number') CFG[k] = s[k]; });
@@ -126,7 +126,7 @@ function layout() {
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const gap = Math.min(CFG.gap, Math.max(80, W / 4.2));   // narrow screens always get at least 4 columns
+  const gap = Math.min(CFG.gap, Math.max(60, W / 5.5));   // narrow screens always get at least 5–6 columns
   COLS = Math.max(3, Math.round(W / gap));
   ROWS = Math.max(4, Math.round(H / gap));
   SPX = W / COLS; SPY = H / ROWS;
