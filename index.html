@@ -116,7 +116,20 @@ const ctx = canvas.getContext('2d');
 let W, H;
 
 const img = new Image();
-img.src = 'caballitosalchicha.png';
+img.src = 'caballito-alas-arriba.png';
+/* alas: de vez en cuando aletea alternando con el fotograma de alas abajo */
+const imgAbajo = new Image();
+imgAbajo.src = 'caballito-alas-abajo.png';
+const aleteo = { prox: performance.now() + 2500 + Math.random() * 4000, cambios: 0, t: 0, abajo: false };
+function alasActual(now) {
+  if (aleteo.cambios > 0) {
+    if (now >= aleteo.t) { aleteo.abajo = !aleteo.abajo; aleteo.cambios--; aleteo.t = now + 140; }
+    if (aleteo.cambios === 0) { aleteo.abajo = false; aleteo.prox = now + 3000 + Math.random() * 6000; }
+  } else if (now >= aleteo.prox) {
+    aleteo.cambios = 2 * (2 + Math.floor(Math.random() * 3)); aleteo.t = now; 
+  }
+  return (aleteo.abajo && imgAbajo.complete) ? imgAbajo : img;
+}
 
 const s = {
   x: 0, y: 0,
@@ -139,7 +152,7 @@ window.addEventListener('resize', resize);
 img.onload = () => {
   resize();
 
-  s.w = Math.min(Math.round(W * (W < 600 ? 0.32 : 0.2)), 280);
+  s.w = Math.round(Math.min(Math.round(W * (W < 600 ? 0.32 : 0.2)), 280) * 715 / 658); // lienzo más ancho por las alas abiertas: el caballo mantiene su tamaño
   s.h = Math.round(s.w * img.naturalHeight / img.naturalWidth);
 
   s.x = W * 0.68;
@@ -182,7 +195,7 @@ function loop() {
   ctx.save();
   ctx.translate(s.x, s.y);
   ctx.rotate(s.angle);
-  ctx.drawImage(img, -hw, -hh, s.w, s.h);
+  ctx.drawImage(alasActual(performance.now()), -hw, -hh, s.w, s.h);
   ctx.restore();
 }
 </script>
