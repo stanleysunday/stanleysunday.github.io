@@ -253,6 +253,15 @@ function advance(b, dt) {
     if (b.life <= 0 && !b.leaving) { b.leaving = true; b.tether = null; }
     if (b.leaving) { b.vy += G * dt; b.x += b.vx * dt; b.y += b.vy * dt; return; }
   }
+  if (b.dragged) {   // held by the visitor: follows the pointer, no rope
+    const d = drag;
+    b.x = clamp(d.x - d.ox, b.hw, W - b.hw);
+    b.y = clamp(d.y - d.oy, 0, H - b.th);
+    d.vx *= 0.85; d.vy *= 0.85;   // a still pointer means a gentle drop, not a throw
+    b.vx = d.vx; b.vy = d.vy;
+    b.tilt = clamp(d.vx / (3000 * U), -0.35, 0.35);
+    return;
+  }
   if (b.stairs) {   // tumbling down the dots, one step at a time
     const st = b.stairs, a = st.path[st.i];
     st.t += dt;
@@ -402,7 +411,7 @@ function launch(h, w) {
 }
 function director(dt) {
   const A = byName('ALEXIS'), K = byName('KRYSTLE');
-  if (!A || !K || scene) { if (duel.phase !== 'truce') endDuel(rnd(3, 5)); return; }
+  if (!A || !K || scene || A.dragged || K.dragged) { if (duel.phase !== 'truce') endDuel(rnd(3, 5)); return; }
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
@@ -517,7 +526,7 @@ function separate(dt) {
 function eligible(sc) {
   if ((cool[sc.id] || 0) > 0) return null;
   const A = byName(sc.a), B = byName(sc.b);
-  if (!A || !B || A.busy || B.busy || (rest[sc.a] || 0) > 0 || (rest[sc.b] || 0) > 0) return null;
+  if (!A || !B || A.busy || B.busy || A.dragged || B.dragged || (rest[sc.a] || 0) > 0 || (rest[sc.b] || 0) > 0) return null;
   if (duel.phase === 'dive' && (isRival(A) || isRival(B))) return null;
   if (sc.baby && balls.some(o => o.temp)) return null;
   return [A, B];
@@ -697,7 +706,7 @@ function soloStep(dt) {   // Claudia, alone, asks after her daughter
 function updFx(dt, raw) {
   balls.forEach(b => {
     if (b.wheel) { b.wheel.t += dt; if (b.wheel.t >= b.wheel.dur) b.wheel = null; }
-    if (b.tether || b.leaving || b.stairs) return;
+    if (b.tether || b.leaving || b.stairs || b.dragged) return;
     const diving = duel.phase === 'dive' && b === duel.hunter;
     const want = b.roofTilt != null ? b.roofTilt
       : diving ? clamp(Math.atan2(b.vy, Math.abs(b.vx) + 200 * U) * (b.vx < 0 ? -1 : 1), -0.6, 0.6) : 0;
@@ -788,6 +797,77 @@ function frame(now) {
   draw();
   requestAnimationFrame(frame);
 }
+
+// ── the visitor can grab Alexis or Krystle ───────────────────────
+// Click/tap one of them: her rope vanishes and she follows the pointer.
+// Let go near someone and that pair's encounter starts (near the other rival: she flies at her).
+let drag = null;
+const GRABBABLE = ['ALEXIS', 'KRYSTLE'];
+function hitTest(x, y) {
+  const pad = 14;
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    if (!GRABBABLE.includes(b.name) || b.temp) continue;
+    if (Math.abs(x - b.x) < b.hw + pad && y > b.y - pad && y < b.y + b.th + pad) return b;
+  }
+  return null;
+}
+function grab(b, x, y) {
+  if (b.busy && scene) endScene(true);
+  if (duel.hunter === b || duel.waiter === b) endDuel(3);
+  b.rope = null; b.pending = null; b.goal = null; b.role = null; b.stairs = null; b.wheel = null;
+  b.dragged = true;
+  drag = { b, x, y, ox: x - b.x, oy: y - b.y, vx: 0, vy: 0, lx: x, ly: y, lt: performance.now() };
+}
+function letGo() {
+  const b = drag.b;
+  b.dragged = false;
+  const sp = Math.hypot(drag.vx, drag.vy), max = 2400 * U;
+  b.vx = sp > max ? drag.vx * max / sp : drag.vx;
+  b.vy = sp > max ? drag.vy * max / sp : drag.vy;
+  b.freeT = 0; b.freeWait = 0.35; b.stallT = 0;
+  drag = null;
+  // who is she next to?
+  const cy = b.y + b.th / 2;
+  let other = null, best = SPX * 1.8;
+  balls.forEach(o => {
+    if (o === b || o.temp) return;
+    const d = Math.hypot(o.x - b.x, o.y + o.th / 2 - cy);
+    if (d < best) { best = d; other = o; }
+  });
+  if (!other) return;
+  if (isRival(other)) {   // dropped by her rival: straight into the fight (the visitor wins over any running scene)
+    if (scene) endScene(true);
+    duel.hunter = b; duel.waiter = other; duel.hits = 0;
+    launch(b, other);
+    return;
+  }
+  const sc = SCENES.find(s => (s.a === b.name && s.b === other.name) || (s.b === b.name && s.a === other.name));
+  if (!sc || (sc.baby && balls.some(o => o.temp))) return;
+  if (scene) endScene(true);
+  cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
+  startScene(sc, byName(sc.a), byName(sc.b));
+}
+const pt = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.addEventListener('pointerdown', e => {
+  const [x, y] = pt(e), b = hitTest(x, y);
+  if (!b) return;
+  e.preventDefault();
+  cv.setPointerCapture(e.pointerId);
+  grab(b, x, y);
+  cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointermove', e => {
+  const [x, y] = pt(e);
+  if (!drag) { cv.style.cursor = hitTest(x, y) ? 'grab' : ''; return; }
+  const now = performance.now(), dt = Math.max(0.008, (now - drag.lt) / 1000);
+  drag.vx = drag.vx * 0.5 + (x - drag.lx) / dt * 0.5;
+  drag.vy = drag.vy * 0.5 + (y - drag.ly) / dt * 0.5;
+  drag.x = x; drag.y = y; drag.lx = x; drag.ly = y; drag.lt = now;
+});
+const release = () => { if (drag) letGo(); cv.style.cursor = ''; };
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', release);
 
 // ── settings panel (key A) ───────────────────────────────────────
 const panel = document.getElementById('panel');
