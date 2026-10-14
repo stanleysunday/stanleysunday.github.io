@@ -360,9 +360,12 @@ function advance(b, dt) {
 }
 
 // ── speech bubbles ───────────────────────────────────────────────
+// how long a bubble stays: long enough to read it (longer lines stay longer)
+const QUIP_SIZE = 1.3;   // bubble text size, relative to the names
+const readDur = (text, last) => clamp(0.9 + text.length * 0.08, 1.2, 3.6) + (last ? 0.4 : 0);
 function say(who, text, sc) {
   const parts = text.split('|');
-  quips.push({ who, text: parts[0], rest: parts.slice(1), t: 0, dur: parts.length > 1 ? 0.95 : 1.6, scene: sc || null, duel: false });
+  quips.push({ who, text: parts[0], rest: parts.slice(1), t: 0, dur: readDur(parts[0], parts.length === 1), scene: sc || null, duel: false });
 }
 function duelSay(who) {
   const pool = DUEL_LINES[who.name] || []; if (!pool.length) return;
@@ -370,7 +373,7 @@ function duelSay(who) {
   if (text === who.lastQuip && pool.length > 1) text = pool[(pool.indexOf(text) + 1) % pool.length];
   who.lastQuip = text;
   quips = quips.filter(q => !q.duel);
-  quips.push({ who, text, rest: [], t: 0, dur: 1.6, scene: null, duel: true });
+  quips.push({ who, text, rest: [], t: 0, dur: readDur(text, true), scene: null, duel: true });
 }
 const talking = o => quips.some(q => q.who === o);
 
@@ -743,9 +746,9 @@ function runLove(dt) {
   }
   // aftermath: Alexis calls for help while everyone stands frozen
   s.hold += dt;
-  const talkingNow = quips.some(q => q.scene === s);
   if (s.li === 0 && s.hold > 0.6) { s.li = 1; say(A, s.sc.lines[0][1], s); }
-  if (s.li === 1 && !talkingNow) { if (s.endT == null) s.endT = s.hold + 1.2; }
+  const talkingNow = quips.some(q => q.scene === s);   // checked after she starts talking, so the scene waits for her whole line
+  if (s.li === 1 && !talkingNow) { if (s.endT == null) s.endT = s.hold + 2.0; }
   if (s.endT != null && s.hold >= s.endT) {
     A.kin = false; A.vy = -700 * U; A.vx = -L.dir * 200 * U; A.freeT = 0; A.freeWait = 0.3;
     endScene(false);
@@ -798,7 +801,7 @@ function updFx(dt, raw) {
     const q = quips[i]; q.t += raw;
     if (balls.indexOf(q.who) < 0) { quips.splice(i, 1); continue; }
     if (q.t > q.dur) {
-      if (q.rest.length) { q.text = q.rest.shift(); q.t = 0; q.dur = q.rest.length ? 0.95 : 1.4; }
+      if (q.rest.length) { q.text = q.rest.shift(); q.t = 0; q.dur = readDur(q.text, !q.rest.length); }
       else quips.splice(i, 1);
     }
   }
@@ -846,10 +849,15 @@ function draw() {
   ctx.fillStyle = CFG.quip;
   quips.forEach(q => {
     const u = q.t / q.dur, pop = u < 0.08 ? u / 0.08 : u > 0.9 ? (1 - u) / 0.1 : 1;
-    const fs = Math.round(FS * 0.8 * pop);
+    const lines = linesOf(q.text), b = q.who;
+    let fs = FS * QUIP_SIZE;
+    ctx.font = FONT(fs);
+    const fullW = Math.max(...lines.map(l => ctx.measureText(l).width));
+    if (fullW > W - 32) fs *= (W - 32) / fullW;
+    fs = Math.round(fs * pop);
     if (fs < 2) return;
     ctx.font = FONT(fs);
-    const lines = linesOf(q.text), lh = fs * 0.95, b = q.who;
+    const lh = fs * 0.95;
     const above = b.y > lh * lines.length + 60 * U;
     let y = above ? b.y - 24 * U - lh * lines.length : b.y + b.th + 24 * U;
     y = clamp(y, 8, Math.max(8, H - lh * lines.length - 8));
