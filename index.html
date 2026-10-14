@@ -297,7 +297,8 @@ function loop() {
     function cuerda(){
       const cuelgan=nodos.filter(n=>n.mesa===false).length, inclina=Math.min(1,(performance.now()-t0)/1800);   // la "mesa" se va inclinando poco a poco   // lo que cuelga por el borde tira del resto, como un collar resbalando de una mesa
       for(const n of nodos){if(n.fijo)continue;const vx=(n.x-n.px)*.985, vy=(n.y-n.py)*.985;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.18;
-        if(fase==='escurre'&&n.mesa!==false)n.x+=Math.min(.9,.012*cuelgan*cuelgan)+.02*inclina;}
+        if(fase==='escurre'&&n.mesa!==false){const v=Math.min(1.6,.12+.05*cuelgan*cuelgan)*inclina;n.px=n.x;n.x+=v;}   // sobre la mesa: se desliza a la velocidad que marca lo que cuelga, sin acumular empujes
+        if(fase==='escurre'&&n.mesa===false&&n.x>borde){n.px=n.x-(n.x-n.px)*.6;n.x+=(borde+6-n.x)*.04;}}   // lo que ya cayó no sale disparado: cae pegado al borde
       for(let it=0;it<12;it++){
         for(let i=0;i<N-1;i++){const a=nodos[i],b=nodos[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,e=(d-largo[i])/d;
           const wa=a.fijo?0:(b.fijo?1:.5), wb=b.fijo?0:(a.fijo?1:.5);a.x+=dx*e*wa;a.y+=dy*e*wa;b.x-=dx*e*wb;b.y-=dy*e*wb;}
