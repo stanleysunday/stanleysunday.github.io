@@ -100,7 +100,7 @@ let W = 0, H = 0, COLS = 5, ROWS = 9, SPX = 200, SPY = 200, U = 1, G = 1500, PUM
 let anchors = [];
 let balls = [];
 let quips = [];
-let scene = null, sceneGap = 7, freeze = 0, shakeT = 0;
+let scenes = [], sceneGap = 7, freeze = 0, shakeT = 0;
 const cool = {}, rest = {}, follows = [];
 const duel = { phase: 'truce', t: 4, hunter: null, waiter: null, post: null, hits: 0, goal: DUEL_HITS[0] + 2, opened: false };
 
@@ -143,7 +143,7 @@ function layout() {
   anchors = [];
   for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) anchors.push({ x: SPX / 2 + c * SPX, y: SPY / 2 + r * SPY, c, r });
   measureFont();
-  if (scene) endScene(true);
+  scenes.slice().forEach(sc => endScene(sc, true));
   endDuel(2);
   follows.length = 0;
   balls.forEach(b => {
@@ -167,13 +167,14 @@ function makeBall(name, i) {
 const taken = (a, self) => balls.some(b => b !== self && ((b.rope && b.rope.anchor === a) || (b.pending && b.pending.anchor === a) || (b.busy && b.goal === a)));
 const nearRival = p => balls.some(r => isRival(r) && !r.busy && [r, r.goal, r.rope && r.rope.anchor].some(q => q && Math.abs(p.x - q.x) < SPX * 1.15 && Math.abs(p.y - q.y) < SPY * 1.1));
 const crowded = (a, b) => balls.some(o => o !== b && !isRival(o) && !o.temp && o.rope && o.rope.anchor.r === a.r && Math.abs(o.rope.anchor.c - a.c) <= 1);
-function inScene(p) {
-  if (!scene) return false;
-  const s = scene.spot;
-  if (scene.path && scene.path.some(a => Math.abs(p.x - a.x) < SPX * 1.2 && Math.abs(p.y - a.y) < SPY * 1.1)) return true;
-  if (scene.low) return Math.abs(p.x - s.x) < SPX * 2.2 && p.y > s.y - SPY * 2.2;
+function inSceneOf(sc, p) {
+  const s = sc.spot;
+  if (sc.path && sc.path.some(a => Math.abs(p.x - a.x) < SPX * 1.2 && Math.abs(p.y - a.y) < SPY * 1.1)) return true;
+  if (sc.low) return Math.abs(p.x - s.x) < SPX * 2.2 && p.y > s.y - SPY * 2.2;
   return Math.abs(p.x - s.x) < SPX * 2.1 && Math.abs(p.y - s.y) < SPY * 1.6;
 }
+const inScene = (p, except) => scenes.some(sc => sc !== except && inSceneOf(sc, p));
+const sceneAt = p => scenes.find(sc => inSceneOf(sc, p));
 
 // ── physics ──────────────────────────────────────────────────────
 function collide(b) {
@@ -283,11 +284,11 @@ function pickHome(b) {
 }
 function startHop(b, a) {
   b.home = a; b.pending = null;
-  b.hop = { fx: b.x, fy: b.y, t: 0, dur: clamp(dist(b, hangPos(a)) / (SPX * 1.4), 0.7, 1.8) };
+  b.hop = { fx: b.x, fy: b.y, t: 0, dur: clamp(dist(b, hangPos(a)) / (SPX * 0.9), 1.1, 2.6) };
 }
 function setHanging(b) {
   b.rope = { anchor: b.home, L0: HOME_L() / (1 - TUG), L: HOME_L(), t: 1 };
-  if (!b.sway) b.sway = rnd(0.035, 0.07);
+  if (!b.sway) b.sway = rnd(0.12, 0.22);
 }
 function calmStep(b, dt) {
   if (!b.home || (!b.hop && !homeOk(b.home, b))) {
@@ -299,7 +300,7 @@ function calmStep(b, dt) {
     const h = b.hop; h.t += dt;
     const u = Math.min(1, h.t / h.dur), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
     const T = hangPos(b.home);
-    const nx = h.fx + (T.x - h.fx) * e, ny = h.fy + (T.y - h.fy) * e - Math.sin(Math.PI * u) * SPY * 0.18;
+    const nx = h.fx + (T.x - h.fx) * e, ny = h.fy + (T.y - h.fy) * e - Math.sin(Math.PI * u) * SPY * 0.25;
     if (dt > 0) { b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt; }
     b.x = nx; b.y = ny;
     b.calmTilt = clamp(-b.vx / (2500 * U), -0.25, 0.25);
@@ -320,11 +321,11 @@ function calmStep(b, dt) {
   b.calmTilt = -th * 0.5;
 }
 // now and then one name hops to a free dot next to it, without touching anyone
-let moveT = 2.5;
+let moveT = 0.8;
 function clearPath(b, T) {
   for (let k = 1; k <= 10; k++) {
     const u = k / 10;
-    const g = { x: b.x + (T.x - b.x) * u, y: b.y + (T.y - b.y) * u - Math.sin(Math.PI * u) * SPY * 0.18, hw: b.hw + 10 * U, th: b.th + 10 * U };
+    const g = { x: b.x + (T.x - b.x) * u, y: b.y + (T.y - b.y) * u - Math.sin(Math.PI * u) * SPY * 0.25, hw: b.hw + 10 * U, th: b.th + 10 * U };
     if (balls.some(o => o !== b && !o.leaving && boxes(g, o))) return false;
   }
   return true;
@@ -332,10 +333,10 @@ function clearPath(b, T) {
 function idleMoves(dt) {
   moveT -= dt;
   if (moveT > 0) return;
-  moveT = rnd(1.2, 3.2);
+  moveT = rnd(0.35, 1.0);   // calm, but always someone on the move
   const cand = balls.filter(b => isCalm(b) && !b.hop && b.home && b.rope && b.rope.anchor === b.home).sort(() => Math.random() - 0.5);
   for (const b of cand) {
-    const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 1 && Math.abs(a.c - b.home.c) <= 1 && homeOk(a, b) && clearPath(b, hangPos(a)));
+    const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 2 && Math.abs(a.c - b.home.c) <= 2 && homeOk(a, b) && clearPath(b, hangPos(a)));
     if (opts.length) { startHop(b, opts[Math.floor(Math.random() * opts.length)]); return; }
   }
 }
@@ -345,7 +346,7 @@ function placeAll() {   // the opening: everyone already hanging, still, each fr
     const opts = anchors.filter(a => homeOk(a, b) && a.r >= 1);
     const a = opts[Math.floor(Math.random() * opts.length)];
     if (!a) return;
-    b.home = a; b.sway = rnd(0.035, 0.07);
+    b.home = a; b.sway = rnd(0.12, 0.22);
     const th = rnd(-1, 1) * b.sway;
     b.x = a.x + Math.sin(th) * HOME_L(); b.y = a.y + Math.cos(th) * HOME_L();
     b.vx = 0; b.vy = 0; b.hop = null; b.pending = null; b.goal = null;
@@ -443,7 +444,7 @@ function advance(b, dt) {
     }
     const rising = b.vy < -80 * U, above = b.y < b.rope.anchor.y + b.rope.L * 0.75;
     const post = duel.phase !== 'truce' ? duel.post : null;
-    const inZone = (post && !isRival(b) && b.hookT > 0.4 && dist(b, post) < 440 * U) || (scene && b.hookT > 0.4 && inScene(b));
+    const inZone = (post && !isRival(b) && b.hookT > 0.4 && dist(b, post) < 440 * U) || (b.hookT > 0.4 && inScene(b));
     if (inZone || (b.hookT > 0.5 && rising && above) || b.hookT > 2.6 || (b.hookT > 1 && b.stallT > 0.8)) {
       b.rope = null; b.freeT = 0;
       b.freeWait = (b.y < H * 0.42 ? 0.45 : 0.2) + Math.random() * 0.5;
@@ -454,7 +455,8 @@ function advance(b, dt) {
     const onFloor = b.y > H - b.th - 4;
     if (b.freeT > b.freeWait || (onFloor && b.freeT > 0.15) || b.stallT > 0.6) {
       if (b.goal && b.goal.y > b.y + 260 * U && !onFloor) { b.freeT = 0; return; }
-      if (onFloor && scene && !b.busy && inScene(b)) { b.vy = -1000 * U; b.vx = (b.x < scene.spot.x ? -1 : 1) * 420 * U; b.freeT = 0; return; }
+      const zs = onFloor && !b.busy && sceneAt(b);
+      if (zs) { b.vy = -1000 * U; b.vx = (b.x < zs.spot.x ? -1 : 1) * 420 * U; b.freeT = 0; return; }
       const t = (b.goal && pickToward(b, b.goal)) || pickWander(b, true);
       if (t) { b.pending = { anchor: t, t: 0 }; b.stallT = 0; }
       else if (onFloor) { b.vy = -700 * U; b.vx += b.dir * 160 * U; }
@@ -526,7 +528,7 @@ function launch(h, w) {
 }
 function director(dt) {
   const A = byName('ALEXIS'), K = byName('KRYSTLE');
-  if (!A || !K || scene || A.dragged || K.dragged) { if (duel.phase !== 'truce') endDuel(rnd(3, 5)); return; }
+  if (!A || !K || A.busy || K.busy || A.dragged || K.dragged) { if (duel.phase !== 'truce') endDuel(rnd(3, 5)); return; }
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
@@ -706,11 +708,11 @@ function eligible(sc) {
 function sceneStep(dt) {
   for (const k in cool) cool[k] -= dt;
   for (const k in rest) rest[k] -= dt;
-  if (scene) { runScene(dt); return; }
+  scenes.slice().forEach(sc => runScene(sc, dt));
   // encounters only start when the visitor taps a name
 }
-function targetL(o) {
-  return scene.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
+function targetL(s, o) {
+  return s.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
 }
 function startScene(sc, A, B, near) {
   if (sc.love) { startLove(sc, A, B); return; }
@@ -728,6 +730,8 @@ function startScene(sc, A, B, near) {
     const lo = 1, hi = COLS - 2;   // keep both off the edge columns so the names fit on screen
     let pc = clamp(pa.c, lo, hi);
     if (pc + side * gap < lo || pc + side * gap > hi) { if (sc.push) pc = clamp(pc, lo + gap, hi - gap); else side = -side; }
+    const crowdedAt = a => !a || inScene({ x: a.x, y: a.y + SPY * 0.8 }) || balls.some(o => o.busy && o.goal === a);
+    if (crowdedAt(anchorAt(row, pc + side * gap)) && !sc.push) { const alt = pc - side * gap; if (alt >= lo && alt <= hi && !crowdedAt(anchorAt(row, alt))) side = -side; }
     const nearA = anchorAt(row, pc), moverA = anchorAt(row, pc + side * gap);
     if (!nearA || !moverA) return;
     [left, right] = side > 0 ? [nearA, moverA] : [moverA, nearA];
@@ -749,37 +753,37 @@ function startScene(sc, A, B, near) {
     o.busy = sc.id; o.goal = a; o.role = null; o.rope = null; o.pending = { anchor: a, t: 0 };
     o.hookT = 0; o.freeT = 0; o.goalRelease = false; o.winch = 0; o.rush = false;
   });
-  scene = { sc, A, B, L, R, phase: 'approach', t: 0, hold: 0, li: 0, wait: 0, endT: null, babyBorn: false,
+  const scn = { sc, A, B, L, R, phase: 'approach', t: 0, hold: 0, li: 0, wait: 0, endT: null, babyBorn: false,
     spot: { x: (left.x + right.x) / 2, y: left.y + SPY * 0.8 }, low: !!sc.low };
-  if (duel.phase !== 'truce') endDuel(rnd(3, 5));
+  scenes.push(scn); L.scene = R.scene = scn;
+  if (duel.phase !== 'truce' && (isRival(A) || isRival(B))) endDuel(rnd(3, 5));
 }
-function runScene(dt) {
-  if (scene.love) { runLove(dt); return; }
-  const s = scene;
+function runScene(s, dt) {
+  if (s.love) { runLove(s, dt); return; }
   s.t += dt;
   const pair = [s.L, s.R];
-  if (pair.some(o => balls.indexOf(o) < 0) || s.t > 30) { endScene(true); return; }
+  if (pair.some(o => balls.indexOf(o) < 0) || s.t > 30) { endScene(s, true); return; }
   // ropes ease to their scene length
   pair.forEach(o => {
     if (o.stairs || s.pushed && o === s.B) return;
     if (!o.rope && !o.pending) o.pending = { anchor: o.goal, t: 0 };
     if (o.rope && o.rope.anchor === o.goal && o.rope.t > TUG_T) {
-      const want = targetL(o) / (1 - TUG);
+      const want = targetL(s, o) / (1 - TUG);
       o.rope.L0 += (want - o.rope.L0) * Math.min(1, dt * 2.5);
     }
   });
   // everyone else clears the space
   balls.forEach(o => {
     if (o.busy || o.tether || o.leaving) return;
-    const anchorIn = o.rope && inScene(o.rope.anchor);
-    if (!inScene(o) && !anchorIn) return;
+    const anchorIn = o.rope && inSceneOf(s, o.rope.anchor);
+    if (!inSceneOf(s, o) && !anchorIn) return;
     if (anchorIn) { o.rope = null; o.freeT = 0; o.freeWait = 0.1; }
     const refX = (pair.find(p => p.stairs) || s.spot).x;
     o.vx += (o.x < refX ? -1 : 1) * 900 * U * dt;
     o.vy -= (s.low ? 2200 : 900) * U * dt;
   });
   if (s.phase === 'approach') {
-    const ready = pair.every(o => o.rope && o.rope.anchor === o.goal && Math.abs(o.rope.L0 * (1 - TUG) - targetL(o)) < SPY * 0.25);
+    const ready = pair.every(o => o.rope && o.rope.anchor === o.goal && Math.abs(o.rope.L0 * (1 - TUG) - targetL(s, o)) < SPY * 0.25);
     if (ready || s.t > 4) { s.phase = 'talk'; s.hold = 0; }
     return;
   }
@@ -802,7 +806,7 @@ function runScene(dt) {
   if (!busyTalking) s.wait -= dt;
   const lines = s.sc.lines;
   if (s.li < lines.length) {
-    const clear = !balls.some(o => !o.busy && !o.temp && inScene(o));
+    const clear = !balls.some(o => !o.busy && !o.temp && inSceneOf(s, o));
     if (!busyTalking && s.wait <= 0 && (s.li > 0 || (s.hold > 0.4 && clear) || s.hold > 1.6)) {
       const [who, text] = lines[s.li++];
       say(who === 'a' ? s.A : s.B, text, s);
@@ -826,7 +830,7 @@ function runScene(dt) {
         s.pushed = true; s.lunge = null;
         freeze = 0.08; shakeT = 0.2;
         P.vx = -dir * 250 * U;
-        startStairs(V, P);
+        startStairs(V, P, s);
         s.endT = Infinity;
       }
       return;
@@ -840,11 +844,12 @@ function runScene(dt) {
     balls.forEach(o => { if (o === s.A || o === s.B || o.temp) o.hotUntil = until; });
   }
   if (s.endT == null) s.endT = s.hold + 1.0;
-  if (s.hold >= s.endT) endScene(false);
+  if (s.hold >= s.endT) endScene(s, false);
 }
-function endScene(abort) {
-  const s = scene; if (!s) return;
-  scene = null;
+function endScene(s, abort) {
+  const k = scenes.indexOf(s); if (k < 0) return;
+  scenes.splice(k, 1);
+  [s.L, s.R].forEach(o => { if (o.scene === s) o.scene = null; });
   [s.L, s.R].forEach(o => { if (!o.downT) o.kin = false; o.busy = null; o.goal = null; o.roofTilt = null; o.home = null; rest[o.name] = rnd(8, 12); });
   quips = quips.filter(q => q.scene !== s);
   cool[s.sc.id] = rnd(...(s.sc.cd || [30, 45]));
@@ -861,7 +866,7 @@ function endScene(abort) {
   }
 }
 // the shove: the victim's rope vanishes and she drops dot by dot, one row down and one column across each step
-function startStairs(v, p) {
+function startStairs(v, p, s) {
   let dir = v.x >= p.x ? 1 : -1;
   const a0 = v.goal || (v.rope && v.rope.anchor);
   const path = [];
@@ -879,7 +884,7 @@ function startStairs(v, p) {
   freeze = 0.08;
   if (!path.length) { v.vx = dir * 600 * U; return; }
   v.stairs = { path, i: 0, t: 0, dur: 0.34, fx: v.x, fy: v.y, dir };
-  scene.path = path;
+  if (s) s.path = path;
 }
 // ── Alexis and Cecil ─────────────────────────────────────────────
 function startLove(sc, A, C) {
@@ -890,20 +895,21 @@ function startLove(sc, A, C) {
   const midY = (A.y + A.th + C.y + C.th) / 2;
   const row = clamp(Math.round(midY / SPY - 0.5), 1, ROWS - 1);
   const lineY = SPY / 2 + row * SPY;
-  scene = { sc, A, B: C, L: A, R: C, love: { phase: 'meet', t: 0, x, lineY, a0: { x: A.x, y: A.y }, c0: { x: C.x, y: C.y }, dir: x > W / 2 ? -1 : 1 },
+  const scn = { sc, A, B: C, L: A, R: C, love: { phase: 'meet', t: 0, x, lineY, a0: { x: A.x, y: A.y }, c0: { x: C.x, y: C.y }, dir: x > W / 2 ? -1 : 1 },
     phase: 'talk', t: 0, hold: 0, li: 0, wait: 0, endT: null, spot: { x, y: lineY - A.th }, low: false };
-  if (duel.phase !== 'truce') endDuel(rnd(3, 5));
+  scenes.push(scn); A.scene = C.scene = scn;
+  if (duel.phase !== 'truce' && (isRival(A) || isRival(C))) endDuel(rnd(3, 5));
 }
-function runLove(dt) {
-  const s = scene, L = s.love, A = s.A, C = s.B;
-  if (balls.indexOf(A) < 0 || balls.indexOf(C) < 0) { endScene(true); return; }
+function runLove(s, dt) {
+  const L = s.love, A = s.A, C = s.B;
+  if (balls.indexOf(A) < 0 || balls.indexOf(C) < 0) { endScene(s, true); return; }
   s.t += dt; L.t += dt;
   const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   const aY = L.lineY - A.th, cY = aY - C.th * 0.92;   // Alexis lies on the line of dots, Cecil on top of her
   if (!s.freezeOthers) {   // clear the bed
     balls.forEach(o => {
-      if (o.busy || o.tether || o.leaving || !inScene(o)) return;
-      if (o.rope && inScene(o.rope.anchor)) { o.rope = null; o.freeT = 0; o.freeWait = 0.1; }
+      if (o.busy || o.tether || o.leaving || !inSceneOf(s, o)) return;
+      if (o.rope && inSceneOf(s, o.rope.anchor)) { o.rope = null; o.freeT = 0; o.freeWait = 0.1; }
       o.vx += (o.x < L.x ? -1 : 1) * 900 * U * dt; o.vy -= 1800 * U * dt;
     });
   }
@@ -942,7 +948,7 @@ function runLove(dt) {
   if (s.li === 1 && !talkingNow) { if (s.endT == null) s.endT = s.hold + 2.0; }
   if (s.endT != null && s.hold >= s.endT) {
     A.kin = false; A.vy = -700 * U; A.vx = -L.dir * 200 * U; A.freeT = 0; A.freeWait = 0.3;
-    endScene(false);
+    endScene(s, false);
   }
 }
 // a body lying on the floor (Cecil) stays down a moment, then gets back up
@@ -1073,7 +1079,7 @@ function frame(now) {
   if (shakeT > 0) shakeT -= raw;
   if (freeze > 0) freeze -= raw;
   else {
-    const frozen = scene && scene.freezeOthers;
+    const frozen = scenes.some(sc => sc.freezeOthers);
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
     if (!frozen) { bump(); scatter(dt); shove(); separate(dt); idleMoves(dt); }
     downStep(dt);
@@ -1099,7 +1105,7 @@ function hitTest(x, y) {
   return null;
 }
 function grab(b, x, y) {
-  if (b.busy && scene) endScene(true);
+  if (b.scene) endScene(b.scene, true);
   if (duel.hunter === b || duel.waiter === b) endDuel(3);
   b.rope = null; b.pending = null; b.goal = null; b.role = null; b.stairs = null; b.wheel = null;
   b.dragged = true;
@@ -1122,8 +1128,8 @@ function letGo() {
     if (d < best) { best = d; other = o; }
   });
   if (!other) return;
-  if (isRival(other)) {   // dropped by her rival: straight into the fight (the visitor wins over any running scene)
-    if (scene) endScene(true);
+  if (isRival(other)) {   // dropped by her rival: straight into the fight (it wins over whatever she was in)
+    [b, other].forEach(o => { if (o.scene) endScene(o.scene, true); });
     duel.hunter = b; duel.waiter = other; duel.hits = 0; duel.super = false;
     duel.goal = DUEL_HITS[0] + Math.floor(Math.random() * (DUEL_HITS[1] - DUEL_HITS[0] + 1));
     launch(b, other);
@@ -1131,7 +1137,7 @@ function letGo() {
   }
   const sc = SCENES.find(s => (s.a === b.name && s.b === other.name) || (s.b === b.name && s.a === other.name));
   if (!sc || (sc.baby && balls.some(o => o.temp))) return;
-  if (scene) endScene(true);
+  [b, other].forEach(o => { if (o.scene) endScene(o.scene, true); });
   cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
   startScene(sc, byName(sc.a), byName(sc.b));
 }
@@ -1143,15 +1149,14 @@ function tap(b) {
   const opts = SCENES.filter(sc => {
     if (sc.a !== b.name && sc.b !== b.name) return false;
     const o = byName(sc.a === b.name ? sc.b : sc.a);
-    if (!o || o.kin || o.stairs || o.leaving) return false;
+    if (!o || o.busy || o.role || o.dragged || o.kin || o.stairs || o.leaving) return false;
     if (sc.baby && balls.some(t => t.temp)) return false;
     return true;
   }).map(sc => ({ sc }));
-  if (isRival(b)) opts.push({ duel: true });
+  const K2 = byName(b.name === 'ALEXIS' ? 'KRYSTLE' : 'ALEXIS');
+  if (isRival(b) && duel.phase === 'truce' && K2 && !K2.busy && !K2.dragged && !K2.kin) opts.push({ duel: true });
   if (!opts.length) return;
   const pick = opts[Math.floor(Math.random() * opts.length)];
-  if (scene) endScene(true);
-  if (duel.phase !== 'truce') endDuel(0);
   if (pick.duel) { startStandoff(byName('ALEXIS'), byName('KRYSTLE')); return; }
   const sc = pick.sc, other = byName(sc.a === b.name ? sc.b : sc.a);
   cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
