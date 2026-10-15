@@ -306,7 +306,7 @@ function calmStep(b, dt) {
     b.calmTilt = clamp(-b.vx / (2500 * U), -0.25, 0.25);
     const d = dist(b, b.home);
     b.rope = { anchor: b.home, L0: d / (1 - TUG), L: d, t: 1 };
-    if (u >= 1) { b.hop = null; b.vx = clamp(b.vx, -90 * U, 90 * U); b.vy = 0; setHanging(b); }
+    if (u >= 1) { b.hop = null; b.vx = clamp(b.vx, -90 * U, 90 * U); b.vy = 0; setHanging(b); if (b.visit) arrive(b); }
     return;
   }
   if (!b.rope || b.rope.anchor !== b.home) { startHop(b, b.home); return; }
@@ -334,7 +334,7 @@ function idleMoves(dt) {
   moveT -= dt;
   if (moveT > 0) return;
   moveT = rnd(0.35, 1.0);   // calm, but always someone on the move
-  const cand = balls.filter(b => isCalm(b) && !b.hop && b.home && b.rope && b.rope.anchor === b.home).sort(() => Math.random() - 0.5);
+  const cand = balls.filter(b => isCalm(b) && !b.hop && !b.visit && b.home && b.rope && b.rope.anchor === b.home).sort(() => Math.random() - 0.5);
   for (const b of cand) {
     const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 2 && Math.abs(a.c - b.home.c) <= 2 && homeOk(a, b) && clearPath(b, hangPos(a)));
     if (opts.length) { startHop(b, opts[Math.floor(Math.random() * opts.length)]); return; }
@@ -407,7 +407,7 @@ function advance(b, dt) {
   }
   b.calm = isCalm(b);
   if (b.calm) { calmStep(b, dt); return; }
-  b.hop = null;
+  b.hop = null; b.visit = null;
   const holding = !!(b.goal && b.rope && b.rope.anchor === b.goal);
   b.holdCap = holding ? 620 * U : 0;
   for (let i = 0; i < 4; i++) step(b, dt / 4);
@@ -1083,7 +1083,7 @@ function frame(now) {
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
     if (!frozen) { bump(); scatter(dt); shove(); separate(dt); idleMoves(dt); }
     downStep(dt);
-    director(dt); sceneStep(dt); followStep(dt);
+    director(dt); sceneStep(dt); darlingStep(dt); followStep(dt);
     updFx(dt, raw);
   }
   draw();
@@ -1144,23 +1144,54 @@ function letGo() {
 const pt = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 // Tap a name: it goes looking for someone it has a scene with (picked at random) and the scene plays.
 let press = null;
+const isOccupied = o => !!(o.busy || o.role || o.kin || o.stairs || o.dragged);
+const companion = o => o.scene ? (o.scene.A === o ? o.scene.B : o.scene.A)
+  : o.role ? byName(o.name === 'ALEXIS' ? 'KRYSTLE' : 'ALEXIS') : null;
+const DARLING = n => "OH DARLING,\nI'M WITH " + n.replace('\n', ' ');
+let darlings = [];   // lines waiting until the one who says them isn't mid-sentence
+function play(b, pick) {
+  if (pick.duel) { startStandoff(byName('ALEXIS'), byName('KRYSTLE')); return; }
+  const sc = pick.sc;
+  cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
+  startScene(sc, byName(sc.a), byName(sc.b), pick.o);
+}
 function tap(b) {
-  if (b.busy || b.role || b.kin || b.stairs || b.temp) return;
+  if (isOccupied(b) || b.temp || b.visit) return;
+  // anyone it has a scene with, busy or not
   const opts = SCENES.filter(sc => {
     if (sc.a !== b.name && sc.b !== b.name) return false;
     const o = byName(sc.a === b.name ? sc.b : sc.a);
-    if (!o || o.busy || o.role || o.dragged || o.kin || o.stairs || o.leaving) return false;
+    if (!o || o.leaving) return false;
     if (sc.baby && balls.some(t => t.temp)) return false;
     return true;
-  }).map(sc => ({ sc }));
-  const K2 = byName(b.name === 'ALEXIS' ? 'KRYSTLE' : 'ALEXIS');
-  if (isRival(b) && duel.phase === 'truce' && K2 && !K2.busy && !K2.dragged && !K2.kin) opts.push({ duel: true });
+  }).map(sc => ({ sc, o: byName(sc.a === b.name ? sc.b : sc.a) }));
+  if (isRival(b)) { const o = byName(b.name === 'ALEXIS' ? 'KRYSTLE' : 'ALEXIS'); if (o) opts.push({ duel: true, o }); }
   if (!opts.length) return;
   const pick = opts[Math.floor(Math.random() * opts.length)];
-  if (pick.duel) { startStandoff(byName('ALEXIS'), byName('KRYSTLE')); return; }
-  const sc = pick.sc, other = byName(sc.a === b.name ? sc.b : sc.a);
-  cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
-  startScene(sc, byName(sc.a), byName(sc.b), other);
+  const free = !isOccupied(pick.o) && !(pick.duel && duel.phase !== 'truce');
+  if (free) { play(b, pick); return; }
+  // the one it wants is busy: it goes over anyway, and gets brushed off
+  let best = null, bs = Infinity;
+  for (const a of anchors) { if (!homeOk(a, b)) continue; const d = dist(hangPos(a), pick.o); if (d < bs) { bs = d; best = a; } }
+  b.visit = pick;
+  if (best) startHop(b, best); else arrive(b);
+}
+function arrive(b) {
+  const pick = b.visit; b.visit = null;
+  if (!pick || balls.indexOf(pick.o) < 0) return;
+  const o = pick.o;
+  if (!isOccupied(o) && !(pick.duel && duel.phase !== 'truce') && isCalm(b)) { play(b, pick); return; }   // free by now: their scene
+  const w = companion(o);
+  darlings.push({ o, text: DARLING(w ? w.name : 'SOMEONE'), t: 6 });
+}
+function darlingStep(dt) {
+  for (let i = darlings.length - 1; i >= 0; i--) {
+    const d = darlings[i]; d.t -= dt;
+    if (balls.indexOf(d.o) < 0 || d.t <= 0) { darlings.splice(i, 1); continue; }
+    if (talking(d.o) || (d.o.scene && quips.some(q => q.scene === d.o.scene)) || (d.o.role && quips.some(q => q.duel))) continue;   // wait for a gap in the conversation
+    say(d.o, d.text, d.o.scene || null);   // the scene waits for it, then carries on
+    darlings.splice(i, 1);
+  }
 }
 cv.addEventListener('pointerdown', e => {
   const [x, y] = pt(e), b = hitTest(x, y);
