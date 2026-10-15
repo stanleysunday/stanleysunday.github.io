@@ -36,6 +36,12 @@
 
 const CAST = ['KRYSTLE', 'ALEXIS', 'BLAKE', 'STEVEN', 'FALLON', 'JEFF', 'SAMMY\nJO', 'CECIL'];
 
+// How each one moves when nothing is happening (they sometimes change, or just rest):
+//   errand = off to the pool: picks somewhere far and goes there quickly, dot by dot
+//   pace   = walking round a room: circles the dots around its spot, steady
+//   peek   = looking in on others: drifts slowly toward someone, stops to look, moves on
+const MOOD = { ALEXIS: 'errand', KRYSTLE: 'pace', BLAKE: 'pace', STEVEN: 'peek', FALLON: 'errand', JEFF: 'peek', 'SAMMY\nJO': 'errand', CECIL: 'peek' };
+
 // While wandering, who drifts toward whom (+) and who keeps away from whom (−).
 const AFF = {
   JEFF:        { FALLON: 1 },
@@ -282,9 +288,9 @@ function pickHome(b) {
   }
   return best;
 }
-function startHop(b, a) {
+function startHop(b, a, dur) {
   b.home = a; b.pending = null;
-  b.hop = { fx: b.x, fy: b.y, t: 0, dur: clamp(dist(b, hangPos(a)) / (SPX * 0.9), 1.1, 2.6) };
+  b.hop = { fx: b.x, fy: b.y, t: 0, dur: dur || clamp(dist(b, hangPos(a)) / (SPX * 0.9), 1.1, 2.6), lift: dur && dur < 0.7 ? 0.12 : 0.25 };
 }
 function setHanging(b) {
   b.rope = { anchor: b.home, L0: HOME_L() / (1 - TUG), L: HOME_L(), t: 1 };
@@ -300,7 +306,7 @@ function calmStep(b, dt) {
     const h = b.hop; h.t += dt;
     const u = Math.min(1, h.t / h.dur), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
     const T = hangPos(b.home);
-    const nx = h.fx + (T.x - h.fx) * e, ny = h.fy + (T.y - h.fy) * e - Math.sin(Math.PI * u) * SPY * 0.25;
+    const nx = h.fx + (T.x - h.fx) * e, ny = h.fy + (T.y - h.fy) * e - Math.sin(Math.PI * u) * SPY * (h.lift || 0.25);
     if (dt > 0) { b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt; }
     b.x = nx; b.y = ny;
     b.calmTilt = clamp(-b.vx / (2500 * U), -0.25, 0.25);
@@ -318,7 +324,58 @@ function calmStep(b, dt) {
   const amp = Math.hypot(th, vt / (L * w)), target = b.sway || 0.05;
   if (amp < target * 0.15) b.vx += (Math.random() < 0.5 ? -1 : 1) * L * w * target * 0.6;
   else { const k = clamp((target - amp) / target, -1, 1) * dt * 1.6; b.vx *= 1 + k; b.vy *= 1 + k; }
-  b.calmTilt = -th * 0.5;
+  const look = b.lookAt && balls.indexOf(b.lookAt) >= 0 ? clamp((b.lookAt.x - b.x) / (SPX * 3), -1, 1) * 0.22 : 0;
+  b.calmTilt = -th * 0.5 + look;
+  if (!b.visit) { b.brainT = (b.brainT == null ? rnd(0.3, 3) : b.brainT) - dt; if (b.brainT <= 0) think(b); }
+}
+// ── temperaments: each idle move is one dot; the mood decides where, how fast and how often ──
+const neighbours = (b, a) => anchors.filter(n => n !== a && Math.abs(n.r - a.r) <= 1 && Math.abs(n.c - a.c) <= 1 && homeOk(n, b) && clearPath(b, hangPos(n)));
+function pickMood(b) {
+  const own = MOOD[b.name] || 'pace', r = Math.random();
+  b.mood = r < 0.62 ? own : r < 0.67 ? 'rest' : ['errand', 'pace', 'peek'][Math.floor(Math.random() * 3)];
+  b.trip = null; b.room = b.home; b.lookAt = null; b.ringDir = Math.random() < 0.5 ? 1 : -1;
+  b.moodLeft = b.mood === 'pace' ? 6 + Math.floor(Math.random() * 8) : b.mood === 'peek' ? 3 + Math.floor(Math.random() * 3) : 1;
+}
+function think(b) {
+  if (!b.home) return;
+  if (!b.mood || b.moodLeft <= 0) pickMood(b);
+  const here = b.home;
+  if (b.mood === 'rest') { b.moodLeft = 0; b.brainT = rnd(1.2, 2.8); return; }
+  if (b.mood === 'errand') {   // somewhere far, quickly
+    if (!b.trip) {
+      const far = anchors.filter(a => dist(a, here) > SPX * 3.5 && homeOk(a, b));
+      b.trip = far[Math.floor(Math.random() * far.length)];
+      if (!b.trip) { b.moodLeft = 0; b.brainT = 1; return; }
+    }
+    const opts = neighbours(b, here).filter(n => dist(n, b.trip) < dist(here, b.trip) - 1);
+    if (here === b.trip || !opts.length || !homeOk(b.trip, b)) { b.moodLeft = 0; b.trip = null; b.brainT = rnd(0.8, 2); return; }   // arrived (or blocked): a breather
+    opts.sort((p, q) => dist(p, b.trip) - dist(q, b.trip));
+    startHop(b, opts[Math.random() < 0.75 ? 0 : Math.min(1, opts.length - 1)], rnd(0.38, 0.55));
+    b.brainT = 0.02;
+    return;
+  }
+  if (b.mood === 'pace') {     // round and round the dots around its spot
+    const R = b.room || here;
+    const ring = [[-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1]].map(([dr, dc]) => anchorAt(R.r + dr, R.c + dc));
+    let i = ring.indexOf(here);
+    let next = null;
+    for (let k = 1; k <= 3 && !next; k++) {
+      const cand = i < 0 ? ring.filter(Boolean).sort((p, q) => dist(p, here) - dist(q, here))[k - 1] : ring[(i + b.ringDir * k + 80) % 8];
+      if (cand && Math.abs(cand.r - here.r) <= 1 && Math.abs(cand.c - here.c) <= 1 && homeOk(cand, b) && clearPath(b, hangPos(cand))) next = cand;
+    }
+    if (!next) { b.ringDir = -b.ringDir; b.moodLeft--; b.brainT = rnd(0.6, 1.2); return; }
+    startHop(b, next, rnd(0.7, 1.0));
+    b.moodLeft--; b.brainT = rnd(0.02, 0.3);
+    return;
+  }
+  // peek: toward whoever is nearest, slowly, then a good look
+  const others = balls.filter(o => o !== b && !o.temp && !o.leaving);
+  others.sort((p, q) => dist(p, b) - dist(q, b));
+  const who = others[Math.floor(Math.random() * Math.min(3, others.length))];
+  b.lookAt = who || null;
+  const opts = who ? neighbours(b, here).filter(n => dist(n, who) < dist(here, who)) : [];
+  if (opts.length) startHop(b, opts[Math.floor(Math.random() * opts.length)], rnd(1.0, 1.4));
+  b.moodLeft--; b.brainT = rnd(0.7, 1.6);
 }
 // now and then one name hops to a free dot next to it, without touching anyone
 let moveT = 0.8;
@@ -407,7 +464,7 @@ function advance(b, dt) {
   }
   b.calm = isCalm(b);
   if (b.calm) { calmStep(b, dt); return; }
-  b.hop = null; b.visit = null;
+  b.hop = null; b.visit = null; b.mood = null; b.lookAt = null;
   const holding = !!(b.goal && b.rope && b.rope.anchor === b.goal);
   b.holdCap = holding ? 620 * U : 0;
   for (let i = 0; i < 4; i++) step(b, dt / 4);
@@ -1081,7 +1138,7 @@ function frame(now) {
   else {
     const frozen = scenes.some(sc => sc.freezeOthers);
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
-    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); idleMoves(dt); }
+    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); }
     downStep(dt);
     director(dt); sceneStep(dt); darlingStep(dt); followStep(dt);
     updFx(dt, raw);
