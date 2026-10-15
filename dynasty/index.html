@@ -34,7 +34,7 @@
 //  CAST, RELATIONSHIPS AND ENCOUNTERS — edit here
 // ═════════════════════════════════════════════════════════════════
 
-const CAST = ['KRYSTLE', 'ALEXIS', 'BLAKE', 'STEVEN', 'FALLON', 'JEFF', 'CLAUDIA', 'SAMMY\nJO', 'CECIL'];
+const CAST = ['KRYSTLE', 'ALEXIS', 'BLAKE', 'STEVEN', 'FALLON', 'JEFF', 'SAMMY\nJO', 'CECIL'];
 
 // While wandering, who drifts toward whom (+) and who keeps away from whom (−).
 const AFF = {
@@ -45,7 +45,6 @@ const AFF = {
   BLAKE:       { KRYSTLE: 0.5, STEVEN: 0.3, CECIL: -0.3 },
   KRYSTLE:     { BLAKE: 0.4 },
   CECIL:       { ALEXIS: 0.6 },
-  CLAUDIA:     { BLAKE: 0.3 },
   ALEXIS:      {},
 };
 
@@ -101,7 +100,7 @@ let W = 0, H = 0, COLS = 5, ROWS = 9, SPX = 200, SPY = 200, U = 1, G = 1500, PUM
 let anchors = [];
 let balls = [];
 let quips = [];
-let scene = null, sceneGap = 7, soloT = 14, freeze = 0, shakeT = 0;
+let scene = null, sceneGap = 7, freeze = 0, shakeT = 0;
 const cool = {}, rest = {}, follows = [];
 const duel = { phase: 'truce', t: 4, hunter: null, waiter: null, post: null, hits: 0, goal: DUEL_HITS[0] + 2, opened: false };
 
@@ -896,14 +895,6 @@ function followStep(dt) {
     b.goal = f.a; b.rush = true; b.winch = 260; b.goalRelease = true; b.rope = null; b.pending = { anchor: f.a, t: THROW_T * 0.5 };
   }
 }
-function soloStep(dt) {   // Claudia, alone, asks after her daughter
-  soloT -= dt;
-  if (soloT > 0) return;
-  const C = byName('CLAUDIA');
-  if (!C || scene || C.busy || !C.rope || Math.hypot(C.vx, C.vy) > 260 * U) { soloT = 2; return; }
-  say(C, 'WHERE IS\nLINDSAY?');
-  soloT = rnd(22, 34);
-}
 
 function updFx(dt, raw) {
   balls.forEach(b => {
@@ -1011,7 +1002,7 @@ function frame(now) {
     if (!frozen) { contactPass(); bump(); scatter(dt); shove(); separate(dt); }
     flashStep(dt);
     downStep(dt);
-    director(dt); sceneStep(dt); soloStep(dt); followStep(dt);
+    director(dt); sceneStep(dt); followStep(dt);
     updFx(dt, raw);
   }
   draw();
