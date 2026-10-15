@@ -920,7 +920,7 @@ const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const A = hexRgb(a), B = hexRgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
 const isActive = b => !!(b.role || b.busy || (b.hotUntil && b.hotUntil > performance.now()));
 function draw() {
-  balls.forEach(b => { const tg = Math.max(isActive(b) ? 1 : 0, b.flash || 0); b.glow = (b.glow || 0) + (tg - (b.glow || 0)) * (tg > (b.glow || 0) ? 0.35 : 0.12); b.col = mix(CFG.idle, CFG.ink, b.glow); });
+  balls.forEach(b => { const tg = isActive(b) ? 1 : 0; b.glow = (b.glow || 0) + (tg - (b.glow || 0)) * (tg > (b.glow || 0) ? 0.35 : 0.12); b.col = mix(CFG.idle, CFG.ink, b.glow); });
   ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
   ctx.save();
   if (shakeT > 0) { const a = 10 * U * shakeT / 0.32; ctx.translate(rnd(-a, a), rnd(-a, a)); }
