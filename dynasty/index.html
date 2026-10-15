@@ -65,7 +65,7 @@ const SCENES = [
   { id: 'daughter', a: 'BLAKE', b: 'FALLON', cd: [30, 45],
     lines: [['a', 'OH, MY\nDAUGHTER!']] },
   { id: 'teeth', a: 'ALEXIS', b: 'FALLON', cd: [35, 50],
-    lines: [['a', 'I SEE YOUR|FATHER FIXED|YOUR TEETH…|BUT FORGOT|YOUR TONGUE.']] },
+    lines: [['a', 'I SEE YOUR FATHER\nFIXED YOUR TEETH…|BUT FORGOT\nYOUR TONGUE.']] },
   // Blake says his line, shoves Alexis: her rope vanishes and she tumbles down the dots like a staircase
   // Alexis and Cecil, no ropes, in bed on the floor; Cecil flips over backwards with a heart attack; everyone freezes
   { id: 'cecil', a: 'ALEXIS', b: 'CECIL', love: true, cd: [60, 80],
@@ -705,7 +705,11 @@ function runScene(dt) {
     if (s.B.stairs) return;
     if (s.endT === Infinity) s.endT = s.hold + 0.8;
   }
-  if (s.sc.baby && !s.babyBorn) { s.babyBorn = true; spawnBaby(s.A); s.endT = s.hold + 2.4; }
+  if (s.sc.baby && !s.babyBorn) {
+    s.babyBorn = true; spawnBaby(s.A); s.endT = s.hold + 3.6;
+    const until = performance.now() + 9000;   // Fallon, Jeff and Little Blake stay yellow a while after the birth
+    balls.forEach(o => { if (o === s.A || o === s.B || o.temp) o.hotUntil = until; });
+  }
   if (s.endT == null) s.endT = s.hold + 1.0;
   if (s.hold >= s.endT) endScene(false);
 }
@@ -868,7 +872,7 @@ function updFx(dt, raw) {
 // ── drawing ──────────────────────────────────────────────────────
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const A = hexRgb(a), B = hexRgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
-const isActive = b => !!(b.role || b.busy || talking(b));
+const isActive = b => !!(b.role || b.busy || talking(b) || (b.hotUntil && b.hotUntil > performance.now()));
 function draw() {
   balls.forEach(b => { b.glow = (b.glow || 0) + ((isActive(b) ? 1 : 0) - (b.glow || 0)) * 0.12; b.col = mix(CFG.idle, CFG.ink, b.glow); });
   ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
