@@ -148,7 +148,7 @@ function layout() {
   follows.length = 0;
   balls.forEach(b => {
     if (b.temp) return;
-    b.rope = null; b.pending = null; b.goal = null; b.winch = 0; b.goalRelease = false;
+    b.rope = null; b.pending = null; b.goal = null; b.winch = 0; b.goalRelease = false; b.home = null; b.hop = null;
     b.x = clamp(b.x, b.hw, W - b.hw); b.y = clamp(b.y, 0, Math.max(0, H - b.th));
   });
 }
@@ -196,7 +196,7 @@ function step(b, dt, ghost) {
     const dx = b.x - rope.anchor.x, dy = b.y - rope.anchor.y, d = Math.hypot(dx, dy) || 0.001;
     const sp = Math.hypot(b.vx, b.vy);
     const cap = b.holdCap || Infinity;
-    if (sp > 20 * U && rope.t > 0.15 && sp < cap) { b.vx += (b.vx / sp) * PUMP * dt; b.vy += (b.vy / sp) * PUMP * dt; }
+    if (!b.calm && sp > 20 * U && rope.t > 0.15 && sp < cap) { b.vx += (b.vx / sp) * PUMP * dt; b.vy += (b.vy / sp) * PUMP * dt; }
     if (d > rope.L) {
       const nx = dx / d, ny = dy / d;
       b.x = rope.anchor.x + nx * rope.L;
@@ -255,6 +255,104 @@ function pickWander(b, strict) {
   return best;
 }
 
+// ── calm: at rest every name hangs from its own dot, swaying a little ──
+// Nothing happens on its own except, now and then, one name hopping to a free dot next to it.
+const HOME_L = () => SPY * 0.42;
+const isCalm = b => !(b.busy || b.role || b.temp || b.goal || b.kin || b.dragged || b.stairs || b.tether || b.leaving);
+const hangPos = a => ({ x: a.x, y: a.y + HOME_L() });
+function homeOk(a, self) {
+  if (a.r > ROWS - 2) return false;
+  if (self && (a.x - self.hw < 6 || a.x + self.hw > W - 6)) return false;   // the whole name stays on screen
+  if (inScene(hangPos(a))) return false;
+  if (duel.post && dist(a, duel.post) < SPX * 1.5) return false;
+  return !balls.some(o => {
+    if (o === self || o.leaving || o.temp) return false;
+    const held = [o.home];
+    if (!isCalm(o)) held.push(o.goal, o.rope && o.rope.anchor, o.pending && o.pending.anchor);
+    return held.some(h => h && h.r === a.r && Math.abs(h.c - a.c) < 2);
+  });
+}
+function pickHome(b) {
+  let best = null, bs = Infinity;
+  for (const a of anchors) {
+    if (!homeOk(a, b)) continue;
+    const d = dist(b, hangPos(a)) + (a.y > b.y ? SPY * 0.5 : 0);
+    if (d < bs) { bs = d; best = a; }
+  }
+  return best;
+}
+function startHop(b, a) {
+  b.home = a; b.pending = null;
+  b.hop = { fx: b.x, fy: b.y, t: 0, dur: clamp(dist(b, hangPos(a)) / (SPX * 1.4), 0.7, 1.8) };
+}
+function setHanging(b) {
+  b.rope = { anchor: b.home, L0: HOME_L() / (1 - TUG), L: HOME_L(), t: 1 };
+  if (!b.sway) b.sway = rnd(0.035, 0.07);
+}
+function calmStep(b, dt) {
+  if (!b.home || (!b.hop && !homeOk(b.home, b))) {
+    const h = pickHome(b);
+    if (!h) { b.home = null; for (let i = 0; i < 4; i++) step(b, dt / 4); return; }
+    startHop(b, h);
+  }
+  if (b.hop) {   // a smooth glide to the new dot, its rope already tied there
+    const h = b.hop; h.t += dt;
+    const u = Math.min(1, h.t / h.dur), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const T = hangPos(b.home);
+    const nx = h.fx + (T.x - h.fx) * e, ny = h.fy + (T.y - h.fy) * e - Math.sin(Math.PI * u) * SPY * 0.18;
+    if (dt > 0) { b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt; }
+    b.x = nx; b.y = ny;
+    b.calmTilt = clamp(-b.vx / (2500 * U), -0.25, 0.25);
+    const d = dist(b, b.home);
+    b.rope = { anchor: b.home, L0: d / (1 - TUG), L: d, t: 1 };
+    if (u >= 1) { b.hop = null; b.vx = clamp(b.vx, -90 * U, 90 * U); b.vy = 0; setHanging(b); }
+    return;
+  }
+  if (!b.rope || b.rope.anchor !== b.home) { startHop(b, b.home); return; }
+  b.rope.L0 = HOME_L() / (1 - TUG); b.rope.t = Math.max(b.rope.t, 1);
+  for (let i = 0; i < 4; i++) step(b, dt / 4);
+  // keep the sway small: damp it when it's big, nudge it when it dies out
+  const a = b.home, L = Math.max(1, b.rope.L), th = Math.atan2(b.x - a.x, b.y - a.y), w = Math.sqrt(G / L);
+  const vt = b.vx * Math.cos(th) - b.vy * Math.sin(th);
+  const amp = Math.hypot(th, vt / (L * w)), target = b.sway || 0.05;
+  if (amp < target * 0.15) b.vx += (Math.random() < 0.5 ? -1 : 1) * L * w * target * 0.6;
+  else { const k = clamp((target - amp) / target, -1, 1) * dt * 1.6; b.vx *= 1 + k; b.vy *= 1 + k; }
+  b.calmTilt = -th * 0.5;
+}
+// now and then one name hops to a free dot next to it, without touching anyone
+let moveT = 2.5;
+function clearPath(b, T) {
+  for (let k = 1; k <= 10; k++) {
+    const u = k / 10;
+    const g = { x: b.x + (T.x - b.x) * u, y: b.y + (T.y - b.y) * u - Math.sin(Math.PI * u) * SPY * 0.18, hw: b.hw + 10 * U, th: b.th + 10 * U };
+    if (balls.some(o => o !== b && !o.leaving && boxes(g, o))) return false;
+  }
+  return true;
+}
+function idleMoves(dt) {
+  moveT -= dt;
+  if (moveT > 0) return;
+  moveT = rnd(1.2, 3.2);
+  const cand = balls.filter(b => isCalm(b) && !b.hop && b.home && b.rope && b.rope.anchor === b.home).sort(() => Math.random() - 0.5);
+  for (const b of cand) {
+    const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 1 && Math.abs(a.c - b.home.c) <= 1 && homeOk(a, b) && clearPath(b, hangPos(a)));
+    if (opts.length) { startHop(b, opts[Math.floor(Math.random() * opts.length)]); return; }
+  }
+}
+function placeAll() {   // the opening: everyone already hanging, still, each from its own dot
+  balls.slice().sort(() => Math.random() - 0.5).forEach(b => {
+    b.home = null;
+    const opts = anchors.filter(a => homeOk(a, b) && a.r >= 1);
+    const a = opts[Math.floor(Math.random() * opts.length)];
+    if (!a) return;
+    b.home = a; b.sway = rnd(0.035, 0.07);
+    const th = rnd(-1, 1) * b.sway;
+    b.x = a.x + Math.sin(th) * HOME_L(); b.y = a.y + Math.cos(th) * HOME_L();
+    b.vx = 0; b.vy = 0; b.hop = null; b.pending = null; b.goal = null;
+    setHanging(b);
+  });
+}
+
 // ── one name, one frame ──────────────────────────────────────────
 function advance(b, dt) {
   if (b.temp) {
@@ -306,6 +404,9 @@ function advance(b, dt) {
     b.tilt = -Math.atan2(b.x - px, b.y - py) * 0.6;
     return;
   }
+  b.calm = isCalm(b);
+  if (b.calm) { calmStep(b, dt); return; }
+  b.hop = null;
   const holding = !!(b.goal && b.rope && b.rope.anchor === b.goal);
   b.holdCap = holding ? 620 * U : 0;
   for (let i = 0; i < 4; i++) step(b, dt / 4);
@@ -382,7 +483,7 @@ const talking = o => quips.some(q => q.who === o);
 
 // ── Alexis vs Krystle: the permanent background fight ────────────
 function endDuel(t) {
-  balls.forEach(b => { if (b.role) { b.role = null; if (!b.busy) b.goal = null; } });
+  balls.forEach(b => { if (b.role) { b.role = null; b.home = null; if (!b.busy) b.goal = null; } });
   duel.phase = 'truce'; duel.t = t; duel.post = null; duel.hunter = duel.waiter = null;
 }
 const clearance = a => {
@@ -429,8 +530,7 @@ function director(dt) {
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
-    if (duel.t <= 0 && !seek) seek = { pair: [A, K], t: 20 };
-    return;
+    return;   // the fight only starts when the visitor taps Alexis or Krystle
   }
   if (duel.phase === 'standoff') { runStandoff(dt); return; }
   if (duel.phase === 'approach') {
@@ -571,52 +671,8 @@ function bump() {
   }
 }
 
-// ── contact: every touch lights both names a little; a hard hit lights them fully
-//    and, if that pair has an encounter (or it's Alexis–Krystle), sets it off ──
-const STRONG = 1700;           // relative speed (× U) that counts as a hard hit
-const SOFT_GLOW = 0.45;        // how yellow a light touch gets
-let contacts = new Set(), simT = 0;
-const pairCool = {};           // the same pair jostling doesn't count again for a moment
-let seek = null;               // { pair, t }: the pair the clock has sent looking for each other
 const sceneFor = (a, b) => SCENES.find(s => (s.a === a.name && s.b === b.name) || (s.b === a.name && s.a === b.name));
-function contactPass() {
-  const now = new Set();
-  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
-    const a = balls[i], b = balls[j];
-    if (a.leaving || b.leaving || a.tether === b || b.tether === a) continue;
-    if (a.busy && a.busy === b.busy) continue;
-    if (!boxes(a, b)) continue;
-    const key = a.name + '|' + b.name;
-    now.add(key);
-    if (contacts.has(key)) continue;                     // only the moment they meet
-    if (simT < 2 || (pairCool[key] || 0) > simT) continue;
-    pairCool[key] = simT + 1.2;
-    const hard = Math.hypot(a.vx - b.vx, a.vy - b.vy) > STRONG * U;
-    [a, b].forEach(o => { o.flash = Math.max(o.flash || 0, hard ? 1 : SOFT_GLOW); o.flashHold = Math.max(o.flashHold || 0, hard ? 1.2 : 0.15); });
-    const sought = seek && seek.pair.includes(a) && seek.pair.includes(b);
-    if (hard || sought) ignite(a, b);
-  }
-  contacts = now;
-}
-function ignite(a, b) {
-  if (scene || a.temp || b.temp) return;
-  if (isRival(a) && isRival(b)) {
-    if (duel.phase === 'truce' && !a.dragged && !b.dragged) { seek = null; startStandoff(byName('ALEXIS'), byName('KRYSTLE')); }
-    return;
-  }
-  if (duel.phase !== 'truce') return;                    // nobody interrupts a catfight
-  const sc = sceneFor(a, b);
-  if (!sc || !eligible(sc)) return;
-  seek = null;
-  startScene(sc, byName(sc.a), byName(sc.b));
-}
-function flashStep(dt) {
-  simT += dt;
-  balls.forEach(o => {
-    if (o.flashHold > 0) o.flashHold -= dt;
-    else if (o.flash) o.flash = Math.max(0, o.flash - dt * 0.9);
-  });
-}
+let seek = null;
 
 // names don't pile up on each other: overlapping boxes ease apart
 function separate(dt) {
@@ -651,38 +707,39 @@ function sceneStep(dt) {
   for (const k in cool) cool[k] -= dt;
   for (const k in rest) rest[k] -= dt;
   if (scene) { runScene(dt); return; }
-  if (seek) {
-    seek.t -= dt;
-    const [p, q] = seek.pair;
-    const sc = isRival(p) && isRival(q) ? null : sceneFor(p, q);
-    if (seek.t <= 0 || (sc && !eligible(sc))) { seek = null; sceneGap = rnd(2, 4); }
-    return;
-  }
-  sceneGap -= dt;
-  if (duel.phase !== 'truce') { sceneGap = Math.max(sceneGap, 1); return; }   // nobody interrupts a catfight
-  if (sceneGap > 2.5) return;
-  let best = null, bs = Infinity;
-  for (const sc of SCENES) {
-    const p = eligible(sc); if (!p) continue;
-    const d = dist(p[0], p[1]) * rnd(0.85, 1.15);
-    if (d < bs) { bs = d; best = { sc, p }; }
-  }
-  if (!best) { if (sceneGap <= 0) sceneGap = 2; return; }
-  // when the gap is up, the closest pair goes looking for each other; their scene starts when they touch
-  if (sceneGap <= 0) seek = { pair: best.p, t: 14 };
+  // encounters only start when the visitor taps a name
 }
 function targetL(o) {
   return scene.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
 }
-function startScene(sc, A, B) {
+function startScene(sc, A, B, near) {
   if (sc.love) { startLove(sc, A, B); return; }
-  const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
-  const row = sc.low ? ROWS - 2 : clamp(Math.round(midY / SPY - 0.5) - 1, 0, ROWS - 3);
   const gap = 2;
-  const c0 = clamp(Math.round(midX / SPX - 0.5 - gap / 2), 0, COLS - 1 - gap);
-  const left = anchorAt(row, c0), right = anchorAt(row, c0 + gap);
-  if (!left || !right) { cool[sc.id] = 5; return; }
-  const [L, R] = A.x <= B.x ? [A, B] : [B, A];
+  let left, right, L, R;
+  const pa = near && near.rope && near.rope.anchor;
+  if (pa) {   // the partner stays at (about) its dot; the one tapped comes over to its side
+    const mover = near === A ? B : A;
+    const row = sc.low ? ROWS - 2 : clamp(pa.r, 0, ROWS - 3);
+    let side = mover.x < near.x ? -1 : 1;
+    if (sc.push) {   // Alexis ends up on the side toward the middle, so she has room to fall away from Blake
+      const alexisSide = pa.x < W / 2 ? 1 : -1;
+      side = near.name === 'ALEXIS' ? -alexisSide : alexisSide;
+    }
+    const lo = 1, hi = COLS - 2;   // keep both off the edge columns so the names fit on screen
+    let pc = clamp(pa.c, lo, hi);
+    if (pc + side * gap < lo || pc + side * gap > hi) { if (sc.push) pc = clamp(pc, lo + gap, hi - gap); else side = -side; }
+    const nearA = anchorAt(row, pc), moverA = anchorAt(row, pc + side * gap);
+    if (!nearA || !moverA) return;
+    [left, right] = side > 0 ? [nearA, moverA] : [moverA, nearA];
+    [L, R] = side > 0 ? [near, mover] : [mover, near];
+  } else {
+    const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
+    const row = sc.low ? ROWS - 2 : clamp(Math.round(midY / SPY - 0.5) - 1, 0, ROWS - 3);
+    const c0 = clamp(Math.round(midX / SPX - 0.5 - gap / 2), 0, COLS - 1 - gap);
+    left = anchorAt(row, c0); right = anchorAt(row, c0 + gap);
+    if (!left || !right) { cool[sc.id] = 5; return; }
+    [L, R] = A.x <= B.x ? [A, B] : [B, A];
+  }
   balls.forEach(o => {
     if (o === A || o === B) return;
     if (o.rope && (o.rope.anchor === left || o.rope.anchor === right)) { o.rope = null; o.freeT = 0; o.freeWait = 0.2; }
@@ -730,7 +787,7 @@ function runScene(dt) {
   // side by side, mirrored sway; the one talking leans in
   const ph = Math.sin(s.hold * Math.PI * 2 / 2.6) * Math.min(1, s.hold / 1.2);
   pair.forEach((o, i) => {
-    if (!o.goal || o.stairs || (s.pushed && o === s.B)) return;
+    if (!o.goal || o.stairs || (s.pushed && o === s.B) || (s.lunge && o === s.A)) return;
     const side = i === 0 ? 1 : -1;
     const tx = o.goal.x + side * (SPX * 0.2 * ph + (talking(o) ? SPX * 0.12 : 0));
     o.vx += ((tx - o.x) * 5 - o.vx * 2.2) * dt;
@@ -739,7 +796,7 @@ function runScene(dt) {
     const sp = Math.hypot(o.vx, o.vy);
     if (sp > 300 * U) { o.vx *= 300 * U / sp; o.vy *= 300 * U / sp; }
   });
-  if (!s.pushed) { const need = s.L.hw + s.R.hw + 30 * U, dx = s.R.x - s.L.x; if (dx < need) { const f = (need - dx) * 6 * dt; s.L.vx -= f; s.R.vx += f; } }
+  if (!s.pushed && !s.lunge) { const need = s.L.hw + s.R.hw + 30 * U, dx = s.R.x - s.L.x; if (dx < need) { const f = (need - dx) * 6 * dt; s.L.vx -= f; s.R.vx += f; } }
   // the lines, one after another
   const busyTalking = quips.some(q => q.scene === s);
   if (!busyTalking) s.wait -= dt;
@@ -755,7 +812,25 @@ function runScene(dt) {
   }
   if (busyTalking) return;
   if (s.sc.push) {
-    if (!s.pushed) { s.pushed = true; startStairs(s.B, s.A); s.endT = Infinity; return; }
+    if (!s.pushed) {   // Blake throws his rope to the dot between them and swings straight into her
+      const P = s.A, V = s.B, dir = Math.sign(V.x - P.x) || 1;
+      if (!s.lunge) {
+        s.lunge = { t: 0 };
+        const mid = anchorAt(P.goal.r, P.goal.c + dir) || P.goal;
+        P.goal = mid; P.rope = { anchor: mid, L0: dist(P, mid) / (1 - TUG), L: dist(P, mid), t: 1 };
+        P.vx = dir * 900 * U; P.vy = -150 * U;
+      }
+      s.lunge.t += dt;
+      P.vx += dir * 2400 * U * dt;
+      if (boxes(P, V) || s.lunge.t > 0.9) {
+        s.pushed = true; s.lunge = null;
+        freeze = 0.08; shakeT = 0.2;
+        P.vx = -dir * 250 * U;
+        startStairs(V, P);
+        s.endT = Infinity;
+      }
+      return;
+    }
     if (s.B.stairs) return;
     if (s.endT === Infinity) s.endT = s.hold + 0.8;
   }
@@ -770,7 +845,7 @@ function runScene(dt) {
 function endScene(abort) {
   const s = scene; if (!s) return;
   scene = null;
-  [s.L, s.R].forEach(o => { if (!o.downT) o.kin = false; o.busy = null; o.goal = null; o.roofTilt = null; rest[o.name] = rnd(8, 12); });
+  [s.L, s.R].forEach(o => { if (!o.downT) o.kin = false; o.busy = null; o.goal = null; o.roofTilt = null; o.home = null; rest[o.name] = rnd(8, 12); });
   quips = quips.filter(q => q.scene !== s);
   cool[s.sc.id] = rnd(...(s.sc.cd || [30, 45]));
   sceneGap = rnd(5, 9);
@@ -902,6 +977,7 @@ function updFx(dt, raw) {
     if (b.tether || b.leaving || b.stairs || b.dragged || b.kin) return;
     const diving = duel.phase === 'dive' && b === duel.hunter;
     const want = b.roofTilt != null ? b.roofTilt
+      : b.calm ? (b.calmTilt || 0)
       : diving ? clamp(Math.atan2(b.vy, Math.abs(b.vx) + 200 * U) * (b.vx < 0 ? -1 : 1), -0.6, 0.6) : 0;
     b.tilt = (b.tilt || 0) + (want - (b.tilt || 0)) * Math.min(1, dt * (diving ? 18 : 7));
   });
@@ -999,8 +1075,7 @@ function frame(now) {
   else {
     const frozen = scene && scene.freezeOthers;
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
-    if (!frozen) { contactPass(); bump(); scatter(dt); shove(); separate(dt); }
-    flashStep(dt);
+    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); idleMoves(dt); }
     downStep(dt);
     director(dt); sceneStep(dt); followStep(dt);
     updFx(dt, raw);
@@ -1018,7 +1093,7 @@ function hitTest(x, y) {
   const pad = 14;
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
-    if (!GRABBABLE.includes(b.name) || b.temp) continue;
+    if (b.temp || b.leaving) continue;
     if (Math.abs(x - b.x) < b.hw + pad && y > b.y - pad && y < b.y + b.th + pad) return b;
   }
   return null;
@@ -1061,23 +1136,46 @@ function letGo() {
   startScene(sc, byName(sc.a), byName(sc.b));
 }
 const pt = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+// Tap a name: it goes looking for someone it has a scene with (picked at random) and the scene plays.
+let press = null;
+function tap(b) {
+  if (b.busy || b.role || b.kin || b.stairs || b.temp) return;
+  const opts = SCENES.filter(sc => {
+    if (sc.a !== b.name && sc.b !== b.name) return false;
+    const o = byName(sc.a === b.name ? sc.b : sc.a);
+    if (!o || o.kin || o.stairs || o.leaving) return false;
+    if (sc.baby && balls.some(t => t.temp)) return false;
+    return true;
+  }).map(sc => ({ sc }));
+  if (isRival(b)) opts.push({ duel: true });
+  if (!opts.length) return;
+  const pick = opts[Math.floor(Math.random() * opts.length)];
+  if (scene) endScene(true);
+  if (duel.phase !== 'truce') endDuel(0);
+  if (pick.duel) { startStandoff(byName('ALEXIS'), byName('KRYSTLE')); return; }
+  const sc = pick.sc, other = byName(sc.a === b.name ? sc.b : sc.a);
+  cool[sc.id] = 0; rest[sc.a] = rest[sc.b] = 0;
+  startScene(sc, byName(sc.a), byName(sc.b), other);
+}
 cv.addEventListener('pointerdown', e => {
   const [x, y] = pt(e), b = hitTest(x, y);
   if (!b) return;
   e.preventDefault();
   cv.setPointerCapture(e.pointerId);
-  grab(b, x, y);
-  cv.style.cursor = 'grabbing';
+  press = { b, x, y };
 });
 cv.addEventListener('pointermove', e => {
   const [x, y] = pt(e);
-  if (!drag) { cv.style.cursor = hitTest(x, y) ? 'grab' : ''; return; }
+  if (press && !drag && Math.hypot(x - press.x, y - press.y) > 12 && GRABBABLE.includes(press.b.name)) {
+    grab(press.b, press.x, press.y); cv.style.cursor = 'grabbing'; press = null;
+  }
+  if (!drag) { cv.style.cursor = hitTest(x, y) ? 'pointer' : ''; return; }
   const now = performance.now(), dt = Math.max(0.008, (now - drag.lt) / 1000);
   drag.vx = drag.vx * 0.5 + (x - drag.lx) / dt * 0.5;
   drag.vy = drag.vy * 0.5 + (y - drag.ly) / dt * 0.5;
   drag.x = x; drag.y = y; drag.lx = x; drag.ly = y; drag.lt = now;
 });
-const release = () => { if (drag) letGo(); cv.style.cursor = ''; };
+const release = () => { if (drag) letGo(); else if (press) tap(press.b); press = null; cv.style.cursor = ''; };
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
 
@@ -1100,6 +1198,7 @@ window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTi
 
 layout();
 CAST.forEach((n, i) => balls.push(makeBall(n, i)));
+placeAll();
 if (document.fonts) {
   document.fonts.load('700 100px Aurora').then(measureFont).catch(() => {});
   document.fonts.load('700 100px Anton').then(measureFont).catch(() => {});
