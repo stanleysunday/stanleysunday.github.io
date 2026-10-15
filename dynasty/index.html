@@ -264,6 +264,7 @@ function pickWander(b, strict) {
 
 // ── calm: at rest every name hangs from its own dot, swaying a little ──
 // Nothing happens on its own except, now and then, one name hopping to a free dot next to it.
+const CALM = false;   // true = at rest each name hangs from its own dot and hops one dot at a time (the temperaments)
 const HOME_L = () => SPY * 0.42;
 const isCalm = b => !(b.busy || b.role || b.temp || b.goal || b.kin || b.dragged || b.stairs || b.tether || b.leaving);
 const hangPos = a => ({ x: a.x, y: a.y + HOME_L() });
@@ -462,9 +463,10 @@ function advance(b, dt) {
     b.tilt = -Math.atan2(b.x - px, b.y - py) * 0.6;
     return;
   }
-  b.calm = isCalm(b);
+  b.calm = CALM && isCalm(b);
   if (b.calm) { calmStep(b, dt); return; }
-  b.hop = null; b.visit = null; b.mood = null; b.lookAt = null;
+  b.hop = null; b.mood = null; b.lookAt = null;
+  if (CALM) b.visit = null;
   const holding = !!(b.goal && b.rope && b.rope.anchor === b.goal);
   b.holdCap = holding ? 620 * U : 0;
   for (let i = 0; i < 4; i++) step(b, dt / 4);
@@ -486,7 +488,7 @@ function advance(b, dt) {
   if (b.rope) {
     b.hookT += dt;
     if (holding) {
-      if (b.goalRelease && b.hookT > 0.8) { b.goal = null; b.winch = 0; b.rush = false; b.goalRelease = false; return; }
+      if (b.goalRelease && b.hookT > 0.8) { b.goal = null; b.winch = 0; b.rush = false; b.goalRelease = false; if (b.visit) arrive(b); return; }
       if (!b.busy) {
         if (spd > 620 * U) { b.vx *= 620 * U / spd; b.vy *= 620 * U / spd; }
         if (spd < 60 * U) b.vx += b.dir * 250 * U;
@@ -589,7 +591,8 @@ function director(dt) {
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
-    return;   // the fight only starts when the visitor taps Alexis or Krystle
+    if (!CALM && duel.t <= 0 && !seek && !A.visit && !K.visit) seek = { pair: [A, K], t: 20 };   // the truce runs out: they go looking for each other
+    return;
   }
   if (duel.phase === 'standoff') { runStandoff(dt); return; }
   if (duel.phase === 'approach') {
@@ -731,7 +734,41 @@ function bump() {
 }
 
 const sceneFor = (a, b) => SCENES.find(s => (s.a === a.name && s.b === b.name) || (s.b === a.name && s.a === b.name));
-let seek = null;
+let seek = null;               // { pair, t }: the pair the clock has sent looking for each other
+const STRONG = 1700;           // relative speed (× U) that counts as a hard hit
+let contacts = new Set(), simT = 0;
+const pairCool = {};
+function contactPass(dt) {
+  simT += dt;
+  const now = new Set();
+  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+    const a = balls[i], b = balls[j];
+    if (a.leaving || b.leaving || a.tether === b || b.tether === a) continue;
+    if (a.busy && a.busy === b.busy) continue;
+    if (!boxes(a, b)) continue;
+    const key = a.name + '|' + b.name;
+    now.add(key);
+    if (contacts.has(key)) continue;                     // only the moment they meet
+    if (simT < 2 || (pairCool[key] || 0) > simT) continue;
+    pairCool[key] = simT + 1.2;
+    const hard = Math.hypot(a.vx - b.vx, a.vy - b.vy) > STRONG * U;
+    const sought = seek && seek.pair.includes(a) && seek.pair.includes(b);
+    if (hard || sought) ignite(a, b);
+  }
+  contacts = now;
+}
+function ignite(a, b) {
+  if (a.temp || b.temp || isOccupied(a) || isOccupied(b) || a.visit || b.visit) return;
+  if (isRival(a) && isRival(b)) {
+    if (duel.phase === 'truce') { seek = null; startStandoff(byName('ALEXIS'), byName('KRYSTLE')); }
+    return;
+  }
+  if (duel.phase !== 'truce') return;                    // nobody interrupts a catfight
+  const sc = sceneFor(a, b);
+  if (!sc || !eligible(sc)) return;
+  seek = null;
+  startScene(sc, byName(sc.a), byName(sc.b));
+}
 
 // names don't pile up on each other: overlapping boxes ease apart
 function separate(dt) {
@@ -766,7 +803,26 @@ function sceneStep(dt) {
   for (const k in cool) cool[k] -= dt;
   for (const k in rest) rest[k] -= dt;
   scenes.slice().forEach(sc => runScene(sc, dt));
-  // encounters only start when the visitor taps a name
+  if (CALM) return;   // in calm mode encounters only start when the visitor taps a name
+  if (seek) {
+    seek.t -= dt;
+    const [p, q] = seek.pair;
+    const sc = isRival(p) && isRival(q) ? null : sceneFor(p, q);
+    if (seek.t <= 0 || (sc && !eligible(sc)) || isOccupied(p) || isOccupied(q)) { seek = null; sceneGap = rnd(2, 4); }
+    return;
+  }
+  sceneGap -= dt;
+  if (duel.phase !== 'truce') { sceneGap = Math.max(sceneGap, 1); return; }   // nobody interrupts a catfight
+  if (sceneGap > 2.5) return;
+  let best = null, bs = Infinity;
+  for (const sc of SCENES) {
+    const p = eligible(sc); if (!p || p.some(o => o.visit)) continue;
+    const d = dist(p[0], p[1]) * rnd(0.85, 1.15);
+    if (d < bs) { bs = d; best = { sc, p }; }
+  }
+  if (!best) { if (sceneGap <= 0) sceneGap = 2; return; }
+  // when the gap is up, the closest free pair goes looking for each other; their scene starts when they touch
+  if (sceneGap <= 0) seek = { pair: best.p, t: 14 };
 }
 function targetL(s, o) {
   return s.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
@@ -985,7 +1041,8 @@ function runLove(s, dt) {
     C.x = L.x + k * C.hw * 0.06; C.y = cY - Math.max(0, k) * C.th * 0.22; C.tilt = -0.06 * k;
     const MOANS = [[0.5, A, 'AHHH…'], [1.5, C, 'AHHH…'], [2.6, A, 'MMMM…'], [3.4, C, 'AHHH!']];
     while (L.said < MOANS.length && L.t > MOANS[L.said][0]) { const [, who, text] = MOANS[L.said++]; quips.push({ who, text, rest: [], t: 0, dur: 0.85, scene: s, duel: false }); }
-    if (L.t > 4.4) { L.phase = 'attack'; L.t = 0; s.freezeOthers = true; L.cx = C.x; L.cy = C.y; }
+    if (L.t > 4.4) { L.phase = 'attack'; L.t = 0;   // the others carry on, nobody freezes
+      L.cx = C.x; L.cy = C.y; }
     return;
   }
   if (L.phase === 'attack') {   // Cecil turns upward and falls over backwards, landing upside down
@@ -998,7 +1055,7 @@ function runLove(s, dt) {
     if (u >= 1) { L.phase = 'after'; L.t = 0; C.downT = 3.5; }
     return;
   }
-  // aftermath: Alexis calls for help while everyone stands frozen
+  // aftermath: Alexis calls for help
   s.hold += dt;
   if (s.li === 0 && s.hold > 0.6) { s.li = 1; say(A, s.sc.lines[0][1], s); }
   const talkingNow = quips.some(q => q.scene === s);   // checked after she starts talking, so the scene waits for her whole line
@@ -1138,7 +1195,7 @@ function frame(now) {
   else {
     const frozen = scenes.some(sc => sc.freezeOthers);
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
-    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); }
+    if (!frozen) { if (!CALM) contactPass(dt); bump(); scatter(dt); shove(); separate(dt); }
     downStep(dt);
     director(dt); sceneStep(dt); darlingStep(dt); followStep(dt);
     updFx(dt, raw);
@@ -1231,13 +1288,15 @@ function tap(b) {
   let best = null, bs = Infinity;
   for (const a of anchors) { if (!homeOk(a, b)) continue; const d = dist(hangPos(a), pick.o); if (d < bs) { bs = d; best = a; } }
   b.visit = pick;
-  if (best) startHop(b, best); else arrive(b);
+  if (!best) { arrive(b); return; }
+  if (CALM) { startHop(b, best); return; }
+  b.goal = best; b.rush = true; b.goalRelease = true; b.rope = null; b.pending = { anchor: best, t: THROW_T * 0.5 };   // swings over to them
 }
 function arrive(b) {
   const pick = b.visit; b.visit = null;
   if (!pick || balls.indexOf(pick.o) < 0) return;
   const o = pick.o;
-  if (!isOccupied(o) && !(pick.duel && duel.phase !== 'truce') && isCalm(b)) { play(b, pick); return; }   // free by now: their scene
+  if (!isOccupied(o) && !(pick.duel && duel.phase !== 'truce') && !b.busy && !b.role) { play(b, pick); return; }   // free by now: their scene
   const w = companion(o);
   darlings.push({ o, text: DARLING(w ? w.name : 'SOMEONE'), t: 6 });
 }
