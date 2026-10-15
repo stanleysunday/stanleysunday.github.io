@@ -248,6 +248,7 @@ function pickWander(b, strict) {
       const dd = dist(a, o);
       s += w > 0 ? w * dd / (600 * U) : -w * Math.max(0, 500 * U - dd) / (250 * U);
     }
+    if (seek && seek.pair.includes(b)) { const o = seek.pair[0] === b ? seek.pair[1] : seek.pair[0]; s += dist(a, o) / (140 * U); }
     s += Math.random() * 0.6;
     if (s < bs) { bs = s; best = a; }
   }
@@ -429,7 +430,7 @@ function director(dt) {
   duel.t -= dt;
   const h = duel.hunter, w = duel.waiter;
   if (duel.phase === 'truce') {
-    if (duel.t <= 0) startStandoff(A, K);
+    if (duel.t <= 0 && !seek) seek = { pair: [A, K], t: 20 };
     return;
   }
   if (duel.phase === 'standoff') { runStandoff(dt); return; }
@@ -571,6 +572,53 @@ function bump() {
   }
 }
 
+// ── contact: every touch lights both names a little; a hard hit lights them fully
+//    and, if that pair has an encounter (or it's Alexis–Krystle), sets it off ──
+const STRONG = 1700;           // relative speed (× U) that counts as a hard hit
+const SOFT_GLOW = 0.45;        // how yellow a light touch gets
+let contacts = new Set(), simT = 0;
+const pairCool = {};           // the same pair jostling doesn't count again for a moment
+let seek = null;               // { pair, t }: the pair the clock has sent looking for each other
+const sceneFor = (a, b) => SCENES.find(s => (s.a === a.name && s.b === b.name) || (s.b === a.name && s.a === b.name));
+function contactPass() {
+  const now = new Set();
+  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+    const a = balls[i], b = balls[j];
+    if (a.leaving || b.leaving || a.tether === b || b.tether === a) continue;
+    if (a.busy && a.busy === b.busy) continue;
+    if (!boxes(a, b)) continue;
+    const key = a.name + '|' + b.name;
+    now.add(key);
+    if (contacts.has(key)) continue;                     // only the moment they meet
+    if (simT < 2 || (pairCool[key] || 0) > simT) continue;
+    pairCool[key] = simT + 1.2;
+    const hard = Math.hypot(a.vx - b.vx, a.vy - b.vy) > STRONG * U;
+    [a, b].forEach(o => { o.flash = Math.max(o.flash || 0, hard ? 1 : SOFT_GLOW); o.flashHold = Math.max(o.flashHold || 0, hard ? 1.2 : 0.15); });
+    const sought = seek && seek.pair.includes(a) && seek.pair.includes(b);
+    if (hard || sought) ignite(a, b);
+  }
+  contacts = now;
+}
+function ignite(a, b) {
+  if (scene || a.temp || b.temp) return;
+  if (isRival(a) && isRival(b)) {
+    if (duel.phase === 'truce' && !a.dragged && !b.dragged) { seek = null; startStandoff(byName('ALEXIS'), byName('KRYSTLE')); }
+    return;
+  }
+  if (duel.phase !== 'truce') return;                    // nobody interrupts a catfight
+  const sc = sceneFor(a, b);
+  if (!sc || !eligible(sc)) return;
+  seek = null;
+  startScene(sc, byName(sc.a), byName(sc.b));
+}
+function flashStep(dt) {
+  simT += dt;
+  balls.forEach(o => {
+    if (o.flashHold > 0) o.flashHold -= dt;
+    else if (o.flash) o.flash = Math.max(0, o.flash - dt * 0.9);
+  });
+}
+
 // names don't pile up on each other: overlapping boxes ease apart
 function separate(dt) {
   for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
@@ -604,6 +652,13 @@ function sceneStep(dt) {
   for (const k in cool) cool[k] -= dt;
   for (const k in rest) rest[k] -= dt;
   if (scene) { runScene(dt); return; }
+  if (seek) {
+    seek.t -= dt;
+    const [p, q] = seek.pair;
+    const sc = isRival(p) && isRival(q) ? null : sceneFor(p, q);
+    if (seek.t <= 0 || (sc && !eligible(sc))) { seek = null; sceneGap = rnd(2, 4); }
+    return;
+  }
   sceneGap -= dt;
   if (duel.phase !== 'truce') { sceneGap = Math.max(sceneGap, 1); return; }   // nobody interrupts a catfight
   if (sceneGap > 2.5) return;
@@ -614,8 +669,8 @@ function sceneStep(dt) {
     if (d < bs) { bs = d; best = { sc, p }; }
   }
   if (!best) { if (sceneGap <= 0) sceneGap = 2; return; }
-  // a pair that has drifted close starts a bit early; otherwise the closest pair goes when the gap is up
-  if (sceneGap <= 0 || bs < SPX * 1.6) startScene(best.sc, best.p[0], best.p[1]);
+  // when the gap is up, the closest pair goes looking for each other; their scene starts when they touch
+  if (sceneGap <= 0) seek = { pair: best.p, t: 14 };
 }
 function targetL(o) {
   return scene.low ? Math.max(SPY * 0.6, H - o.goal.y - o.th - 8 * U) : SPY * 0.7;
@@ -872,9 +927,9 @@ function updFx(dt, raw) {
 // ── drawing ──────────────────────────────────────────────────────
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const A = hexRgb(a), B = hexRgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
-const isActive = b => !!(b.role || b.busy || talking(b) || (b.hotUntil && b.hotUntil > performance.now()));
+const isActive = b => !!(b.role || b.busy || (b.hotUntil && b.hotUntil > performance.now()));
 function draw() {
-  balls.forEach(b => { b.glow = (b.glow || 0) + ((isActive(b) ? 1 : 0) - (b.glow || 0)) * 0.12; b.col = mix(CFG.idle, CFG.ink, b.glow); });
+  balls.forEach(b => { const tg = Math.max(isActive(b) ? 1 : 0, b.flash || 0); b.glow = (b.glow || 0) + (tg - (b.glow || 0)) * (tg > (b.glow || 0) ? 0.35 : 0.12); b.col = mix(CFG.idle, CFG.ink, b.glow); });
   ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
   ctx.save();
   if (shakeT > 0) { const a = 10 * U * shakeT / 0.32; ctx.translate(rnd(-a, a), rnd(-a, a)); }
@@ -953,7 +1008,8 @@ function frame(now) {
   else {
     const frozen = scene && scene.freezeOthers;
     balls.forEach(b => { if (!frozen || b.busy || b.kin) advance(b, dt); });
-    if (!frozen) { bump(); scatter(dt); shove(); separate(dt); }
+    if (!frozen) { contactPass(); bump(); scatter(dt); shove(); separate(dt); }
+    flashStep(dt);
     downStep(dt);
     director(dt); sceneStep(dt); soloStep(dt); followStep(dt);
     updFx(dt, raw);
