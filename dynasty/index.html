@@ -336,7 +336,7 @@ function idleMoves(dt) {
   moveT = rnd(0.35, 1.0);   // calm, but always someone on the move
   const cand = balls.filter(b => isCalm(b) && !b.hop && !b.visit && b.home && b.rope && b.rope.anchor === b.home).sort(() => Math.random() - 0.5);
   for (const b of cand) {
-    const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 2 && Math.abs(a.c - b.home.c) <= 2 && homeOk(a, b) && clearPath(b, hangPos(a)));
+    const opts = anchors.filter(a => a !== b.home && Math.abs(a.r - b.home.r) <= 1 && Math.abs(a.c - b.home.c) <= 1 && homeOk(a, b) && clearPath(b, hangPos(a)));
     if (opts.length) { startHop(b, opts[Math.floor(Math.random() * opts.length)]); return; }
   }
 }
