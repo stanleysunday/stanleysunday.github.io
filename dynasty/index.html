@@ -88,7 +88,7 @@ const DUEL_LINES = {
 
 // ═════════════════════════════════════════════════════════════════
 
-const CFG = { gap: 115, text: 1, speed: 0.85, bg: '#8a1622', ink: '#fed200', quip: '#FF4FA3' };
+const CFG = { gap: 115, text: 1, speed: 0.85, bg: '#8a1622', ink: '#fed200', idle: '#e49aa0', quip: '#FF4FA3' };   // idle = words at rest; ink = words in action
 try {
   const s = JSON.parse(localStorage.getItem('dynasty-cfg') || '{}');
   ['gap', 'text', 'speed'].forEach(k => { if (typeof s[k] === 'number') CFG[k] = s[k]; });
@@ -866,7 +866,11 @@ function updFx(dt, raw) {
 }
 
 // ── drawing ──────────────────────────────────────────────────────
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = hexRgb(a), B = hexRgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
+const isActive = b => !!(b.role || b.busy || talking(b));
 function draw() {
+  balls.forEach(b => { b.glow = (b.glow || 0) + ((isActive(b) ? 1 : 0) - (b.glow || 0)) * 0.12; b.col = mix(CFG.idle, CFG.ink, b.glow); });
   ctx.fillStyle = CFG.bg; ctx.fillRect(0, 0, W, H);
   ctx.save();
   if (shakeT > 0) { const a = 10 * U * shakeT / 0.32; ctx.translate(rnd(-a, a), rnd(-a, a)); }
@@ -875,6 +879,7 @@ function draw() {
   anchors.forEach(a => { ctx.beginPath(); ctx.arc(a.x, a.y, dotR, 0, Math.PI * 2); ctx.fill(); });
   ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.lineCap = 'round';
   balls.forEach(b => {
+    ctx.strokeStyle = b.col;
     if (b.rope) {
       const a = b.rope.anchor, slack = Math.max(0, b.rope.L - dist(a, b));
       ctx.beginPath(); ctx.moveTo(a.x, a.y);
@@ -895,9 +900,10 @@ function draw() {
       ctx.stroke();
     }
   });
-  ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   balls.forEach(b => {
     measureBall(b);
+    ctx.fillStyle = b.col;
     ctx.font = FONT(b.fs);
     const wheel = b.wheel ? (() => { const u = b.wheel.t / b.wheel.dur; return 0.5 * Math.sin(u * Math.PI * 5) * (1 - u); })() : 0;
     const rot = (b.tilt || 0) + wheel;
