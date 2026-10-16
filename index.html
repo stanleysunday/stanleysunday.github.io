@@ -416,8 +416,11 @@ function loop(now) {
 </script>
 <script>
 /* Portada: a los 6 s entran por abajo a la izquierda dos muñecos de palitos (como el técnico de "play").
-   El gordo abre los brazos abarcando toda la web y le dice a Manolo "Manolo, esta es mi web" y "Algún día, todo esto será tuyo";
-   Manolo mira hacia arriba moviendo la cabeza. Luego se van por donde vinieron. Una vez por visita; no pasa si se pide reducir el movimiento. */
+   El gordo (con sombrero) abre los brazos abarcando toda la web y le dice a Manolo "Manolo, esta es mi web" y "Algún día, todo esto será tuyo";
+   Manolo mira hacia arriba moviendo la cabeza. Luego se van por donde vinieron. Una vez por visita; no pasa si se pide reducir el movimiento.
+   Si alguien toca a uno de los dos, al gordo se le cae el sombrero hacia la derecha: Manolo le avisa, él va a por él, se agacha,
+   Manolo dice "Qué culo tan bonito" y vuelve a su sitio. Si tocan antes de "Algún día…", pasa en ese momento y luego dice la frase;
+   si tocan mientras la dice o después, pasa al acabarla, antes de irse. Si nadie toca, no pasa. */
 (function(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   const NS='http://www.w3.org/2000/svg', R=Math.PI/180;
@@ -429,19 +432,21 @@ function loop(now) {
 
   // postura en unidades locales: pies en (50,160), mirando a la derecha
   function geo(M){
-    const hipY=92+(M.anda?2*Math.abs(Math.sin(M.ph)):0), hip=[50,hipY];
+    const ag=M.agacha||0;   // 0 de pie · 1 agachado hacia delante (a coger el sombrero)
+    const hipY=92+(M.anda?2*Math.abs(Math.sin(M.ph)):0)+16*ag, hip=[50-8*ag,hipY];
     let f1,f2;
     if(M.anda){const sn=Math.sin(M.ph),cs=Math.cos(M.ph);f1=[50+18*sn,160-7*Math.max(0,cs)];f2=[50-18*sn,160-7*Math.max(0,-cs)];}
     else{f1=[44,160];f2=[57,160];}
-    const lean=M.anda?3:0, neck=[50+lean,hipY-52], sh=[neck[0],neck[1]+8];
-    const hd=M.mira||0, head=[neck[0]+16*Math.sin(hd*.35),neck[1]-16*Math.cos(hd*.35)];
+    const lean=M.anda?3:0, ta=74*R*ease(ag);   // inclinación del tronco
+    const neck=[hip[0]+52*Math.sin(ta)+lean,hipY-52*Math.cos(ta)], sh=[neck[0]-8*Math.sin(ta),neck[1]+8*Math.cos(ta)];
+    const hd=(M.mira||0)*.35+ta, head=[neck[0]+16*Math.sin(hd),neck[1]-16*Math.cos(hd)];
     const brazo=(th,be)=>{const e=[sh[0]+26*Math.sin(th*R),sh[1]+26*Math.cos(th*R)];return [e,[e[0]+24*Math.sin((th+be)*R),e[1]+24*Math.cos((th+be)*R)]];};
     let a1,a2;
     if(M.arriba>0){const u=M.arriba, ab=M.abarca||0;   // brazos abiertos hacia arriba, abarcándolo todo
       const sw=M.anda?24*Math.sin(M.ph):4;
       a1=brazo(-sw+(112+ab-(-sw))*u,20*(1-u)+6*u); a2=brazo(sw+(-112-ab-sw)*u,20*(1-u)-6*u);}
-    else{const sw=M.anda?24*Math.sin(M.ph):4;a1=brazo(-sw,20);a2=brazo(sw,20);}
-    return {hip,neck,head,sh,f1,f2,k1:ik(hip,f1,34,35),k2:ik(hip,f2,34,35),a1,a2};
+    else{const sw=(M.anda?24*Math.sin(M.ph):4)*(1-ag);a1=brazo(-sw+8*ag,20*(1-ag));a2=brazo(sw-6*ag,20*(1-ag));}
+    return {hip,neck,head,sh,ta,f1,f2,k1:ik(hip,f1,34,35),k2:ik(hip,f2,34,35),a1,a2};
   }
   function muneco(gordo){
     const svg=document.createElementNS(NS,'svg');
@@ -455,24 +460,39 @@ function loop(now) {
     document.body.appendChild(svg);
     const q=n=>svg.querySelector('.'+n);
     return {svg,g:svg.firstChild,gordo,P:{p1:q('p1'),p2:q('p2'),tr:q('tr'),b1:q('b1'),b2:q('b2'),cab:q('cab'),ojo:q('ojo'),boca:q('boca')},
-      x:0,facing:1,ph:0,anda:false,arriba:0,abarca:0,mira:0};
+      x:0,facing:1,ph:0,anda:false,arriba:0,abarca:0,mira:0,agacha:0};
   }
+  // de unidades locales del muñeco a píxeles de pantalla
+  function aPantalla(M,[lx,ly]){const k=K(),x=M.facing<0?100-lx:lx;return [M.x-110*k+(x+60)*k, innerHeight-6-200*k+(ly+40)*k];}
   function dibuja(M){
-    const k=K(), G=geo(M), P=M.P, y=innerHeight-6;
+    const k=K(), G=geo(M), P=M.P, y=innerHeight-6; M.G=G;
     M.svg.style.width=220*k+'px'; M.svg.style.height=210*k+'px';
     M.svg.style.transform=`translate(${M.x-110*k}px,${y-200*k}px)`;
     M.g.setAttribute('transform',M.facing<0?'translate(100 0) scale(-1 1)':'');
     P.p1.setAttribute('points',`${G.hip} ${G.k1} ${G.f1}`); P.p2.setAttribute('points',`${G.hip} ${G.k2} ${G.f2}`);
-    if(M.gordo){const cx=(G.hip[0]+G.neck[0])/2+3, cy=(G.hip[1]+G.neck[1])/2+4;   // tripa
-      P.tr.setAttribute('cx',cx);P.tr.setAttribute('cy',cy);P.tr.setAttribute('rx',19);P.tr.setAttribute('ry',30);}
+    if(M.gordo){const cx=(G.hip[0]+G.neck[0])/2+3*Math.cos(G.ta), cy=(G.hip[1]+G.neck[1])/2+4+3*Math.sin(G.ta);   // tripa
+      P.tr.setAttribute('cx',cx);P.tr.setAttribute('cy',cy);P.tr.setAttribute('rx',19);P.tr.setAttribute('ry',30);
+      P.tr.setAttribute('transform',`rotate(${(G.ta/R).toFixed(1)} ${cx} ${cy})`);}
     else P.tr.setAttribute('points',`${G.hip} ${G.neck}`);
     P.b1.setAttribute('points',`${G.sh} ${G.a1[0]} ${G.a1[1]}`); P.b2.setAttribute('points',`${G.sh} ${G.a2[0]} ${G.a2[1]}`);
-    const [hx,hy]=G.head, a=(M.mira||0); P.cab.setAttribute('cx',hx); P.cab.setAttribute('cy',hy);
+    const [hx,hy]=G.head, a=(M.mira||0)+G.ta; P.cab.setAttribute('cx',hx); P.cab.setAttribute('cy',hy);
     // cara de perfil: ojo y boca giran con la mirada (0 = al frente, negativo = hacia arriba)
     const ex=hx+6*Math.cos(a), ey=hy-2+6*Math.sin(a); P.ojo.setAttribute('cx',ex); P.ojo.setAttribute('cy',ey);
     const bx=hx+8*Math.cos(a+.75), by=hy+8*Math.sin(a+.75);
     P.boca.setAttribute('d',M.habla?`M${bx-2},${by} q2,${3+2*Math.abs(Math.sin(performance.now()/90))} 4,0`:`M${bx-2},${by} l4,0`);
   }
+  // el sombrero (bombín) va en su propio dibujo para poder caerse
+  function sombrero(){
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox','-20 -18 40 22'); svg.setAttribute('aria-hidden','true');
+    svg.style.cssText='position:fixed;left:0;top:0;z-index:4;pointer-events:none;overflow:visible;will-change:transform';
+    svg.innerHTML='<g stroke="#111" stroke-linecap="round" stroke-linejoin="round"><path d="M-10,-1 C-11,-16 11,-16 10,-1 Z" fill="#111" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke-width="4"/></g>';
+    document.body.appendChild(svg);
+    return {svg,x:0,y:0,rot:0,vx:0,vy:0,vr:0,modo:'cabeza'};   // x,y: centro del ala en pantalla
+  }
+  function pintaSombrero(S){const k=K();
+    S.svg.style.width=40*k+'px'; S.svg.style.height=22*k+'px'; S.svg.style.transformOrigin=`${20*k}px ${18*k}px`;
+    S.svg.style.transform=`translate(${S.x-20*k}px,${S.y-18*k}px) rotate(${S.rot}deg)`;}
   function bocadillo(){
     const b=document.createElement('div');
     b.style.cssText='position:fixed;left:0;top:0;z-index:5;pointer-events:none;font-family:monospace;font-size:14px;line-height:1.3;color:#000;'+
@@ -484,36 +504,82 @@ function loop(now) {
   }
 
   setTimeout(()=>{
-    const k0=K(), gordo=muneco(true), manolo=muneco(false), bo=bocadillo();
+    const k0=K(), gordo=muneco(true), manolo=muneco(false), bo=bocadillo(), som=sombrero();
     gordo.x=-70*k0; manolo.x=-170*k0;
     const meta=()=>{const k=K();return Math.max(190*k,Math.min(innerWidth*.34,innerWidth-80*k));};
     const andar=(M,tx,dt)=>{const k=K(),d=tx-M.x,v=130*k*dt;if(Math.abs(d)<=v){M.x=tx;M.anda=false;return true;}
       M.anda=true;M.facing=Math.sign(d);M.x+=Math.sign(d)*v;M.ph+=v/(36*k)*Math.PI;return false;};
-    const decir=(texto)=>{bo.txt.textContent=texto;bo.b.style.opacity=texto?1:0;};
-    const colocaBocadillo=()=>{const k=K(),bw=bo.b.offsetWidth,bh=bo.b.offsetHeight;
-      const headX=gordo.x+(gordo.facing>0?2:-2)*k, headY=innerHeight-6-200*k+(40+20)*k;
-      let left=Math.max(8,Math.min(innerWidth-bw-8,headX-bw*.35)), top=headY-bh-62*k;
-      bo.b.style.transform=`translate(${left}px,${top}px)`; bo.cola.style.left=Math.max(10,Math.min(bw-26,headX-left-8))+'px';};
-    let fase='entran', t0=performance.now(), last=t0;
+    let quien=gordo;
+    const decir=(texto,M)=>{if(M)quien=M;bo.txt.textContent=texto;bo.b.style.opacity=texto?1:0;};
+    const colocaBocadillo=()=>{const k=K(),M=quien,bw=bo.b.offsetWidth,bh=bo.b.offsetHeight,[hx,hy]=aPantalla(M,M.G.head);
+      const encima=(M.arriba>.3?62:M===gordo?40:26)*k;   // por encima de los brazos levantados o del sombrero
+      let left=Math.max(8,Math.min(innerWidth-bw-8,hx-bw*.35)), top=Math.max(6,hy-bh-encima);
+      bo.b.style.transform=`translate(${left}px,${top}px)`; bo.cola.style.left=Math.max(10,Math.min(bw-26,hx-left-8))+'px';};
+    const sombreroEnCabeza=()=>{const k=K(),G=gordo.G,[hx,hy]=aPantalla(gordo,G.head),inc=G.ta*gordo.facing;
+      som.x=hx+9*k*Math.sin(inc); som.y=hy-9*k*Math.cos(inc); som.rot=inc/R;};
+
+    let fase='entran', t0=performance.now(), last=t0, dijo2=false, tocado=false, pendiente=false, tras=null;
     const cambia=(f,now)=>{fase=f;t0=now;};
+    const empiezaSombrero=now=>{   // se cae el sombrero hacia la derecha
+      tras=fase==='sevan'||dijo2?'sevan':'gira';
+      gordo.habla=false; manolo.habla=false; decir(''); gordo.anda=false; manolo.anda=false;
+      som.modo='cae'; som.vx=(90+Math.random()*40)*K()/.6; som.vy=-160*K()/.6; som.vr=260+Math.random()*120;
+      cambia('sombrero',now);};
+
+    // tocar a cualquiera de los dos (sin bloquear nada más: los toques en el resto de la página siguen igual)
+    document.addEventListener('pointerdown',e=>{
+      if(tocado||e.button>0)return;
+      const dentro=M=>{const r=M.g.getBoundingClientRect(),m=14;return e.clientX>r.left-m&&e.clientX<r.right+m&&e.clientY>r.top-m&&e.clientY<r.bottom+m;};
+      if(!dentro(gordo)&&!dentro(manolo))return;
+      e.stopPropagation(); tocado=true;   // no hace aletear al caballito
+      if(fase==='dice2'||fase==='baja')pendiente=true;   // tocan mientras dice la frase: pasa al acabarla
+      else empiezaSombrero(performance.now());
+    });
+
     function paso(now){
-      const dt=Math.min(.05,(now-last)/1000); last=now; const t=now-t0;
+      const dt=Math.min(.05,(now-last)/1000); last=now; const t=now-t0, k=K();
       switch(fase){
-        case 'entran':{const a=andar(gordo,meta(),dt), b=andar(manolo,meta()-100*K(),dt); if(a&&b)cambia('gira',now);break;}
-        case 'gira':{if(t>250){gordo.facing=-1;} if(t>500)cambia('abre',now);break;}   // el gordo se vuelve hacia Manolo
-        case 'abre':{gordo.arriba=ease(Math.min(1,t/600)); manolo.mira=-50*R*ease(Math.min(1,t/600)); if(t>=600){cambia('dice1',now);}break;}
+        case 'entran':{const a=andar(gordo,meta(),dt), b=andar(manolo,meta()-100*k,dt); if(a&&b)cambia('gira',now);break;}
+        case 'gira':{if(t>250){gordo.facing=-1;manolo.facing=1;} if(t>500)cambia('abre',now);break;}   // el gordo se vuelve hacia Manolo
+        case 'abre':{gordo.arriba=ease(Math.min(1,t/600)); manolo.mira=-50*R*ease(Math.min(1,t/600)); if(t>=600){cambia(gordo.dijo1?'dice2':'dice1',now);}break;}
         case 'dice1':case 'dice2':{
           const largo=fase==='dice1'?2600:3200;
           gordo.habla=t<largo-400; gordo.abarca=12*Math.sin(t/650);
-          decir(fase==='dice1'?'Manolo, esta es mi web':'Algún día, todo esto será tuyo');
+          decir(fase==='dice1'?'Manolo, esta es mi web':'Algún día, todo esto será tuyo',gordo);
           manolo.mira=(-80+38*Math.sin((now/1000)*2.6))*R;   // mira hacia arriba moviendo la cabeza
-          if(t>=largo){if(fase==='dice1'){decir('');cambia('pausa',now);}else{decir('');cambia('baja',now);}}break;}
+          if(t>=largo){decir('');if(fase==='dice1'){gordo.dijo1=true;cambia('pausa',now);}else{dijo2=true;cambia('baja',now);}}break;}
         case 'pausa':{gordo.habla=false; manolo.mira=(-80+38*Math.sin((now/1000)*2.6))*R; if(t>350)cambia('dice2',now);break;}
-        case 'baja':{const u=ease(Math.min(1,t/500));gordo.arriba=1-u;manolo.mira*=.9;if(t>=600){gordo.arriba=0;manolo.mira=0;cambia('sevan',now);}break;}
-        case 'sevan':{const k=K();const a=andar(manolo,-160*k,dt), b=andar(gordo,-160*k,dt);
-          if(a&&b){gordo.svg.remove();manolo.svg.remove();bo.b.remove();return;}break;}
+        case 'baja':{const u=ease(Math.min(1,t/500));gordo.arriba=1-u;manolo.mira*=.9;if(t>=600){gordo.arriba=0;manolo.mira=0;if(pendiente){pendiente=false;empiezaSombrero(now);}else cambia('sevan',now);}break;}
+        case 'sevan':{const a=andar(manolo,-160*k,dt), b=andar(gordo,-160*k,dt);
+          if(a&&b){gordo.svg.remove();manolo.svg.remove();bo.b.remove();som.svg.remove();return;}break;}
+
+        // ── el sombrero
+        case 'sombrero':{   // baja los brazos, Manolo deja de mirar arriba; el sombrero cae y rueda un poco
+          gordo.arriba=Math.max(0,gordo.arriba-dt*3); manolo.mira*=.85;
+          if(som.modo==='suelo'&&t>900){manolo.facing=Math.sign(gordo.x-manolo.x)||1;cambia('avisa',now);}break;}
+        case 'avisa':{manolo.habla=t<1800; decir('Se te ha caído el sombrero',manolo); if(t>2200){decir('');manolo.habla=false;cambia('vaHat',now);}break;}
+        case 'vaHat':{const tx=Math.min(som.x-34*k,innerWidth-60*k); gordo.arriba=0;   // va hasta el sombrero, mirando a la derecha
+          if(andar(gordo,tx,dt)){gordo.facing=1;manolo.facing=Math.sign(gordo.x-manolo.x)||1;cambia('agacha',now);}break;}
+        case 'agacha':{gordo.agacha=Math.min(1,t/700); if(t>=900){som.modo='mano';cambia('piropo',now);}break;}
+        case 'piropo':{manolo.habla=t<2200; manolo.mira=-10*R; decir('Qué culo tan bonito',manolo); if(t>2700){decir('');manolo.habla=false;manolo.mira=0;cambia('levanta',now);}break;}
+        case 'levanta':{gordo.agacha=Math.max(0,1-t/600); if(t>=600){gordo.agacha=0;som.modo='poniendo';som.t0=now;cambia('vuelve',now);}break;}
+        case 'vuelve':{if(tras==='sevan'){cambia('sevan',now);break;}   // vuelven a su sitio (Manolo también, por si le pillaron entrando)
+          const a=andar(gordo,meta(),dt), b=andar(manolo,meta()-100*k,dt); if(a&&b)cambia('gira',now);break;}
       }
-      dibuja(manolo); dibuja(gordo); if(fase.startsWith('dice')||fase==='pausa')colocaBocadillo();
+      dibuja(manolo); dibuja(gordo);
+      // sombrero: en la cabeza, cayendo, en el suelo, en la mano o de la mano a la cabeza
+      if(som.modo==='cabeza')sombreroEnCabeza();
+      else if(som.modo==='cae'||som.modo==='suelo'){
+        const suelo=innerHeight-6;
+        if(som.modo==='cae'){som.vy+=1500*k/.6*dt; som.x+=som.vx*dt; som.y+=som.vy*dt; som.rot+=som.vr*dt;
+          if(som.y>=suelo){som.y=suelo; if(som.vy>120*k){som.vy*=-.3;som.vx*=.5;som.vr*=.4;}else som.modo='suelo';}}
+        else{som.x+=som.vx*dt; som.vx*=Math.pow(.02,dt); som.rot+=(Math.round(som.rot/360)*360-som.rot)*Math.min(1,dt*8);}   // acaba derecho, con el ala en el suelo
+        som.x=Math.min(som.x,innerWidth-24*k);}
+      else if(som.modo==='mano'){const [mx,my]=aPantalla(gordo,gordo.G.a1[1]); som.x=mx; som.y=my+6*k; som.rot*=.8;}
+      else if(som.modo==='poniendo'){const u=ease(Math.min(1,(now-som.t0)/450)), x0=som.x, y0=som.y; sombreroEnCabeza();
+        const hx=som.x,hy=som.y; som.x=x0+(hx-x0)*u; som.y=y0+(hy-y0)*u; if(u>=1)som.modo='cabeza';}
+      pintaSombrero(som);
+      if(bo.b.style.opacity==='1')colocaBocadillo();
       requestAnimationFrame(paso);
     }
     requestAnimationFrame(paso);
