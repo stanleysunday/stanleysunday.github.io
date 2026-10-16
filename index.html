@@ -512,7 +512,7 @@ function loop(now) {
     let quien=gordo;
     const decir=(texto,M)=>{if(M)quien=M;bo.txt.textContent=texto;bo.b.style.opacity=texto?1:0;};
     const colocaBocadillo=()=>{const k=K(),M=quien,bw=bo.b.offsetWidth,bh=bo.b.offsetHeight,[hx,hy]=aPantalla(M,M.G.head);
-      const encima=(M.arriba>.3?62:M===gordo?40:26)*k;   // por encima de los brazos levantados o del sombrero
+      const encima=(M.arriba>.3?62:M===gordo?40:50)*k;   // por encima de los brazos levantados o del sombrero
       let left=Math.max(8,Math.min(innerWidth-bw-8,hx-bw*.35)), top=Math.max(6,hy-bh-encima);
       bo.b.style.transform=`translate(${left}px,${top}px)`; bo.cola.style.left=Math.max(10,Math.min(bw-26,hx-left-8))+'px';};
     const sombreroEnCabeza=()=>{const k=K(),G=gordo.G,[hx,hy]=aPantalla(gordo,G.head),inc=G.ta*gordo.facing;
