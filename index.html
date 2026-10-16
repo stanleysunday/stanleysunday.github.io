@@ -142,7 +142,6 @@ const s = {
   av: 0,
   ready: false,
   modo: 'vuela',   // vuela (como siempre) · cae · suelo (se queda abajo) · flota (tras los toques)
-  proxCaida: performance.now() + 9000 + Math.random() * 12000,
   finFlota: 0
 };
 
@@ -170,6 +169,15 @@ img.onload = () => {
   s.vx = Math.cos(ang) * spd;
   s.vy = Math.sin(ang) * spd;
   s.av = (Math.random() - 0.5) * 0.0015;
+
+  // al entrar, a cara o cruz: o vuela solo como siempre, o cae desde arriba y se queda en el suelo hasta que alguien clique
+  if (Math.random() < 0.5) {
+    s.modo = 'cae';
+    s.x = W * (0.45 + Math.random() * 0.35);
+    s.y = -s.h / 2;
+    s.vx = (Math.random() - 0.5) * 1.5; s.vy = 0;
+    s.angle = (Math.random() - 0.5) * 0.6; s.av = (Math.random() - 0.5) * 0.01;
+  }
 
   s.ready = true;
   requestAnimationFrame(loop);
@@ -213,10 +221,6 @@ function loop(now) {
     if (s.y - hh < 0)  { s.y = hh;     s.vy =  Math.abs(s.vy); nudge(); }
     if (s.y + hh > H)  { s.y = H - hh; s.vy = -Math.abs(s.vy); nudge(); }
     s.av *= 0.999;
-    if (now >= s.proxCaida) {                       // a veces se le acaba el vuelo y cae
-      if (Math.random() < 0.5) { s.modo = 'cae'; s.vy = Math.min(s.vy, 0); s.vx *= 0.6; }
-      else s.proxCaida = now + 8000 + Math.random() * 14000;
-    }
   } else {
     const flota = s.modo === 'flota';
     if (flota && now >= s.finFlota) s.modo = 'cae';
@@ -229,7 +233,7 @@ function loop(now) {
     const reb = s.modo === 'flota' ? 0.8 : 0.5;
     if (s.x - hw < 0)  { s.x = hw;     s.vx =  Math.abs(s.vx) * reb; nudge(); }
     if (s.x + hw > W)  { s.x = W - hw; s.vx = -Math.abs(s.vx) * reb; nudge(); }
-    if (s.y - hh < 0)  { s.y = hh;     s.vy =  Math.abs(s.vy) * reb; nudge(); }
+    if (s.y - hh < 0 && s.vy < 0) { s.y = hh; s.vy = Math.abs(s.vy) * reb; nudge(); }   // el techo solo frena al que sube: al entrar cae desde fuera de la pantalla
     if (s.y + hh >= H) {
       s.y = H - hh;
       if (s.modo === 'flota') { s.vy = -Math.abs(s.vy) * reb; nudge(); }
