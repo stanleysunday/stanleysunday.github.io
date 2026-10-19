@@ -288,9 +288,13 @@ function pickHome(b) {
   }
   return best;
 }
+// each name has its own pace: some always quicker than others (1 = normal)
+const PACE = [0.75, 1.45];
+const paceOf = b => b.pace || (b.pace = rnd(PACE[0], PACE[1]));
 function startHop(b, a, dur) {
   b.home = a; b.pending = null;
-  b.hop = { fx: b.x, fy: b.y, t: 0, dur: dur || clamp(dist(b, hangPos(a)) / (SPX * 0.9), 1.1, 2.6), lift: dur && dur < 0.7 ? 0.12 : 0.25 };
+  const d = (dur || clamp(dist(b, hangPos(a)) / (SPX * 1.6), 0.55, 1.3)) / paceOf(b);
+  b.hop = { fx: b.x, fy: b.y, t: 0, dur: d, lift: d < 0.5 ? 0.12 : 0.22 };
 }
 function setHanging(b) {
   b.rope = { anchor: b.home, L0: HOME_L() / (1 - TUG), L: HOME_L(), t: 1 };
@@ -326,13 +330,16 @@ function calmStep(b, dt) {
   else { const k = clamp((target - amp) / target, -1, 1) * dt * 1.6; b.vx *= 1 + k; b.vy *= 1 + k; }
   const look = b.lookAt && balls.indexOf(b.lookAt) >= 0 ? clamp((b.lookAt.x - b.x) / (SPX * 3), -1, 1) * 0.22 : 0;
   b.calmTilt = -th * 0.5 + look;
-  if (!b.visit) { b.brainT = (b.brainT == null ? rnd(0.3, 3) : b.brainT) - dt; if (b.brainT <= 0) think(b); }
+  if (!b.visit) { b.brainT = (b.brainT == null ? rnd(0.1, 0.8) : b.brainT) - dt; if (b.brainT <= 0) think(b); }
 }
 // ── temperaments: each idle move is one dot; the mood decides where, how fast and how often ──
 const neighbours = (b, a) => anchors.filter(n => n !== a && Math.abs(n.r - a.r) <= 1 && Math.abs(n.c - a.c) <= 1 && homeOk(n, b) && clearPath(b, hangPos(n)));
+// now and then one of them takes a breather (only one at a time)
+const REST_CHANCE = 0.07, REST_TIME = [2.5, 5];
 function pickMood(b) {
   const own = MOOD[b.name] || 'pace', r = Math.random();
-  b.mood = r < 0.62 ? own : r < 0.67 ? 'rest' : ['errand', 'pace', 'peek'][Math.floor(Math.random() * 3)];
+  const someoneResting = balls.some(o => o !== b && o.mood === 'rest');
+  b.mood = r < REST_CHANCE && !someoneResting ? 'rest' : r < 0.68 ? own : ['errand', 'pace', 'peek'][Math.floor(Math.random() * 3)];
   b.trip = null; b.room = b.home; b.lookAt = null; b.ringDir = Math.random() < 0.5 ? 1 : -1;
   b.moodLeft = b.mood === 'pace' ? 6 + Math.floor(Math.random() * 8) : b.mood === 'peek' ? 3 + Math.floor(Math.random() * 3) : 1;
 }
@@ -340,17 +347,18 @@ function think(b) {
   if (!b.home) return;
   if (!b.mood || b.moodLeft <= 0) pickMood(b);
   const here = b.home;
-  if (b.mood === 'rest') { b.moodLeft = 0; b.brainT = rnd(1.2, 2.8); return; }
+  const p = paceOf(b);
+  if (b.mood === 'rest') { b.moodLeft = 0; b.brainT = rnd(REST_TIME[0], REST_TIME[1]); return; }
   if (b.mood === 'errand') {   // somewhere far, quickly
     if (!b.trip) {
       const far = anchors.filter(a => dist(a, here) > SPX * 3.5 && homeOk(a, b));
       b.trip = far[Math.floor(Math.random() * far.length)];
-      if (!b.trip) { b.moodLeft = 0; b.brainT = 1; return; }
+      if (!b.trip) { b.moodLeft = 0; b.brainT = 0.2; return; }
     }
     const opts = neighbours(b, here).filter(n => dist(n, b.trip) < dist(here, b.trip) - 1);
-    if (here === b.trip || !opts.length || !homeOk(b.trip, b)) { b.moodLeft = 0; b.trip = null; b.brainT = rnd(0.8, 2); return; }   // arrived (or blocked): a breather
+    if (here === b.trip || !opts.length || !homeOk(b.trip, b)) { b.moodLeft = 0; b.trip = null; b.brainT = rnd(0.1, 0.4) / p; return; }   // arrived (or blocked): straight on to something else
     opts.sort((p, q) => dist(p, b.trip) - dist(q, b.trip));
-    startHop(b, opts[Math.random() < 0.75 ? 0 : Math.min(1, opts.length - 1)], rnd(0.38, 0.55));
+    startHop(b, opts[Math.random() < 0.75 ? 0 : Math.min(1, opts.length - 1)], rnd(0.26, 0.36));
     b.brainT = 0.02;
     return;
   }
@@ -363,9 +371,9 @@ function think(b) {
       const cand = i < 0 ? ring.filter(Boolean).sort((p, q) => dist(p, here) - dist(q, here))[k - 1] : ring[(i + b.ringDir * k + 80) % 8];
       if (cand && Math.abs(cand.r - here.r) <= 1 && Math.abs(cand.c - here.c) <= 1 && homeOk(cand, b) && clearPath(b, hangPos(cand))) next = cand;
     }
-    if (!next) { b.ringDir = -b.ringDir; b.moodLeft--; b.brainT = rnd(0.6, 1.2); return; }
-    startHop(b, next, rnd(0.7, 1.0));
-    b.moodLeft--; b.brainT = rnd(0.02, 0.3);
+    if (!next) { b.ringDir = -b.ringDir; b.moodLeft--; b.brainT = rnd(0.1, 0.3); return; }
+    startHop(b, next, rnd(0.4, 0.6));
+    b.moodLeft--; b.brainT = 0.02;
     return;
   }
   // peek: toward whoever is nearest, slowly, then a good look
@@ -374,8 +382,8 @@ function think(b) {
   const who = others[Math.floor(Math.random() * Math.min(3, others.length))];
   b.lookAt = who || null;
   const opts = who ? neighbours(b, here).filter(n => dist(n, who) < dist(here, who)) : [];
-  if (opts.length) startHop(b, opts[Math.floor(Math.random() * opts.length)], rnd(1.0, 1.4));
-  b.moodLeft--; b.brainT = rnd(0.7, 1.6);
+  if (opts.length) startHop(b, opts[Math.floor(Math.random() * opts.length)], rnd(0.55, 0.8));
+  b.moodLeft--; b.brainT = opts.length ? rnd(0.15, 0.5) / p : 0.05;
 }
 // now and then one name hops to a free dot next to it, without touching anyone
 let moveT = 0.8;
@@ -1141,6 +1149,7 @@ function frame(now) {
     if (!frozen) { bump(); scatter(dt); shove(); separate(dt); }
     downStep(dt);
     director(dt); sceneStep(dt); darlingStep(dt); followStep(dt);
+    autoStep(raw);
     updFx(dt, raw);
   }
   draw();
@@ -1250,7 +1259,29 @@ function darlingStep(dt) {
     darlings.splice(i, 1);
   }
 }
+// ── automatic scenes: after AUTO_WAIT seconds with nothing going on and no taps, one starts by itself ──
+const AUTO_WAIT = 3;
+let idleT = 0, lastAuto = null;
+const somethingOn = () => scenes.length || duel.phase !== 'truce' || drag || press || follows.length || darlings.length
+  || balls.some(b => b.visit || b.stairs || b.kin || b.dragged || b.downT || b.goal);
+function autoStep(raw) {
+  if (somethingOn()) { idleT = 0; return; }
+  idleT += raw;
+  if (idleT < AUTO_WAIT) return;
+  idleT = 0;
+  const free = o => o && !o.leaving && !isOccupied(o) && !o.visit;
+  const picks = SCENES.filter(sc => sc.id !== lastAuto && free(byName(sc.a)) && free(byName(sc.b)) && !(sc.baby && balls.some(t => t.temp)))
+    .map(sc => ({ sc, id: sc.id }));
+  if (lastAuto !== 'duel' && free(byName('ALEXIS')) && free(byName('KRYSTLE'))) picks.push({ duel: true, id: 'duel' });
+  if (!picks.length) return;
+  const pick = picks[Math.floor(Math.random() * picks.length)];
+  lastAuto = pick.id;
+  if (pick.duel) { startStandoff(byName('ALEXIS'), byName('KRYSTLE')); return; }
+  const [A, B] = Math.random() < 0.5 ? [byName(pick.sc.a), byName(pick.sc.b)] : [byName(pick.sc.b), byName(pick.sc.a)];
+  play(A, { sc: pick.sc, o: B });
+}
 cv.addEventListener('pointerdown', e => {
+  idleT = 0;
   const [x, y] = pt(e), b = hitTest(x, y);
   if (!b) return;
   e.preventDefault();
