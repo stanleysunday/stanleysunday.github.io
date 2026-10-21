@@ -87,7 +87,7 @@
     [114.10, 1, 'hit'], // What in God's name were you doing?
     [116.90, 0, 'hit'], // I was defending the freedom of the press.
   ];
-  const LEAD = { hit: .95, kick: .55 }, KICKX = [144, 853];
+  const KICKX = [144, 853];
 
   const cv = document.getElementById('c'), ctx = cv.getContext('2d');
   const video = document.getElementById('v');
@@ -130,6 +130,7 @@
     const a = Math.random() * .7 - .35, sp = 520;
     ball = { x: 480, y: 300 + Math.random() * 360, vx: Math.cos(a) * sp * serveDir, vy: Math.sin(a) * sp, sp, r: R };
     ai.aimErr = (Math.random() * 2 - 1) * 70;
+    plan(curT);
   }
   function hitPaddle(b, side) {
     const off = Math.max(-1, Math.min(1, (b.y - pad[side]) / (TH / 2)));
@@ -139,11 +140,16 @@
     b.vx = Math.cos(ang) * sp * (side === 0 ? 1 : -1);
     b.vy = Math.sin(ang) * sp;
     b.x = side === 0 ? FACE[0] + b.r : FACE[1] - b.r;
-    if (b === ball) ai.aimErr = side === human ? (Math.random() * 2 - 1) * (50 + 40 * Math.random()) : 0;
+    if (b === ball) {
+      ai.aimErr = side === human ? (Math.random() * 2 - 1) * (50 + 40 * Math.random()) : 0;
+      const i = upcoming(curT);
+      if (i >= 0 && CHEATS[i][2] === 'hit' && CHEATS[i][1] === side && Math.abs(curT - CHEATS[i][0]) < .3) done.add(i);
+      plan(curT);
+    }
   }
   // Ball against the whole paddle rectangle: the front returns it, top/bottom edges bounce it.
   function collide(b, side) {
-    if (b.ghost === side) return;
+    if (b.ghost === side || b.pass === side) return;
     const x0 = PADX[side], x1 = x0 + TW, y0 = pad[side] - TH / 2, y1 = pad[side] + TH / 2;
     const cx = Math.max(x0, Math.min(x1, b.x)), cy = Math.max(y0, Math.min(y1, b.y));
     const dx = b.x - cx, dy = b.y - cy;
@@ -175,50 +181,105 @@
   }
 
   // ---------- cheats ----------
-  function cheatTarget(c) {
-    const [tk, side, kind, off] = c;
-    if (kind === 'kick') return [KICKX[side], clampY(pad[side] + off * (264 / 340), R)];
-    return [side === 0 ? FACE[0] + R : FACE[1] - R, clampY(pad[side] + guide.off, R)];
+  // The ball must reach the speaker's paddle as each line starts. The trick hides inside the game:
+  // every time a paddle returns the ball (or it is served) its speed and angle are chosen so that,
+  // after however many rallies fit, it arrives on time. In the last half second a gentle pull corrects
+  // for paddles that moved. Only when that is impossible (a point was just scored, or the ball is
+  // going the wrong way too late) does it fall back to a visible bend.
+  let curT = 0, aimOff = [];
+  const L = (FACE[1] - R) - (FACE[0] + R);
+  const faceX = (side, kind) => kind === 'kick' ? KICKX[side] : (side === 0 ? FACE[0] + R : FACE[1] - R);
+  function aimY(i) {
+    const [tk, side, kind, off] = CHEATS[i];
+    return clampY(kind === 'kick' ? pad[side] + off * (264 / 340) : pad[side] + aimOff[i], R);
   }
-  function cheatStep(t) {
+  function upcoming(t) {
     for (let i = 0; i < CHEATS.length; i++) {
       if (done.has(i)) continue;
-      const c = CHEATS[i], [tk, side, kind] = c;
-      const ts = Math.max(tk - LEAD[kind], i ? CHEATS[i - 1][0] + .05 : 0);
-      if (t < ts) return false;
-      if (t >= tk + .25) { done.add(i); continue; }          // skipped by a seek
-      if (!guide || guide.i !== i) {
-        if (!ball) ball = { x: 480, y: 480, vx: side ? 300 : -300, vy: 0, sp: 620, r: R };
-        ball.ghost = undefined;
-        guide = { i, ts, x0: ball.x, y0: ball.y, vx: ball.vx, vy: ball.vy, off: (Math.random() * 2 - 1) * TH * .2 };
-      }
-      if (t < tk) {
-        // Quadratic path that leaves with the ball's current velocity and lands on target at tk.
-        const T = tk - guide.ts, u = Math.min(1, (t - guide.ts) / T), [tx, ty] = cheatTarget(c);
+      if (t > CHEATS[i][0] + .25) { done.add(i); continue; }
+      return i;
+    }
+    return -1;
+  }
+  function vyFor(T, ty, vyNow) {    // vertical speed that lands on ty after T seconds, bouncing on the walls
+    const lo = WALL + R, span = H - 2 * WALL - 2 * R, u0 = ball.y - lo, ut = ty - lo;
+    let best = null;
+    for (let k = -3; k <= 3; k++) for (const U of [ut + 2 * k * span, -ut + 2 * k * span]) {
+      const vy = (U - u0) / T;
+      if (best === null || Math.abs(vy - vyNow) < Math.abs(best - vyNow)) best = vy;
+    }
+    return best;
+  }
+  function plan(t) {
+    if (!ball || (t >= CHAOS0 - .5 && t < CHAOS1)) return;
+    const i = upcoming(t); if (i < 0) return;
+    const [tk, side, kind] = CHEATS[i], T = tk - t;
+    if (T < .3 || T > 6) return;
+    const heading = ball.vx > 0 ? 1 : 0, fx = faceX(side, kind);
+    const first = heading === side ? Math.abs(fx - ball.x)
+      : Math.abs(faceX(heading, 'hit') - ball.x) + Math.abs(fx - faceX(heading, 'hit'));
+    for (let n = 0; n < 6; n++) {
+      const v = (first + 2 * n * L) / T;
+      if (v > 1500) return;                 // no time left: the late bend will handle it
+      if (v < 250) continue;                // too slow: allow one more rally
+      const dir = Math.sign(ball.vx) || (side ? 1 : -1);
+      if (heading === side && n === 0) { ball.vy = vyFor(T, aimY(i), ball.vy); if (kind === 'kick') ball.pass = side; }
+      else ball.vy = Math.max(-1.1 * v, Math.min(1.1 * v, ball.vy * v / Math.max(1, Math.abs(ball.vx))));
+      ball.vx = dir * v;
+      ball.sp = Math.max(420, Math.min(1350, v));
+      if (side !== human || n > 0) ai.aimErr = 0;
+      return;
+    }
+  }
+  function cheatStep(t, dt) {
+    if (t >= CHAOS0 && t < CHAOS1) return false;
+    const i = upcoming(t); if (i < 0) return false;
+    const [tk, side, kind] = CHEATS[i], fx = faceX(side, kind), rem = tk - t;
+    // late bend (fallback)
+    if (guide && guide.i === i) {
+      if (rem > 0) {
+        const T = tk - guide.ts, u = Math.min(1, (t - guide.ts) / T), tx = fx, ty = aimY(i);
         const cx = guide.x0 + guide.vx * T / 3, cy = guide.y0 + guide.vy * T / 3;
         let nx = (1 - u) * (1 - u) * guide.x0 + 2 * (1 - u) * u * cx + u * u * tx;
         let ny = (1 - u) * (1 - u) * guide.y0 + 2 * (1 - u) * u * cy + u * u * ty;
         nx = Math.max(WALL + R, Math.min(W - WALL - R, nx)); ny = clampY(ny, R);
-        ball.vx = (tx - nx) / Math.max(.05, tk - t); ball.vy = (ty - ny) / Math.max(.05, tk - t);
+        ball.vx = (tx - nx) / Math.max(.05, rem); ball.vy = (ty - ny) / Math.max(.05, rem);
         ball.x = nx; ball.y = ny;
         return true;
       }
-      // contact
-      const [tx, ty] = cheatTarget(c);
-      ball.x = tx; ball.y = ty;
-      if (kind === 'kick') {
-        const a = (Math.random() * 50 - 25) * Math.PI / 180;
-        ball.sp = Math.min(1350, Math.max(ball.sp, 700) * 1.15);
-        ball.vx = Math.cos(a) * ball.sp * (side === 0 ? 1 : -1); ball.vy = Math.sin(a) * ball.sp;
-        ball.ghost = side;
-        ai.aimErr = side === human ? (Math.random() * 2 - 1) * 60 : 0;
-      } else {
-        ball.sp = Math.max(ball.sp, 560); hitPaddle(ball, side);
-      }
-      guide = null; done.add(i);
+      guide = null; contact(i); return false;
+    }
+    if (rem > .6) return false;
+    const heading = ball ? (ball.vx > 0 ? 1 : 0) : -1;
+    if (rem > 0 && (!ball || heading !== side)) {
+      if (!ball) ball = { x: 480, y: 480, vx: side ? 300 : -300, vy: 0, sp: 620, r: R };
+      ball.ghost = undefined;
+      guide = { i, ts: t, x0: ball.x, y0: ball.y, vx: ball.vx, vy: ball.vy };
+      return cheatStep(t, dt);
+    }
+    if (rem > .02) {                         // gentle pull towards the paddle
+      if (kind === 'kick') ball.pass = side;
+      const dvx = (fx - ball.x) / rem;
+      if (Math.sign(dvx) === Math.sign(ball.vx)) ball.vx += (dvx - ball.vx) * Math.min(1, dt * 8);
+      ball.vy += (vyFor(rem, aimY(i), ball.vy) - ball.vy) * Math.min(1, dt * 6);
       return false;
     }
+    if (rem <= 0 && Math.abs(ball.x - fx) < 90) contact(i);
     return false;
+  }
+  function contact(i) {
+    const [tk, side, kind] = CHEATS[i];
+    ball.x = faceX(side, kind); ball.y = aimY(i); done.add(i); ball.pass = undefined;
+    if (kind === 'kick') {
+      const a = (Math.random() * 50 - 25) * Math.PI / 180;
+      ball.sp = Math.min(1350, Math.max(ball.sp, 700) * 1.15);
+      ball.vx = Math.cos(a) * ball.sp * (side === 0 ? 1 : -1); ball.vy = Math.sin(a) * ball.sp;
+      ball.ghost = side;
+      ai.aimErr = side === human ? (Math.random() * 2 - 1) * 60 : 0;
+      plan(curT);
+    } else {
+      ball.sp = Math.max(ball.sp, 560); hitPaddle(ball, side);
+    }
   }
 
   // ---------- computer ----------
@@ -239,6 +300,7 @@
   }
 
   function update(t, dt) {
+    curT = t;
     const chaos = t >= CHAOS0 && t < CHAOS1;
     if (chaos && !wasChaos) { extra = []; spawned = 0; if (!ball) { serveDir = Math.random() < .5 ? -1 : 1; launch(); } }
     if (!chaos && wasChaos) { extra = []; serve(t, Math.random() < .5 ? -1 : 1); serveAt = t + .4; }
@@ -278,7 +340,7 @@
     const steps = Math.max(1, Math.ceil(dt * 240)), h2 = dt / steps;
     for (let n = 0; n < steps; n++) for (const b of extra) stepBall(b, h2, true);
 
-    if (!chaos && cheatStep(t)) return;
+    if (!chaos && cheatStep(t, dt)) return;
     if (!ball) { if (t >= serveAt) launch(); return; }
     for (let n = 0; n < steps && ball; n++) {
       stepBall(ball, h2, chaos);
@@ -320,6 +382,7 @@
   function start(side) {
     human = side; score = [0, 0]; pad = [480, 480]; padVel = [0, 0]; target = 480;
     extra = []; spawned = 0; wasChaos = false; guide = null; done = new Set();
+    aimOff = CHEATS.map(() => (Math.random() * 2 - 1) * TH * .18);
     serve(0, side === 0 ? 1 : -1); serveAt = 1.2;
     startEl.hidden = true; endEl.hidden = true;
     video.currentTime = 0; lastT = 0; running = true;
