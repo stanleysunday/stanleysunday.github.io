@@ -43,7 +43,7 @@
       <button data-side="0">ALEXIS<small>izquierda</small></button>
       <button data-side="1">DOMINIQUE<small>derecha</small></button>
     </div>
-    <p>Ratón, dedo o flechas ↑ ↓ · con sonido</p>
+    <p>Ratón, flechas ↑ ↓ o arrastra el dedo en cualquier sitio · con sonido</p>
   </div>
   <div class="overlay" id="end" hidden>
     <h1>FIN</h1>
@@ -101,8 +101,21 @@
   // ---------- input ----------
   const pointerY = e => { const r = cv.getBoundingClientRect(); return (e.clientY - r.top) / r.height * H; };
   const wrapEl = document.getElementById('wrap');
-  wrapEl.addEventListener('pointermove', e => { target = pointerY(e); });
-  wrapEl.addEventListener('pointerdown', e => { target = pointerY(e); });
+  // Mouse: the paddle goes where the cursor is. Touch: drag anywhere, the paddle moves with the finger
+  // from where it already is (like a trackpad), so you never have to touch the player herself.
+  let drag = null;
+  wrapEl.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') { target = pointerY(e); return; }
+    drag = { id: e.pointerId, y: pointerY(e), from: pad[human] };
+  });
+  wrapEl.addEventListener('pointermove', e => {
+    if (e.pointerType === 'mouse') { target = pointerY(e); return; }
+    if (!drag || drag.id !== e.pointerId) return;
+    target = Math.max(PMIN, Math.min(PMAX, drag.from + (pointerY(e) - drag.y) * 1.2));
+  });
+  const endDrag = e => { if (drag && drag.id === e.pointerId) drag = null; };
+  wrapEl.addEventListener('pointerup', endDrag);
+  wrapEl.addEventListener('pointercancel', endDrag);
   const keyset = (e, v) => {
     if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = v; e.preventDefault(); }
     if (e.key === 'ArrowDown' || e.key === 's') { keys.down = v; e.preventDefault(); }
