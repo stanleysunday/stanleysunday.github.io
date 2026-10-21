@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>dynasty pong</title>
+<meta property="og:title" content="dynasty pong">
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#000; --fg:#f2f2f2; --dim:#8a8a8a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family:'VT323',ui-monospace,Menlo,monospace; }
+  #wrap { position:fixed; inset:0; touch-action:none; cursor:none; display:flex; align-items:center; justify-content:center; }
+  #stage { position:relative; width:min(100vw,100vh); height:min(100vw,100vh); }
+  canvas { width:100%; height:100%; display:block; touch-action:none; cursor:none; }
+  .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:3%; background:rgba(0,0,0,.78); text-align:center; padding:6%; }
+  .overlay[hidden] { display:none; }
+  h1 { margin:0; font-weight:400; font-size:clamp(44px,11vmin,120px); letter-spacing:.06em; line-height:.9; }
+  p { margin:0; color:var(--dim); font-size:clamp(18px,3.4vmin,30px); }
+  .pick { display:flex; gap:4vmin; flex-wrap:wrap; justify-content:center; }
+  button { font:inherit; font-size:clamp(24px,5vmin,46px); color:var(--bg); background:var(--fg);
+    border:0; padding:.25em .9em; cursor:pointer; letter-spacing:.05em; }
+  button:hover, button:focus-visible { background:#fff; outline:3px solid #fff; outline-offset:4px; }
+  button small { display:block; font-size:.5em; color:#444; }
+  #score { font-size:clamp(40px,9vmin,96px); color:var(--fg); }
+  video { display:none; }
+  .back { position:fixed; top:calc(8px + env(safe-area-inset-top,0px)); left:8px; color:#d8d8d8; background:#000; padding:2px 4px;
+    font:10px/1.4 ui-monospace,Menlo,monospace; letter-spacing:.14em; text-transform:uppercase; z-index:5; text-decoration:none; }
+</style>
+</head>
+<body>
+<a class="back" href="/">← volver</a>
+<div id="wrap"><div id="stage">
+  <canvas id="c" width="960" height="960" aria-label="Dynasty Pong"></canvas>
+  <div class="overlay" id="start">
+    <h1>DYNASTY<br>PONG</h1>
+    <p>Elige tu pala. La otra la lleva el ordenador.</p>
+    <div class="pick">
+      <button data-side="0">ALEXIS<small>izquierda</small></button>
+      <button data-side="1">DOMINIQUE<small>derecha</small></button>
+    </div>
+    <p>Ratón, dedo o flechas ↑ ↓ · con sonido</p>
+  </div>
+  <div class="overlay" id="end" hidden>
+    <h1>FIN</h1>
+    <div id="score"></div>
+    <p id="verdict"></p>
+    <button id="again">OTRA VEZ</button>
+  </div>
+</div></div>
+<video id="v" src="dynasty-pong.mp4" playsinline preload="auto"></video>
+<script>
+(() => {
+  const W = 960, H = 960, TW = 184, TH = 347, STRIP = 960;
+  const CHAOS0 = 65.766, CHAOS1 = 90.223;
+  const PADX = [18, 758], FACE = [18 + TW, 758];
+  const PMIN = 186, PMAX = 774, R = 24, WALL = 8;
+  const NAMES = ['ALEXIS', 'DOMINIQUE'];
+
+  // Cheats: [time, side (0 Alexis / 1 Dominique), kind, foot offset]
+  // Dialogue: the ball reaches the speaker's paddle as the line starts. Kicks: the ball lands on the foot.
+  const CHEATS = [
+    [3.36, 1, 'hit'],   // Alexis.
+    [5.40, 0, 'hit'],   // What do you want?
+    [6.86, 1, 'hit'],   // I've heard you don't care for my singing.
+    [9.58, 0, 'hit'],   // That's right. It's the truth that hurts.
+    [12.42, 1, 'hit'],  // The truth? I hope you say that when I sue you…
+    [17.28, 0, 'hit'],  // Oh, you'd only make a fool of yourself, Dominique.
+    [19.66, 0, 'hit'],  // Everyone knows that you're nothing but a second-rate lounge act.
+    [23.74, 1, 'hit'],  // I don't care what you say to my face, you viper.
+    [26.68, 1, 'hit'],  // Here, retract this or I'll cram it down your throat…
+    [36.20, 0, 'kick', 90], [37.16, 1, 'kick', -25], [38.36, 0, 'kick', 10], [40.36, 1, 'kick', -25],
+    [43.28, 0, 'hit'], [46.84, 1, 'hit'], [54.90, 0, 'hit'], [58.84, 0, 'hit'], [62.08, 1, 'hit'],  // big blows
+    [91.40, 0, 'hit'],  // Mother Dominic, stop it!
+    [93.20, 1, 'hit'],  // Stop it!
+    [94.46, 0, 'hit'],  // Get up! Get up!
+    [100.80, 1, 'hit'], // Anytime, anytime you want more of the same,
+    [103.22, 1, 'hit'], // I'll be waiting for you.
+    [104.92, 0, 'hit'], // And I'll be waiting for you to tell the world
+    [106.64, 0, 'hit'], // what a no-talent has-been you are.
+    [109.94, 1, 'hit'], // Lynn, would you take care of Miss Devereaux?
+    [111.72, 0, 'hit'], // Oh, I'll slap her! I'll slap her!
+    [114.10, 1, 'hit'], // What in God's name were you doing?
+    [116.90, 0, 'hit'], // I was defending the freedom of the press.
+  ];
+  const LEAD = { hit: .95, kick: .55 }, KICKX = [144, 853];
+
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const video = document.getElementById('v');
+  const startEl = document.getElementById('start'), endEl = document.getElementById('end');
+
+  let human = 1, running = false, lastT = 0, wasChaos = false;
+  let pad = [480, 480], padVel = [0, 0], target = 480, keys = { up: false, down: false };
+  let score = [0, 0], ball = null, serveAt = 0, serveDir = 1, extra = [], spawned = 0;
+  let ai = { aimErr: 0 }, guide = null, done = new Set();
+
+  // ---------- input ----------
+  const pointerY = e => { const r = cv.getBoundingClientRect(); return (e.clientY - r.top) / r.height * H; };
+  const wrapEl = document.getElementById('wrap');
+  wrapEl.addEventListener('pointermove', e => { target = pointerY(e); });
+  wrapEl.addEventListener('pointerdown', e => { target = pointerY(e); });
+  const keyset = (e, v) => {
+    if (e.key === 'ArrowUp' || e.key === 'w') { keys.up = v; e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 's') { keys.down = v; e.preventDefault(); }
+  };
+  addEventListener('keydown', e => keyset(e, true));
+  addEventListener('keyup', e => keyset(e, false));
+
+  // ---------- ball physics ----------
+  const clampY = (y, r) => Math.max(WALL + r, Math.min(H - WALL - r, y));
+  function serve(t, dir) { ball = null; serveAt = t + .9; serveDir = dir; }
+  function launch() {
+    const a = Math.random() * .7 - .35, sp = 520;
+    ball = { x: 480, y: 300 + Math.random() * 360, vx: Math.cos(a) * sp * serveDir, vy: Math.sin(a) * sp, sp, r: R };
+    ai.aimErr = (Math.random() * 2 - 1) * 70;
+  }
+  function hitPaddle(b, side) {
+    const off = Math.max(-1, Math.min(1, (b.y - pad[side]) / (TH / 2)));
+    const ang = off * Math.PI / 180 * 58;
+    if (b === ball) b.sp = Math.min(1350, b.sp * 1.06 + 12);
+    const sp = b === ball ? b.sp : Math.hypot(b.vx, b.vy);
+    b.vx = Math.cos(ang) * sp * (side === 0 ? 1 : -1);
+    b.vy = Math.sin(ang) * sp;
+    b.x = side === 0 ? FACE[0] + b.r : FACE[1] - b.r;
+    if (b === ball) ai.aimErr = side === human ? (Math.random() * 2 - 1) * (50 + 40 * Math.random()) : 0;
+  }
+  // Ball against the whole paddle rectangle: the front returns it, top/bottom edges bounce it.
+  function collide(b, side) {
+    if (b.ghost === side) return;
+    const x0 = PADX[side], x1 = x0 + TW, y0 = pad[side] - TH / 2, y1 = pad[side] + TH / 2;
+    const cx = Math.max(x0, Math.min(x1, b.x)), cy = Math.max(y0, Math.min(y1, b.y));
+    const dx = b.x - cx, dy = b.y - cy;
+    if (dx * dx + dy * dy >= b.r * b.r) return;
+    const inner = side === 0 ? b.x >= x1 : b.x <= x0;
+    if (inner && Math.abs(dy) < b.r * .7) { hitPaddle(b, side); return; }
+    if ((b.x > x0 && b.x < x1) || Math.abs(dy) >= Math.abs(dx)) {
+      const dir = b.y < pad[side] ? -1 : 1;
+      b.y = dir < 0 ? y0 - b.r : y1 + b.r;
+      b.vy = dir * Math.max(Math.abs(b.vy), Math.abs(padVel[side]) + 240);
+      if (b.y < WALL + b.r || b.y > H - WALL - b.r) { b.y = clampY(b.y, b.r); b.vx = -b.vx; }
+    } else {
+      b.vx = side === 0 ? -Math.abs(b.vx) : Math.abs(b.vx);
+    }
+  }
+  function stepBall(b, dt, closed) {   // closed: side walls bounce (chaos), no points
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.y < WALL + b.r) { b.y = WALL + b.r; b.vy = Math.abs(b.vy); }
+    if (b.y > H - WALL - b.r) { b.y = H - WALL - b.r; b.vy = -Math.abs(b.vy); }
+    if (closed) {
+      if (b.x < WALL + b.r) { b.x = WALL + b.r; b.vx = Math.abs(b.vx); }
+      if (b.x > W - WALL - b.r) { b.x = W - WALL - b.r; b.vx = -Math.abs(b.vx); }
+    }
+    if (b.ghost !== undefined) {
+      const s = b.ghost;
+      if (b.x - b.r > PADX[s] + TW || b.x + b.r < PADX[s]) b.ghost = undefined;
+    }
+    collide(b, 0); collide(b, 1);
+  }
+
+  // ---------- cheats ----------
+  function cheatTarget(c) {
+    const [tk, side, kind, off] = c;
+    if (kind === 'kick') return [KICKX[side], clampY(pad[side] + off * (264 / 340), R)];
+    return [side === 0 ? FACE[0] + R : FACE[1] - R, clampY(pad[side] + guide.off, R)];
+  }
+  function cheatStep(t) {
+    for (let i = 0; i < CHEATS.length; i++) {
+      if (done.has(i)) continue;
+      const c = CHEATS[i], [tk, side, kind] = c;
+      const ts = Math.max(tk - LEAD[kind], i ? CHEATS[i - 1][0] + .05 : 0);
+      if (t < ts) return false;
+      if (t >= tk + .25) { done.add(i); continue; }          // skipped by a seek
+      if (!guide || guide.i !== i) {
+        if (!ball) ball = { x: 480, y: 480, vx: side ? 300 : -300, vy: 0, sp: 620, r: R };
+        ball.ghost = undefined;
+        guide = { i, ts, x0: ball.x, y0: ball.y, vx: ball.vx, vy: ball.vy, off: (Math.random() * 2 - 1) * TH * .2 };
+      }
+      if (t < tk) {
+        // Quadratic path that leaves with the ball's current velocity and lands on target at tk.
+        const T = tk - guide.ts, u = Math.min(1, (t - guide.ts) / T), [tx, ty] = cheatTarget(c);
+        const cx = guide.x0 + guide.vx * T / 3, cy = guide.y0 + guide.vy * T / 3;
+        let nx = (1 - u) * (1 - u) * guide.x0 + 2 * (1 - u) * u * cx + u * u * tx;
+        let ny = (1 - u) * (1 - u) * guide.y0 + 2 * (1 - u) * u * cy + u * u * ty;
+        nx = Math.max(WALL + R, Math.min(W - WALL - R, nx)); ny = clampY(ny, R);
+        ball.vx = (tx - nx) / Math.max(.05, tk - t); ball.vy = (ty - ny) / Math.max(.05, tk - t);
+        ball.x = nx; ball.y = ny;
+        return true;
+      }
+      // contact
+      const [tx, ty] = cheatTarget(c);
+      ball.x = tx; ball.y = ty;
+      if (kind === 'kick') {
+        const a = (Math.random() * 50 - 25) * Math.PI / 180;
+        ball.sp = Math.min(1350, Math.max(ball.sp, 700) * 1.15);
+        ball.vx = Math.cos(a) * ball.sp * (side === 0 ? 1 : -1); ball.vy = Math.sin(a) * ball.sp;
+        ball.ghost = side;
+        ai.aimErr = side === human ? (Math.random() * 2 - 1) * 60 : 0;
+      } else {
+        ball.sp = Math.max(ball.sp, 560); hitPaddle(ball, side);
+      }
+      guide = null; done.add(i);
+      return false;
+    }
+    return false;
+  }
+
+  // ---------- computer ----------
+  function intensity(t) {
+    if (t < 29) return .15;
+    if (t < 44) return .15 + (t - 29) / 15 * .45;
+    if (t < 99.7) return .75;
+    return Math.max(.2, .75 - (t - 99.7) / 10);
+  }
+  function crossing(b, side) {      // [time, y] where b reaches this paddle's face, with wall bounces
+    const fx = side === 0 ? FACE[0] + b.r : FACE[1] - b.r;
+    if ((side === 0 && b.vx >= 0) || (side === 1 && b.vx <= 0)) return null;
+    const tt = (fx - b.x) / b.vx;
+    if (tt < 0) return null;
+    const lo = WALL + b.r, span = H - WALL - b.r - lo;
+    const u = (((b.y + b.vy * tt - lo) % (2 * span)) + 2 * span) % (2 * span);
+    return [tt, lo + (u <= span ? u : 2 * span - u)];
+  }
+
+  function update(t, dt) {
+    const chaos = t >= CHAOS0 && t < CHAOS1;
+    if (chaos && !wasChaos) { extra = []; spawned = 0; if (!ball) { serveDir = Math.random() < .5 ? -1 : 1; launch(); } }
+    if (!chaos && wasChaos) { extra = []; serve(t, Math.random() < .5 ? -1 : 1); serveAt = t + .4; }
+    wasChaos = chaos;
+
+    // human paddle
+    const h = human;
+    if (keys.up || keys.down) target = pad[h] + (keys.down ? 1 : -1) * 60;
+    const want = Math.max(PMIN, Math.min(PMAX, target)), prev = pad[h];
+    pad[h] += (want - pad[h]) * Math.min(1, dt * 22);
+    padVel[h] = (pad[h] - prev) / Math.max(dt, 1e-3);
+
+    // computer paddle: pursue the ball that arrives first
+    const c = 1 - human, k = chaos ? .9 : intensity(t);
+    let best = null;
+    for (const b of (ball ? [ball, ...extra] : extra)) {
+      const cr = crossing(b, c);
+      if (cr && (!best || cr[0] < best[0])) best = cr;
+    }
+    let desired;
+    if (best) desired = best[1] + ai.aimErr * (1 - .5 * k) * (chaos ? 0 : 1) + 20 * Math.sin(t * 3.2);
+    else desired = 480 + ((ball ? ball.y : 480) - 480) * .3 + 42 * Math.sin(t * 2.6 + c * 2.1);
+    const err = desired - pad[c], vmax = 380 + 820 * k, acc = 1600 + 4800 * k;
+    const tv = Math.abs(err) < 4 ? 0 : Math.max(-vmax, Math.min(vmax, err * (7 + 3 * k)));
+    padVel[c] += Math.max(-acc * dt, Math.min(acc * dt, tv - padVel[c]));
+    pad[c] = Math.max(PMIN, Math.min(PMAX, pad[c] + padVel[c] * dt));
+
+    // chaos balls: same births and speeds as the original render, now with physics
+    if (chaos) {
+      const e = t - CHAOS0;
+      while (spawned < 25 && e >= Math.max(spawned * .15, (spawned - 2) / 1.4)) {
+        const n = spawned++;
+        extra.push({ x: 480, y: 480, vx: (390 + 21 * n) * (n % 2 ? -1 : 1), vy: (270 + 13 * n) * (n % 3 ? -1 : 1), r: 14 + n % 4 * 3 });
+      }
+    }
+
+    const steps = Math.max(1, Math.ceil(dt * 240)), h2 = dt / steps;
+    for (let n = 0; n < steps; n++) for (const b of extra) stepBall(b, h2, true);
+
+    if (!chaos && cheatStep(t)) return;
+    if (!ball) { if (t >= serveAt) launch(); return; }
+    for (let n = 0; n < steps && ball; n++) {
+      stepBall(ball, h2, chaos);
+      if (!chaos) {
+        if (ball.x < -R * 2) { score[1]++; serve(t, -1); }
+        else if (ball.x > W + R * 2) { score[0]++; serve(t, 1); }
+      }
+    }
+  }
+
+  // ---------- drawing ----------
+  function disc(b, stroke) {
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = stroke; ctx.stroke();
+  }
+  function draw() {
+    ctx.drawImage(video, 0, 0, W, H, 0, 0, W, H);
+    for (let s = 0; s < 2; s++)
+      ctx.drawImage(video, s * TW, STRIP, TW, TH, PADX[s], pad[s] - TH / 2, TW, TH);
+    if (!running) return;
+    for (const b of extra) disc(b, 'rgb(60,60,60)');
+    if (ball) disc(ball, 'rgb(65,20,55)');
+    ctx.fillStyle = 'rgba(230,230,230,.9)'; ctx.font = '84px VT323, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(score[0], 400, 26); ctx.fillText(score[1], 560, 26);
+    ctx.font = '26px VT323, monospace'; ctx.fillStyle = 'rgba(200,200,200,.8)';
+    ctx.fillText('TÚ', human === 0 ? 400 : 560, 104);
+  }
+
+  function loop() {
+    if (!running) return;
+    const t = video.currentTime;
+    let dt = t - lastT; lastT = t;
+    if (dt < 0 || dt > .1) dt = 1 / 60;
+    if (!video.paused && dt > 0) update(t, dt);
+    if (video.readyState >= 2) draw();
+    requestAnimationFrame(loop);
+  }
+
+  function start(side) {
+    human = side; score = [0, 0]; pad = [480, 480]; padVel = [0, 0]; target = 480;
+    extra = []; spawned = 0; wasChaos = false; guide = null; done = new Set();
+    serve(0, side === 0 ? 1 : -1); serveAt = 1.2;
+    startEl.hidden = true; endEl.hidden = true;
+    video.currentTime = 0; lastT = 0; running = true;
+    video.play().catch(() => { startEl.hidden = false; running = false; });
+    requestAnimationFrame(loop);
+  }
+  video.addEventListener('ended', () => {
+    running = false;
+    const me = score[human], cpu = score[1 - human];
+    document.getElementById('score').textContent = `${score[0]} – ${score[1]}`;
+    document.getElementById('verdict').textContent =
+      me > cpu ? `Gana ${NAMES[human]}. Tú.` : me < cpu ? `Gana ${NAMES[1 - human]}. El ordenador.` : 'Empate. Nadie se lleva la tiara.';
+    endEl.hidden = false;
+  });
+  document.querySelectorAll('[data-side]').forEach(b => b.addEventListener('click', () => start(+b.dataset.side)));
+  document.getElementById('again').addEventListener('click', () => { endEl.hidden = true; startEl.hidden = false; });
+
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  video.addEventListener('loadeddata', () => { if (!running) draw(); }, { once: true });
+})();
+</script>
+</body>
+</html>
