@@ -34,7 +34,8 @@
 const CFG={tension:0.85,loops:9,lineWidth:10,circleRadius:60,
   lineColor:'#f25c1a',circleColor:'#d93a2b',bg:'#0e1633',
   idleCollapse:5000,   // ms sin tocar tras aterrizar las bolas → colapso
-  afterTouch:3500};    // ms tras soltar una bola → colapso
+  afterTouch:3500,     // ms tras soltar una bola → colapso
+  manWait:2000};       // ms quietas sin que nadie las toque → sale el muñequito
 
 const cv=document.getElementById('cv'), stage=document.getElementById('stage');
 const S={}; // estado
@@ -105,7 +106,7 @@ function initBalls(){
 function initPhysics(){
   S.X.set(S.bx); S.Y.set(S.by); S.PX.set(S.bx); S.PY.set(S.by);
   S.IW.fill(1); for(const p of S.pegs) S.IW[p]=0;
-  S.collapsing=false; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
+  S.collapsing=false; S.touched=false; S.man=null; S.landedAt=Infinity; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
   initBalls();
 }
 
@@ -139,7 +140,7 @@ function updateBalls(t,h){
     if(b.landed) landedCount++;
   }
   if(!S.allLanded && landedCount===B.length){
-    S.allLanded=true; S.collapseAt=t+CFG.idleCollapse;
+    S.allLanded=true; S.landedAt=t; S.collapseAt=t+CFG.idleCollapse;
   }
 }
 
@@ -327,6 +328,8 @@ cv.addEventListener('pointerdown',e=>{
   const [x,y]=toDesign(e), b=ballAt(x,y); if(!b) return;
   e.preventDefault();
   b.held=e.pointerId; b.tx=x; b.ty=y;
+  S.touched=true;
+  const m=S.man; if(m && m.phase!=='drag' && m.phase!=='out' && m.phase!=='done') manPhase(m,'out',S.simT);
   try{ cv.setPointerCapture(e.pointerId); }catch(_){}
   S.settled=false;
   if(!S.collapsing) S.collapseAt=Infinity;
@@ -370,10 +373,11 @@ function frame(now){
     step(S.simT,h); stepped=true;
   }
   if(n>=30) S.acc=0;
+  updateMan(S.simT);
 
   const t=S.simT;
   const intro=t<S.drawStart+S.drawDur+100;
-  if(stepped||intro||S.dirty){ draw(t); S.dirty=false; }
+  if(stepped||intro||S.dirty||(S.man&&S.man.phase!=='done')){ draw(t); S.dirty=false; }
   requestAnimationFrame(frame);
 }
 
@@ -410,6 +414,112 @@ function draw(t){
   }
   ctx.save(); ctx.globalAlpha=fadeP; ctx.fillStyle=CFG.circleColor;
   for(const b of S.balls){ if(!b.on) continue; ctx.beginPath(); ctx.arc(b.x,b.y,S.R,0,7); ctx.fill(); }
+  ctx.restore();
+  if(S.man && S.man.phase!=='done'){ ctx.setTransform(S.k,0,0,S.k,0,0); drawMan(ctx,S.man,t); }
+}
+
+/* ---------- muñequito: si nadie toca las bolas, sale a enseñarlo ---------- */
+const MAN_LINES=['Salgo yo porque se lo puse a Manolo','y no se enteraba de que los círculos se pueden mover con el dedo'];
+const MAN_SC=0.9, MAN_WALK=0.38, MAN_TALK=[2600,3600], MAN_DRAG=1500, MAN_PULL=270;
+function toOut(x,y){ return [-(y-S.H/2)*S.rot+S.OUTW/2, (x-S.W/2)*S.rot+S.OUTH/2]; }
+function fromOut(ox,oy){ return [(oy-S.OUTH/2)/S.rot+S.W/2, -(ox-S.OUTW/2)/S.rot+S.H/2]; }
+function manPhase(m,ph,t){ m.phase=ph; m.t0=t; if(ph==='out') m.dir=1; }
+function updateMan(t){
+  if(!S.man){
+    if(!S.allLanded||S.touched||S.collapsing||t<S.landedAt+CFG.manWait) return;
+    // la bola más cerca de la mitad de la pantalla
+    let ball=null, bd=Infinity;
+    for(const b of S.balls){ const [,oy]=toOut(b.x,b.y), d=Math.abs(oy-S.OUTH/2); if(d<bd){ bd=d; ball=b; } }
+    const [bx,by]=toOut(ball.x,ball.y), Ro=S.R*S.rot, sc=MAN_SC;
+    const sx=bx+Ro+118*sc, sy=by+150*sc;
+    S.man={phase:'in',t0:t,last:t,x:S.OUTW+140,y:sy,sx,sy,dir:-1,walk:0,ball,reach:false};
+    S.collapseAt=Infinity; S.dirty=true;
+    return;
+  }
+  const m=S.man, dt=Math.max(0,t-m.last); m.last=t;
+  const sp=MAN_WALK*dt;
+  if(m.phase==='in'){
+    const d=m.sx-m.x; m.x+=Math.sign(d)*Math.min(Math.abs(d),sp); m.walk+=Math.min(Math.abs(d),sp);
+    if(Math.abs(m.sx-m.x)<0.5){ m.x=m.sx; manPhase(m,'talk1',t); }
+  } else if(m.phase==='talk1'){ if(t-m.t0>MAN_TALK[0]) manPhase(m,'talk2',t); }
+  else if(m.phase==='talk2'){
+    if(t-m.t0>MAN_TALK[1]){
+      if(m.ball.held!==null){ manPhase(m,'out',t); }
+      else { manPhase(m,'drag',t); m.ball.held='man'; m.reach=true; m.x0=m.x; S.settled=false; }
+    }
+  } else if(m.phase==='drag'){
+    const r=Math.min(1,(t-m.t0)/MAN_DRAG), e=r<0.5?2*r*r:1-Math.pow(-2*r+2,2)/2;
+    const nx=m.x0+MAN_PULL*e; m.walk+=Math.abs(nx-m.x); m.x=nx;
+    // la mano tira de la bola: el centro va un radio a la izquierda de la mano
+    const [hx,hy]=manHand(m), [tx,ty]=fromOut(hx-S.R*S.rot,hy);
+    m.ball.tx=tx; m.ball.ty=ty; S.settled=false;
+    if(r>=1 && t-m.t0>MAN_DRAG+250){
+      m.ball.held=null; m.reach=false;
+      if(!S.collapsing && !S.balls.some(o=>o.held!==null)) S.collapseAt=t+CFG.afterTouch;
+      manPhase(m,'out',t);
+    }
+  } else if(m.phase==='out'){
+    m.x+=sp*1.15; m.walk+=sp*1.15;
+    if(m.x>S.OUTW+200) manPhase(m,'done',t);
+  }
+}
+function manHand(m){ const sc=MAN_SC; return [m.x-118*sc, m.y-150*sc]; }
+function drawMan(ctx,m,t){
+  const sc=MAN_SC, x=m.x, y=m.y, dir=m.dir;
+  const moving=m.phase==='in'||m.phase==='out'||(m.phase==='drag'&&t-m.t0<MAN_DRAG);
+  const sw=moving?Math.sin(m.walk/(38*sc)):0;
+  const talking=m.phase==='talk1'||m.phase==='talk2';
+  const bob=moving?Math.abs(Math.cos(m.walk/(38*sc)))*6*sc:(talking?Math.sin(t/140)*2.5*sc:0);
+  const hipY=y-bob, neckY=hipY-150*sc, shY=hipY-138*sc, headY=hipY-190*sc, hr=34*sc;
+  ctx.save();
+  ctx.strokeStyle='#ffffff'; ctx.fillStyle='#ffffff'; ctx.lineWidth=10*sc; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath();
+  // piernas
+  for(const s of [1,-1]){
+    const fx=x+s*sw*42*sc, kx=(x+fx)/2+dir*10*sc;
+    ctx.moveTo(x,hipY); ctx.lineTo(kx,hipY+62*sc); ctx.lineTo(fx,y+120*sc);
+  }
+  // tronco
+  ctx.moveTo(x,hipY); ctx.lineTo(x,neckY);
+  // brazos
+  if(m.reach){
+    const bo=toOut(m.ball.x,m.ball.y), hx=bo[0]+S.R*S.rot*0.92, hy=bo[1];
+    ctx.moveTo(x,shY); ctx.lineTo(hx,hy);
+    ctx.moveTo(x,shY); ctx.lineTo(x-dir*8*sc,shY+75*sc);
+  } else {
+    for(const s of [1,-1]){
+      ctx.moveTo(x,shY); ctx.lineTo(x-s*sw*34*sc+(talking&&s===1?dir*30*sc:0),shY+(talking&&s===1?40:80)*sc);
+    }
+  }
+  ctx.stroke();
+  // cabeza
+  ctx.beginPath(); ctx.arc(x,headY,hr,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+dir*14*sc,headY-4*sc,4.5*sc,0,7); ctx.fill();
+  ctx.restore();
+  // bocadillo
+  const line=m.phase==='talk1'?MAN_LINES[0]:m.phase==='talk2'?MAN_LINES[1]:null;
+  if(line) drawBubble(ctx,line,x,headY-hr-26*sc,Math.min(1,(t-m.t0)/160));
+}
+function drawBubble(ctx,text,ax,ay,a){
+  const fs=44, lh=54, pad=30, maxW=Math.min(640,S.OUTW-120);
+  ctx.save(); ctx.globalAlpha=a;
+  ctx.font='600 '+fs+'px system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif';
+  const words=text.split(' '), lines=[]; let cur='';
+  for(const w of words){ const tr=cur?cur+' '+w:w; if(ctx.measureText(tr).width>maxW-2*pad&&cur){ lines.push(cur); cur=w; } else cur=tr; }
+  lines.push(cur);
+  const tw=Math.max(...lines.map(l=>ctx.measureText(l).width)), bw=tw+2*pad, bh=lines.length*lh+2*pad-(lh-fs)+4;
+  const bx=Math.max(60,Math.min(S.OUTW-60-bw,ax-bw*0.65)), by=ay-36-bh, r=28;
+  ctx.fillStyle='#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(bx+r,by); ctx.lineTo(bx+bw-r,by); ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+r);
+  ctx.lineTo(bx+bw,by+bh-r); ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-r,by+bh);
+  const tx=Math.max(bx+r+30,Math.min(bx+bw-r-30,ax));
+  ctx.lineTo(tx+22,by+bh); ctx.lineTo(ax,ay); ctx.lineTo(tx-22,by+bh);
+  ctx.lineTo(bx+r,by+bh); ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-r);
+  ctx.lineTo(bx,by+r); ctx.quadraticCurveTo(bx,by,bx+r,by);
+  ctx.fill();
+  ctx.fillStyle=CFG.bg; ctx.textBaseline='top';
+  lines.forEach((l,i)=>ctx.fillText(l,bx+pad,by+pad+i*lh));
   ctx.restore();
 }
 
