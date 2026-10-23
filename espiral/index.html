@@ -35,7 +35,8 @@ const CFG={tension:0.85,loops:9,lineWidth:10,circleRadius:60,
   lineColor:'#f25c1a',circleColor:'#d93a2b',bg:'#0e1633',
   idleCollapse:5000,   // ms sin tocar tras aterrizar las bolas → colapso
   afterTouch:3500,     // ms tras soltar una bola → colapso
-  manWait:2000};       // ms quietas sin que nadie las toque → sale el muñequito
+  manWait:2000,
+  coolDelay:2500, coolRamp:3000, freezeAfter:1500};   // ms: espera, frenado y congelado de las líneas en reposo       // ms quietas sin que nadie las toque → sale el muñequito
 
 const cv=document.getElementById('cv'), stage=document.getElementById('stage');
 const S={}; // estado
@@ -106,7 +107,7 @@ function initBalls(){
 function initPhysics(){
   S.X.set(S.bx); S.Y.set(S.by); S.PX.set(S.bx); S.PY.set(S.by);
   S.IW.fill(1); for(const p of S.pegs) S.IW[p]=0;
-  S.collapsing=false; S.touched=false; S.man=null; S.landedAt=Infinity; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
+  S.collapsing=false; S.coolT=0; S.touched=false; S.man=null; S.landedAt=Infinity; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
   initBalls();
 }
 
@@ -154,7 +155,11 @@ function step(t,h){
     const k=Math.floor((t-S.collapseAt)/S.releaseGap);
     while(S.released<=k && S.released<S.pegs.length){ IW[S.pegs[S.released]]=1; S.released++; }
   }
-  const hs=h/1000, damp=Math.exp(-(col?1.2:6)*hs), ax=col?S.g*hs*hs:0;
+  // enfriamiento: si nada se mueve (bolas quietas, sin dedo, colapso ya soltado), las líneas se van frenando
+  // hasta quedarse quietas del todo; así no tiemblan. Cualquier toque lo reinicia.
+  if(!S.allLanded || S.balls.some(b=>b.held!==null) || (col && S.released<S.pegs.length)) S.coolT=t;
+  const cool=Math.max(0,Math.min(1,(t-S.coolT-CFG.coolDelay)/CFG.coolRamp));
+  const hs=h/1000, damp=Math.exp(-((col?1.2:6)+cool*40)*hs), ax=col?S.g*hs*hs*(1-0.85*cool):0;
   for(let i=0;i<N;i++){
     if(IW[i]===0) continue;
     const vx=(X[i]-PX[i])*damp, vy=(Y[i]-PY[i])*damp;
@@ -179,7 +184,8 @@ function step(t,h){
     const vx=X[i]-PX[i], vy=Y[i]-PY[i];
     if(vx*vx+vy*vy<dz){ PX[i]=X[i]; PY[i]=Y[i]; } else moving=true;
   }
-  S.settled=!moving;
+  // ya enfriado del todo: se congela (deja de calcular hasta el próximo toque)
+  S.settled=!moving || t-S.coolT>CFG.coolDelay+CFG.coolRamp+CFG.freezeAfter;
 }
 
 function viscous(c){
