@@ -420,7 +420,7 @@ function draw(t){
 
 /* ---------- muñequito: si nadie toca las bolas, sale a enseñarlo ---------- */
 const MAN_LINES=['Salgo yo porque se lo puse a Manolo','y no se enteraba de que los círculos se pueden mover con el dedo'];
-const MAN_SC=0.9, MAN_WALK=0.38, MAN_TALK=[2600,3600], MAN_DRAG=1500, MAN_PULL=270;
+const MAN_K=2.3, MAN_SC=0.9, MAN_WALK=0.38, MAN_TALK=[2600,3600], MAN_DRAG=1500, MAN_PULL=270;
 function toOut(x,y){ return [-(y-S.H/2)*S.rot+S.OUTW/2, (x-S.W/2)*S.rot+S.OUTH/2]; }
 function fromOut(ox,oy){ return [(oy-S.OUTH/2)/S.rot+S.W/2, -(ox-S.OUTW/2)/S.rot+S.H/2]; }
 function manPhase(m,ph,t){ m.phase=ph; m.t0=t; if(ph==='out') m.dir=1; }
@@ -431,7 +431,7 @@ function updateMan(t){
     let ball=null, bd=Infinity;
     for(const b of S.balls){ const [,oy]=toOut(b.x,b.y), d=Math.abs(oy-S.OUTH/2); if(d<bd){ bd=d; ball=b; } }
     const [bx,by]=toOut(ball.x,ball.y), Ro=S.R*S.rot, sc=MAN_SC;
-    const sx=bx+Ro+118*sc, sy=by+150*sc;
+    const sx=bx+Ro+44*MAN_K, sy=by+112*MAN_K;   // y = pies
     S.man={phase:'in',t0:t,last:t,x:S.OUTW+140,y:sy,sx,sy,dir:-1,walk:0,ball,reach:false};
     S.collapseAt=Infinity; S.dirty=true;
     return;
@@ -463,47 +463,66 @@ function updateMan(t){
     if(m.x>S.OUTW+200) manPhase(m,'done',t);
   }
 }
-function manHand(m){ const sc=MAN_SC; return [m.x-118*sc, m.y-150*sc]; }
+function manHand(m){ return [m.x+m.dir*44*MAN_K, m.y-112*MAN_K]; }
+// el mismo gordo de palitos de la portada (con bombín), en blanco sobre el azul
+const mEase=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+function mIk(h,f,a,b){const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.max(0.01,Math.min(Math.hypot(dx,dy),a+b-0.01));
+  const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-Math.acos(cc);
+  return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];}
+function manGeo(anda,ph){   // unidades locales: pies en (50,160), mirando a la derecha
+  const D=Math.PI/180, hipY=92+(anda?2*Math.abs(Math.sin(ph)):0), hip=[50,hipY];
+  let f1,f2;
+  if(anda){const sn=Math.sin(ph),cs=Math.cos(ph);f1=[50+18*sn,160-7*Math.max(0,cs)];f2=[50-18*sn,160-7*Math.max(0,-cs)];}
+  else{f1=[44,160];f2=[57,160];}
+  const lean=anda?3:0, neck=[50+lean,hipY-52], sh=[neck[0],neck[1]+8], head=[neck[0],neck[1]-16];
+  const brazo=(th,be)=>{const e=[sh[0]+26*Math.sin(th*D),sh[1]+26*Math.cos(th*D)];return [e,[e[0]+24*Math.sin((th+be)*D),e[1]+24*Math.cos((th+be)*D)]];};
+  const sw=anda?24*Math.sin(ph):4;
+  return {hip,neck,head,sh,f1,f2,k1:mIk(hip,f1,34,35),k2:mIk(hip,f2,34,35),a1:brazo(-sw,20),a2:brazo(sw,20)};
+}
 function drawMan(ctx,m,t){
-  const sc=MAN_SC, x=m.x, y=m.y, dir=m.dir;
+  const k=MAN_K, dir=m.dir;
   const moving=m.phase==='in'||m.phase==='out'||(m.phase==='drag'&&t-m.t0<MAN_DRAG);
-  const sw=moving?Math.sin(m.walk/(38*sc)):0;
-  const talking=m.phase==='talk1'||m.phase==='talk2';
-  const bob=moving?Math.abs(Math.cos(m.walk/(38*sc)))*6*sc:(talking?Math.sin(t/140)*2.5*sc:0);
-  const hipY=y-bob, neckY=hipY-150*sc, shY=hipY-138*sc, headY=hipY-190*sc, hr=34*sc;
+  const G=manGeo(moving,m.walk/(36*k)*Math.PI);
+  const P=([lx,ly])=>[m.x+dir*(lx-50)*k, m.y+(ly-160)*k];
+  const pl=pts=>{ctx.beginPath();pts.forEach((q,i)=>{const [x,y]=P(q);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();};
   ctx.save();
-  ctx.strokeStyle='#ffffff'; ctx.fillStyle='#ffffff'; ctx.lineWidth=10*sc; ctx.lineCap='round'; ctx.lineJoin='round';
-  ctx.beginPath();
-  // piernas
-  for(const s of [1,-1]){
-    const fx=x+s*sw*42*sc, kx=(x+fx)/2+dir*10*sc;
-    ctx.moveTo(x,hipY); ctx.lineTo(kx,hipY+62*sc); ctx.lineTo(fx,y+120*sc);
-  }
-  // tronco
-  ctx.moveTo(x,hipY); ctx.lineTo(x,neckY);
-  // brazos
-  if(m.reach){
-    const bo=toOut(m.ball.x,m.ball.y), hx=bo[0]+S.R*S.rot*0.92, hy=bo[1];
-    ctx.moveTo(x,shY); ctx.lineTo(hx,hy);
-    ctx.moveTo(x,shY); ctx.lineTo(x-dir*8*sc,shY+75*sc);
-  } else {
-    for(const s of [1,-1]){
-      ctx.moveTo(x,shY); ctx.lineTo(x-s*sw*34*sc+(talking&&s===1?dir*30*sc:0),shY+(talking&&s===1?40:80)*sc);
-    }
-  }
+  ctx.strokeStyle='#ffffff'; ctx.lineWidth=5*k; ctx.lineCap='round'; ctx.lineJoin='round';
+  pl([G.hip,G.k1,G.f1]); pl([G.hip,G.k2,G.f2]);
+  if(!m.reach) pl([G.sh,G.a2[0],G.a2[1]]);
+  // tripa
+  const [cx,cy]=P([(G.hip[0]+G.neck[0])/2+3,(G.hip[1]+G.neck[1])/2+4]);
+  ctx.fillStyle=CFG.bg; ctx.beginPath(); ctx.ellipse(cx,cy,19*k,30*k,0,0,7); ctx.fill(); ctx.stroke();
+  // cabeza, ojo y boca de perfil
+  const [hx,hy]=P(G.head);
+  ctx.beginPath(); ctx.arc(hx,hy,12*k,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(hx+dir*6*k,hy-2*k,2.2*k,0,7); ctx.fill();
+  const talking=m.phase==='talk1'||m.phase==='talk2';
+  const bx=hx+dir*8*Math.cos(.75)*k, by=hy+8*Math.sin(.75)*k;
+  ctx.lineWidth=2.5*k; ctx.beginPath(); ctx.moveTo(bx-2*k,by);
+  if(talking) ctx.quadraticCurveTo(bx,by+(3+2*Math.abs(Math.sin(t/90)))*k,bx+2*k,by); else ctx.lineTo(bx+2*k,by);
   ctx.stroke();
-  // cabeza
-  ctx.beginPath(); ctx.arc(x,headY,hr,0,7); ctx.stroke();
-  ctx.beginPath(); ctx.arc(x+dir*14*sc,headY-4*sc,4.5*sc,0,7); ctx.fill();
+  // bombín
+  ctx.save(); ctx.translate(hx,hy-9*k); ctx.scale(k,k);
+  ctx.beginPath(); ctx.moveTo(-10,-1); ctx.bezierCurveTo(-11,-16,11,-16,10,-1); ctx.closePath();
+  ctx.lineWidth=3; ctx.fill(); ctx.stroke();
+  ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(16,0); ctx.stroke();
+  ctx.restore();
+  // brazo delantero (por delante de la tripa); si tira de la bola, la mano va al borde de la bola
+  ctx.lineWidth=5*k;
+  if(m.reach){
+    const [sx,sy]=P(G.sh), bo=toOut(m.ball.x,m.ball.y), hand=[bo[0]-dir*S.R*S.rot*0.9,bo[1]];
+    const e=mIk([sx,sy],hand,26*k,24*k);
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(e[0],e[1]); ctx.lineTo(hand[0],hand[1]); ctx.stroke();
+  } else pl([G.sh,G.a1[0],G.a1[1]]);
   ctx.restore();
   // bocadillo
   const line=m.phase==='talk1'?MAN_LINES[0]:m.phase==='talk2'?MAN_LINES[1]:null;
-  if(line) drawBubble(ctx,line,x,headY-hr-26*sc,Math.min(1,(t-m.t0)/160));
+  if(line) drawBubble(ctx,line,hx,hy-34*k,Math.min(1,(t-m.t0)/160));
 }
 function drawBubble(ctx,text,ax,ay,a){
-  const fs=44, lh=54, pad=30, maxW=Math.min(640,S.OUTW-120);
+  const fs=40, lh=52, pad=28, maxW=Math.min(640,S.OUTW-120);
   ctx.save(); ctx.globalAlpha=a;
-  ctx.font='600 '+fs+'px system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif';
+  ctx.font=fs+'px monospace';
   const words=text.split(' '), lines=[]; let cur='';
   for(const w of words){ const tr=cur?cur+' '+w:w; if(ctx.measureText(tr).width>maxW-2*pad&&cur){ lines.push(cur); cur=w; } else cur=tr; }
   lines.push(cur);
@@ -517,8 +536,8 @@ function drawBubble(ctx,text,ax,ay,a){
   ctx.lineTo(tx+22,by+bh); ctx.lineTo(ax,ay); ctx.lineTo(tx-22,by+bh);
   ctx.lineTo(bx+r,by+bh); ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-r);
   ctx.lineTo(bx,by+r); ctx.quadraticCurveTo(bx,by,bx+r,by);
-  ctx.fill();
-  ctx.fillStyle=CFG.bg; ctx.textBaseline='top';
+  ctx.fill(); ctx.strokeStyle='#111'; ctx.lineWidth=5; ctx.lineJoin='round'; ctx.stroke();
+  ctx.fillStyle='#000'; ctx.textBaseline='top';
   lines.forEach((l,i)=>ctx.fillText(l,bx+pad,by+pad+i*lh));
   ctx.restore();
 }
