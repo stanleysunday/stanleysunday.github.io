@@ -35,8 +35,12 @@ const CFG={tension:0.85,loops:9,lineWidth:10,circleRadius:60,
   lineColor:'#f25c1a',circleColor:'#d93a2b',bg:'#0e1633',
   idleCollapse:5000,   // ms sin tocar tras aterrizar las bolas → colapso
   afterTouch:3500,     // ms tras soltar una bola → colapso
-  manWait:2000,
-  coolDelay:2500, coolRamp:3000, freezeAfter:1500};   // ms: espera, frenado y congelado de las líneas en reposo       // ms quietas sin que nadie las toque → sale el muñequito
+  slipWrap:150,        // grados: si una línea envuelve una bola más que esto, se le escurre por detrás
+  fling:1.6,           // golpe rápido: cuánto más rápido que la bola salen despedidas las líneas
+  flingFrom:1.5,       // px por paso de física a partir de los que la bola empieza a dar latigazo
+  gravityHold:2500,    // ms tras soltar una bola con la gravedad entera
+  gravityPushed:1,  // fracción de la gravedad que sienten, antes del desplome, las líneas desplazadas por una bola
+  };
 
 const cv=document.getElementById('cv'), stage=document.getElementById('stage');
 const S={}; // estado
@@ -64,7 +68,7 @@ function setup(){
 
   const corners=buildSpiral(S.W,S.H,S.margin,gap,S.loops);
   if(corners.length>2) corners.pop();
-  const step=8, xs=[corners[0][0]], ys=[corners[0][1]], rest=[], pegs=[0];
+  const step=16, xs=[corners[0][0]], ys=[corners[0][1]], rest=[], pegs=[0];
   let total=0, first=0;
   for(let k=1;k<corners.length;k++){
     const a=corners[k-1], b=corners[k];
@@ -77,9 +81,9 @@ function setup(){
   S.bx=Float64Array.from(xs); S.by=Float64Array.from(ys);
   S.rest=Float64Array.from(rest); S.pegs=pegs;
   S.X=new Float64Array(N); S.Y=new Float64Array(N);
-  S.PX=new Float64Array(N); S.PY=new Float64Array(N);
+  S.PX=new Float64Array(N); S.PY=new Float64Array(N); S.LX=new Float64Array(N); S.LY=new Float64Array(N); S.pass=new Uint8Array(N); S.quiet=0;
   S.IW=new Float32Array(N);
-  S.minD=S.lw+4; S.cs=S.minD;
+  S.minD=S.lw+4; S.cs=S.minD+step/2+1;
   S.gw=Math.ceil(S.W/S.cs)+3; S.gh=Math.ceil(S.H/S.cs)+3;
   const cells=S.gw*S.gh;
   S.cellStart=new Int32Array(cells+1); S.cellFill=new Int32Array(cells);
@@ -106,8 +110,13 @@ function initBalls(){
 
 function initPhysics(){
   S.X.set(S.bx); S.Y.set(S.by); S.PX.set(S.bx); S.PY.set(S.by);
-  S.IW.fill(1); for(const p of S.pegs) S.IW[p]=0;
-  S.collapsing=false; S.coolT=0; S.touched=false; S.man=null; S.landedAt=Infinity; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
+  S.IW.fill(1); S.IW[0]=0; S.IW[S.N-1]=0;
+  // ojales: cada esquina es un punto fijo por el que la línea pasa y puede deslizarse (así no se amontona contra el vértice)
+  const nP=S.pegs.length;
+  S.eyeOn=new Uint8Array(nP); S.eyeSeg=new Int32Array(nP); S.eyeU=new Float64Array(nP);
+  for(let q=0;q<nP;q++){ const p=S.pegs[q]; S.eyeOn[q]=(q>0&&q<nP-1)?1:0; S.eyeSeg[q]=Math.max(0,p-1); S.eyeU[q]=1; }
+  S.segEye=new Int32Array(S.N).fill(-1); for(let q=1;q<nP-1;q++) S.segEye[S.eyeSeg[q]]=q;
+  S.collapsing=false; S.pass.fill(0); S.touched=false; S.landedAt=Infinity; S.released=0; S.collapseAt=Infinity; S.settled=false; S.allLanded=false;
   initBalls();
 }
 
@@ -131,6 +140,7 @@ function updateBalls(t,h){
       const m=Math.hypot(dx,dy), cap=12;
       if(m>cap){ dx*=cap/m; dy*=cap/m; }
       b.x+=dx; b.y+=dy;
+      b.vx=(b.vx||0)*0.8+dx*0.2; b.vy=(b.vy||0)*0.8+dy*0.2;
       b.x=Math.max(R,Math.min(S.W-R,b.x)); b.y=Math.max(R,Math.min(S.H-R,b.y));
       for(let j=0;j<B.length;j++){
         if(j===i||!B[j].on) continue;
@@ -146,48 +156,64 @@ function updateBalls(t,h){
 }
 
 function step(t,h){
+  // mientras se mueve una bola, y 2,5 s después, la gravedad vuelve del todo: lo empujado se escurre hacia abajo
+  if(S.balls.some(b=>b.held!==null)) S.touchT=t;
+  const wake=Math.max(0,Math.min(1,(t-(S.touchT||-1e9)-CFG.gravityHold)/1000));
+  const slow=(S.slowness||0)*wake;
   updateBalls(t,h);
   if(t<S.contactStart) return;
   const N=S.N,X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW;
+  S.LX.set(X); S.LY.set(Y);
   if(!S.collapsing && t>=S.collapseAt) S.collapsing=true;
   const col=S.collapsing;
   if(col){
     const k=Math.floor((t-S.collapseAt)/S.releaseGap);
-    while(S.released<=k && S.released<S.pegs.length){ IW[S.pegs[S.released]]=1; S.released++; }
+    while(S.released<=k && S.released<S.pegs.length){ const q=S.released; if(S.eyeOn[q]){ S.eyeOn[q]=0; S.segEye[S.eyeSeg[q]]=-1; } if(q===0) IW[0]=1; if(q===S.pegs.length-1) IW[S.N-1]=1; S.released++; }
   }
   // enfriamiento: si nada se mueve (bolas quietas, sin dedo, colapso ya soltado), las líneas se van frenando
   // hasta quedarse quietas del todo; así no tiemblan. Cualquier toque lo reinicia.
-  if(!S.allLanded || S.balls.some(b=>b.held!==null) || (col && S.released<S.pegs.length)) S.coolT=t;
-  const cool=Math.max(0,Math.min(1,(t-S.coolT-CFG.coolDelay)/CFG.coolRamp));
-  const hs=h/1000, damp=Math.exp(-((col?1.2:6)+cool*40)*hs), ax=col?S.g*hs*hs*(1-0.85*cool):0;
+  // enfriamiento por movimiento, no por reloj: cuando el montón casi no se mueve, se frena más para que acabe de pararse
+  const live=Math.max(0,1-(t-(S.touchT||-1e9))/1500), vmax=VMAX+6*live;   // justo tras mover una bola, lo lanzado puede volar rápido
+  const hs=h/1000, damp=Math.exp(-((col?1.5:6-3.5*live)+slow*60)*hs), ax=S.g*hs*hs*(1-slow), gpre=CFG.gravityPushed;
+  const bx=S.bx, by=S.by;
   for(let i=0;i<N;i++){
     if(IW[i]===0) continue;
-    const vx=(X[i]-PX[i])*damp, vy=(Y[i]-PY[i])*damp;
-    PX[i]=X[i]; PY[i]=Y[i]; X[i]+=vx+ax; Y[i]+=vy;
+    let vx=(X[i]-PX[i])*damp, vy=(Y[i]-PY[i])*damp;
+    const v2=vx*vx+vy*vy; if(v2>vmax*vmax){ const f=vmax/Math.sqrt(v2); vx*=f; vy*=f; }
+    // antes del desplome solo pesa lo que ha sido empujado fuera de su sitio: así la espiral intacta no se comba
+    // y lo que una bola ha desplazado se escurre hacia abajo
+    let g=ax;
+    if(!col){ const dev=Math.hypot(X[i]-bx[i],Y[i]-by[i]); g=dev<=30?0:ax*gpre*Math.min(1,(dev-30)/60); }
+    PX[i]=X[i]; PY[i]=Y[i]; X[i]+=vx+g; Y[i]+=vy;
   }
-  viscous(col?0.15:0.35);
+  viscous(col?0.5:0.35);
   buildGrid();
   const ten=CFG.tension;
-  const tf=col?1.015:0.982-0.012*ten, k=col?0.85:ten, sm=col?0.03:0.12;
-  for(let it=0;it<3;it++){
+  const tfPre=0.982-0.012*ten, tf=col?tfPre+(1-tfPre)*Math.min(1,(t-S.collapseAt)/1500):tfPre,   // la tensión se afloja poco a poco al desplomarse, no de golpe
+   k=col?0.85:ten, sm=col?0.08*(1-slow):0.12;   // en el montón, el alisado y la rigidez se apagan al pararse: si no, pelean con los choques y nunca descansa
+  for(let it=0;it<4;it++){
     solveDist(it&1,tf,k);
-    bend(col?0.04:0.18);
+    bend(col?0.12*(1-slow):0.18);
     smooth(sm);
-    contacts(col?0.12:0.05);
+    if(it&1) contacts(col?0.12:0.05);   // choques en 2 de las 4 vueltas: igual de estable y más barato
     collideBalls();
+    eyelets();
   }
-  if(col) bounds();
-  const dz=col?4e-4:2.5e-3;
-  let moving=false;
-  for(let i=0;i<N;i++){
-    if(IW[i]===0) continue;
-    const vx=X[i]-PX[i], vy=Y[i]-PY[i];
-    if(vx*vx+vy*vy<dz){ PX[i]=X[i]; PY[i]=Y[i]; } else moving=true;
-  }
-  // ya enfriado del todo: se congela (deja de calcular hasta el próximo toque)
-  S.settled=!moving || t-S.coolT>CFG.coolDelay+CFG.coolRamp+CFG.freezeAfter;
+  slipOff();
+  bounds();   // nada se sale de la pantalla, tampoco antes del desplome
+  // reposo: si en este paso nada se ha movido de verdad (media y máximo), diez pasos seguidos, se congela todo
+  let sum=0, mx=0;
+  for(let i=0;i<N;i++){ const d=Math.hypot(X[i]-S.LX[i],Y[i]-S.LY[i]); sum+=d; if(d>mx) mx=d; }
+  const mean=S.meanStep=sum/N, quietNow=mean<0.004 && mx<0.35;
+  S.quiet=quietNow?S.quiet+1:0;
+  S.calm=mean<0.02?(S.calm||0)+1:0;   // casi todo parado durante 1 s: se congela aunque algún punto siga bailando
+  // 0 = todo en marcha · 1 = casi parado (media < 0,05 px por paso)
+  S.slowness=Math.max(0,Math.min(1,1-(mean-0.02)/0.1));
+  S.settled=S.quiet>=10 || S.calm>=360;
+  if(S.settled){ PX.set(X); PY.set(Y); }
 }
 
+const VMAX=4, CMAX=1.2, BMAX=0.3, EYE_LET=1.3;   // EYE_LET: estiramiento junto a un ojal a partir del cual la esquina se deshace   // px por paso de física: menos que medio grosor de choque
 function viscous(c){
   const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,n=S.N-1;
   for(let i=0;i<n;i++){
@@ -210,12 +236,13 @@ function solveDist(rev,tf,k){
 }
 function bend(k){
   const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,R=S.rest,n=S.N-2;
+  const SE=S.segEye;
   for(let i=0;i<n;i++){
-    if(IW[i+1]===0) continue;
+    if(IW[i+1]===0||SE[i]>=0||SE[i+1]>=0) continue;
     const wa=IW[i], wb=IW[i+2], ws=wa+wb; if(ws===0) continue;
     const dx=X[i+2]-X[i], dy=Y[i+2]-Y[i], d=Math.sqrt(dx*dx+dy*dy)||1e-6;
     const r=(R[i]+R[i+1])*0.985; if(d>=r) continue;
-    const f=(d-r)/(d*ws)*k;
+    let f=(d-r)/(d*ws)*k; const fm=BMAX/d; if(f<-fm) f=-fm;   // sin latigazos: una esquina que se suelta se abre en varios pasos
     const ax=dx*f*wa, ay=dy*f*wa, bx=dx*f*wb, by=dy*f*wb;
     X[i]+=ax; Y[i]+=ay; PX[i]+=ax; PY[i]+=ay;
     X[i+2]-=bx; Y[i+2]-=by; PX[i+2]-=bx; PY[i+2]-=by;
@@ -223,51 +250,68 @@ function bend(k){
 }
 function smooth(s){
   const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,n=S.N-1;
+  const SE=S.segEye;
   for(let i=1;i<n;i++){
-    if(IW[i]===0) continue;
-    const ox=((X[i-1]+X[i+1])*0.5-X[i])*s, oy=((Y[i-1]+Y[i+1])*0.5-Y[i])*s;
+    if(IW[i]===0||SE[i-1]>=0||SE[i]>=0) continue;
+    let ox=((X[i-1]+X[i+1])*0.5-X[i])*s, oy=((Y[i-1]+Y[i+1])*0.5-Y[i])*s;
     X[i]+=ox; Y[i]+=oy; PX[i]+=ox; PY[i]+=oy;
   }
 }
-function buildGrid(){
-  const cs=S.cs,gw=S.gw,gh=S.gh,cnt=S.cellStart,fill=S.cellFill,items=S.items,cid=S.cid,X=S.X,Y=S.Y,N=S.N;
+function buildGrid(){   // rejilla de segmentos, colocados por su punto medio
+  const cs=S.cs,gw=S.gw,gh=S.gh,cnt=S.cellStart,fill=S.cellFill,items=S.items,cid=S.cid,X=S.X,Y=S.Y,M=S.N-1;
   const cells=gw*gh;
   cnt.fill(0);
-  for(let i=0;i<N;i++){
-    let cx=Math.floor(X[i]/cs)+1, cy=Math.floor(Y[i]/cs)+1;
+  for(let i=0;i<M;i++){
+    let cx=Math.floor((X[i]+X[i+1])*0.5/cs)+1, cy=Math.floor((Y[i]+Y[i+1])*0.5/cs)+1;
     if(cx<0)cx=0; else if(cx>=gw)cx=gw-1;
     if(cy<0)cy=0; else if(cy>=gh)cy=gh-1;
     const c=cy*gw+cx; cid[i]=c; cnt[c+1]++;
   }
   for(let c=1;c<=cells;c++) cnt[c]+=cnt[c-1];
   fill.set(cnt.subarray(0,cells));
-  for(let i=0;i<N;i++) items[fill[cid[i]]++]=i;
+  for(let i=0;i<M;i++) items[fill[cid[i]]++]=i;
 }
 function contacts(fr){
-  const md=S.minD,md2=md*md,gw=S.gw,gh=S.gh,cnt=S.cellStart,items=S.items,cid=S.cid;
+  const md=S.minD,md2=md*md,gw=S.gw,gh=S.gh,cnt=S.cellStart,items=S.items;
   const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,N=S.N;
+  const cs=S.cs;
   for(let i=0;i<N;i++){
-    const c=cid[i], cx=c%gw, cy=(c/gw)|0;
+    const wi=IW[i];
+    let cx=Math.floor(X[i]/cs)+1, cy=Math.floor(Y[i]/cs)+1;
+    if(cx<0)cx=0; else if(cx>=gw)cx=gw-1;
+    if(cy<0)cy=0; else if(cy>=gh)cy=gh-1;
     for(let oy=-1;oy<=1;oy++){
       const yy=cy+oy; if(yy<0||yy>=gh) continue;
       for(let ox=-1;ox<=1;ox++){
         const xx=cx+ox; if(xx<0||xx>=gw) continue;
         const cc=yy*gw+xx;
         for(let k=cnt[cc],e=cnt[cc+1];k<e;k++){
-          const j=items[k]; if(j<=i+3) continue;
-          const dx=X[j]-X[i]; if(dx>md||dx<-md) continue;
-          const dy=Y[j]-Y[i]; if(dy>md||dy<-md) continue;
-          const d2=dx*dx+dy*dy; if(d2>=md2) continue;
-          const wi=IW[i], wj=IW[j], ws=wi+wj; if(ws===0) continue;
-          const d=Math.sqrt(d2)||1e-6, nx=dx/d, ny=dy/d, pen=md-d;
-          const ci=pen*wi/ws, cj=pen*wj/ws;
-          X[i]-=nx*ci; Y[i]-=ny*ci; PX[i]-=nx*ci; PY[i]-=ny*ci;
-          X[j]+=nx*cj; Y[j]+=ny*cj; PX[j]+=nx*cj; PY[j]+=ny*cj;
-          const rvx=(X[j]-PX[j])-(X[i]-PX[i]), rvy=(Y[j]-PY[j])-(Y[i]-PY[i]), vn=rvx*nx+rvy*ny;
-          let jx=(rvx-vn*nx)*fr, jy=(rvy-vn*ny)*fr;
-          if(vn<0){ jx+=vn*nx; jy+=vn*ny; }
-          const ai=wi/ws, aj=wj/ws;
-          PX[i]-=jx*ai; PY[i]-=jy*ai; PX[j]+=jx*aj; PY[j]+=jy*aj;
+          const sg=items[k];
+          {
+            if(sg>=i-2&&sg<=i+1) continue;
+            const ax=X[sg],ay=Y[sg],ex=X[sg+1]-ax,ey=Y[sg+1]-ay;
+            const L2=ex*ex+ey*ey||1e-9;
+            let u=((X[i]-ax)*ex+(Y[i]-ay)*ey)/L2; u=u<0?0:u>1?1:u;
+            let dx=X[i]-(ax+ex*u), dy=Y[i]-(ay+ey*u); const d2=dx*dx+dy*dy;
+            if(d2>=md2) continue;
+            const wa=IW[sg], wb=IW[sg+1], ua=1-u, den=wi+wa*ua*ua+wb*u*u; if(den===0) continue;
+            let d=Math.sqrt(d2), nx, ny;
+            if(d<1e-6){ const l=Math.sqrt(L2); nx=-ey/l; ny=ex/l; } else { nx=dx/d; ny=dy/d; }
+            let lam=(md-d)/den; if(lam>CMAX) lam=CMAX;   // sin teletransportes: un solape grande se deshace en varios pasos
+            const pi=wi*lam, pa=wa*ua*lam, pb=wb*u*lam;
+            X[i]+=nx*pi; Y[i]+=ny*pi; PX[i]+=nx*pi; PY[i]+=ny*pi;
+            X[sg]-=nx*pa; Y[sg]-=ny*pa; PX[sg]-=nx*pa; PY[sg]-=ny*pa;
+            X[sg+1]-=nx*pb; Y[sg+1]-=ny*pb; PX[sg+1]-=nx*pb; PY[sg+1]-=ny*pb;
+            // rozamiento y sin rebote: se frena la velocidad relativa
+            const vix=X[i]-PX[i], viy=Y[i]-PY[i];
+            const vqx=ua*(X[sg]-PX[sg])+u*(X[sg+1]-PX[sg+1]), vqy=ua*(Y[sg]-PY[sg])+u*(Y[sg+1]-PY[sg+1]);
+            const rvx=vix-vqx, rvy=viy-vqy, vn=rvx*nx+rvy*ny;
+            let jx=(rvx-vn*nx)*fr, jy=(rvy-vn*ny)*fr;
+            if(vn<0){ jx+=vn*nx; jy+=vn*ny; }
+            const ki=wi/den, ka=wa*ua/den, kb=wb*u/den;
+            PX[i]+=jx*ki; PY[i]+=jy*ki;
+            PX[sg]-=jx*ka; PY[sg]-=jy*ka; PX[sg+1]-=jx*kb; PY[sg+1]-=jy*kb;
+          }
         }
       }
     }
@@ -276,12 +320,16 @@ function contacts(fr){
 function collideBalls(){
   const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,N=S.N;
   const rb=S.R+S.lw*0.5+1, rb2=rb*rb, mu=S.collapsing?0.35:0.2;
-  for(const B of S.balls){
+  const PASS=S.pass, clear=rb+26;
+  for(let bi=0;bi<S.balls.length;bi++){ const B=S.balls[bi], bit=1<<bi;
     if(!B.on) continue;
     const bvx=B.wasOn?B.x-B.px:0, bvy=B.wasOn?B.y-B.py:0;
+    const sp=Math.hypot(B.vx||0,B.vy||0), fl=B.held!==null?Math.max(0,Math.min(1,(sp-CFG.flingFrom)/3)):0;   // 0 = despacio · 1 = muy rápido
     for(let i=0;i<N;i++){
       if(IW[i]===0) continue;
-      const dx=X[i]-B.x; if(dx>rb||dx<-rb) continue;
+      const dx=X[i]-B.x; if(dx>clear||dx<-clear) continue;
+      if(PASS[i]&bit){ const dy0=Y[i]-B.y; if(dx*dx+dy0*dy0>clear*clear) PASS[i]&=~bit; continue; }   // la línea está pasando por detrás de la bola
+      if(dx>rb||dx<-rb) continue;
       const dy=Y[i]-B.y; if(dy>rb||dy<-rb) continue;
       const d2=dx*dx+dy*dy; if(d2>=rb2) continue;
       const d=Math.sqrt(d2)||1e-6, nx=dx/d, ny=dy/d;
@@ -290,7 +338,57 @@ function collideBalls(){
       let rx=vx-bvx, ry=vy-bvy, vn=rx*nx+ry*ny;
       if(vn<0){ rx-=vn*nx; ry-=vn*ny; vn=0; }
       rx-=(rx-vn*nx)*mu; ry-=(ry-vn*ny)*mu;
+      // golpe rápido: la línea sale despedida (rebota más rápido que la bola), como un latigazo
+      const bn=bvx*nx+bvy*ny;
+      if(bn>0 && fl>0){ const kick=bn*CFG.fling*fl; if(rx*nx+ry*ny<kick){ const add=kick-(rx*nx+ry*ny); rx+=nx*add; ry+=ny*add; } }
       PX[i]=X[i]-(bvx+rx); PY[i]=Y[i]-(bvy+ry);
+    }
+  }
+}
+// ojales: el tramo de línea más cercano a cada esquina se desplaza para pasar por ella; la línea puede correr por el ojal
+function eyelets(){
+  const X=S.X,Y=S.Y,PX=S.PX,PY=S.PY,IW=S.IW,bx=S.bx,by=S.by,P=S.pegs,M=S.N-1,SE=S.segEye;
+  for(let q=1;q<P.length-1;q++){
+    if(!S.eyeOn[q]) continue;
+    const cx=bx[P[q]], cy=by[P[q]];
+    // busca el tramo más cercano alrededor del que tenía
+    let k0=S.eyeSeg[q], best=k0, bu=0, bd=Infinity;
+    for(let k=Math.max(0,k0-3);k<=Math.min(M-1,k0+3);k++){
+      const ax=X[k],ay=Y[k],ex=X[k+1]-ax,ey=Y[k+1]-ay,L2=ex*ex+ey*ey||1e-9;
+      let u=((cx-ax)*ex+(cy-ay)*ey)/L2; u=u<0?0:u>1?1:u;
+      const dx=ax+ex*u-cx, dy=ay+ey*u-cy, d2=dx*dx+dy*dy;
+      if(d2<bd){ bd=d2; best=k; bu=u; }
+    }
+    if(best!==k0){ SE[k0]=-1; SE[best]=q; S.eyeSeg[q]=best; }
+    S.eyeU[q]=bu;
+    const a=best, b=best+1, wa=IW[a], wb=IW[b], ua=1-bu, den=wa*ua*ua+wb*bu*bu; if(den===0) continue;
+    // si el tirón es muy fuerte (la línea junto al ojal va muy estirada), la esquina se deshace
+    const R=S.rest, sa=a>0?Math.hypot(X[a]-X[a-1],Y[a]-Y[a-1])/R[a-1]:1, sb=b<M?Math.hypot(X[b+1]-X[b],Y[b+1]-Y[b])/R[b]:1;
+    const sab=Math.hypot(X[b]-X[a],Y[b]-Y[a])/R[a];
+    if(sa>EYE_LET || sb>EYE_LET || sab>EYE_LET){ S.eyeOn[q]=0; SE[best]=-1; S.quiet=0; continue; }
+    const px=X[a]*ua+X[b]*bu, py=Y[a]*ua+Y[b]*bu; let dx=cx-px, dy=cy-py;
+    const ca=wa*ua/den, cb=wb*bu/den;
+    X[a]+=dx*ca; Y[a]+=dy*ca; PX[a]+=dx*ca; PY[a]+=dy*ca;
+    X[b]+=dx*cb; Y[b]+=dy*cb; PX[b]+=dx*cb; PY[b]+=dy*cb;
+  }
+}
+// escurrirse: si la línea envuelve una bola más de media vuelta (la bola la arrastra como un dedo a una cuerda),
+// la línea se le escapa por detrás: deja de chocar con esa bola hasta que esté lejos, y cae por su peso
+function slipOff(){
+  if((S.slipTick=(S.slipTick|0)+1)%6!==0) return;
+  if(S.simT-(S.touchT||-1e9)>CFG.gravityHold) return;   // solo mientras alguien mueve una bola (y un poco después): el desplome natural sí se queda colgado de las bolas
+  const X=S.X,Y=S.Y,N=S.N,PASS=S.pass,rb=S.R+S.lw*0.5+6, rb2=rb*rb, lim=CFG.slipWrap*Math.PI/180;
+  for(let bi=0;bi<S.balls.length;bi++){ const B=S.balls[bi], bit=1<<bi; if(!B.on) continue;
+    // tramos de línea en contacto con la bola, agrupados por tramos seguidos; cada grupo es un "hilo" que la envuelve
+    let i=0;
+    while(i<N){
+      const dx=X[i]-B.x, dy=Y[i]-B.y;
+      if(PASS[i]&bit || dx*dx+dy*dy>rb2){ i++; continue; }
+      let j=i, a0=Math.atan2(dy,dx), amin=0, amax=0;   // ángulos relativos al primer punto, sin saltos de 360
+      while(j+1<N){ const ex=X[j+1]-B.x, ey=Y[j+1]-B.y; if(ex*ex+ey*ey>rb2*1.3) break; j++;
+        let d=Math.atan2(ey,ex)-a0; d=Math.atan2(Math.sin(d),Math.cos(d)); if(d<amin) amin=d; if(d>amax) amax=d; }
+      if(amax-amin>lim){ for(let k=Math.max(0,i-3);k<=Math.min(N-1,j+3);k++) PASS[k]|=bit; S.quiet=0; }
+      i=j+1;
     }
   }
 }
@@ -335,7 +433,6 @@ cv.addEventListener('pointerdown',e=>{
   e.preventDefault();
   b.held=e.pointerId; b.tx=x; b.ty=y;
   S.touched=true;
-  const m=S.man; if(m && m.phase!=='drag' && m.phase!=='out' && m.phase!=='done') manPhase(m,'out',S.simT);
   try{ cv.setPointerCapture(e.pointerId); }catch(_){}
   S.settled=false;
   if(!S.collapsing) S.collapseAt=Infinity;
@@ -367,10 +464,10 @@ function start(){
 function frame(now){
   const ctx=S.ctx;
   if(S.lastNow==null) S.lastNow=now;
-  S.acc+=Math.min(50,now-S.lastNow); S.lastNow=now;
-  const h=S.hMs; let n=0, stepped=false;
-  while(S.acc>=h && n<30){
-    S.simT+=h; S.acc-=h; n++;
+  const dt=now-S.lastNow; S.lastNow=now;
+  const h=S.hMs, steps=dt<11?3:6; let n=0, stepped=false;   // ritmo fijo: si el aparato no llega, va más lento pero sin saltos
+  while(n<steps){
+    S.simT+=h; n++;
     const held=S.balls.some(b=>b.held!==null);
     const pegsPending=S.collapsing && S.released<S.pegs.length;
     const collapseDue=!S.collapsing && S.simT>=S.collapseAt;
@@ -378,12 +475,10 @@ function frame(now){
     if(S.allLanded && S.settled && !held && !pegsPending && !collapseDue) continue;
     step(S.simT,h); stepped=true;
   }
-  if(n>=30) S.acc=0;
-  updateMan(S.simT);
 
   const t=S.simT;
   const intro=t<S.drawStart+S.drawDur+100;
-  if(stepped||intro||S.dirty||(S.man&&S.man.phase!=='done')){ draw(t); S.dirty=false; }
+  if(stepped||intro||S.dirty){ draw(t); S.dirty=false; }
   requestAnimationFrame(frame);
 }
 
@@ -409,6 +504,8 @@ function draw(t){
   ctx.beginPath(); ctx.moveTo(X[0],Y[0]);
   for(let i=1;i<last;i++){
     if(IW[i]===0){ ctx.lineTo(X[i],Y[i]); continue; }
+    const q=S.segEye[i];
+    if(q>=0){ const p=S.pegs[q]; ctx.lineTo(X[i],Y[i]); ctx.lineTo(S.bx[p],S.by[p]); ctx.lineTo(X[i+1],Y[i+1]); continue; }   // esquina: pico en el ojal
     ctx.quadraticCurveTo(X[i],Y[i],(X[i]+X[i+1])*0.5,(Y[i]+Y[i+1])*0.5);
   }
   ctx.lineTo(X[last],Y[last]);
@@ -420,131 +517,6 @@ function draw(t){
   }
   ctx.save(); ctx.globalAlpha=fadeP; ctx.fillStyle=CFG.circleColor;
   for(const b of S.balls){ if(!b.on) continue; ctx.beginPath(); ctx.arc(b.x,b.y,S.R,0,7); ctx.fill(); }
-  ctx.restore();
-  if(S.man && S.man.phase!=='done'){ ctx.setTransform(S.k,0,0,S.k,0,0); drawMan(ctx,S.man,t); }
-}
-
-/* ---------- muñequito: si nadie toca las bolas, sale a enseñarlo ---------- */
-const MAN_LINES=['Salgo yo porque se lo puse a Manolo','y no se enteraba de que los círculos se pueden mover con el dedo'];
-const MAN_K=2.3, MAN_SC=0.9, MAN_WALK=0.38, MAN_TALK=[2600,3600], MAN_DRAG=1500, MAN_PULL=270;
-function toOut(x,y){ return [-(y-S.H/2)*S.rot+S.OUTW/2, (x-S.W/2)*S.rot+S.OUTH/2]; }
-function fromOut(ox,oy){ return [(oy-S.OUTH/2)/S.rot+S.W/2, -(ox-S.OUTW/2)/S.rot+S.H/2]; }
-function manPhase(m,ph,t){ m.phase=ph; m.t0=t; if(ph==='out') m.dir=1; }
-function updateMan(t){
-  if(!S.man){
-    if(!S.allLanded||S.touched||S.collapsing||t<S.landedAt+CFG.manWait) return;
-    // la bola más cerca de la mitad de la pantalla
-    let ball=null, bd=Infinity;
-    for(const b of S.balls){ const [,oy]=toOut(b.x,b.y), d=Math.abs(oy-S.OUTH/2); if(d<bd){ bd=d; ball=b; } }
-    const [bx,by]=toOut(ball.x,ball.y), Ro=S.R*S.rot, sc=MAN_SC;
-    const sx=bx+Ro+44*MAN_K, sy=by+112*MAN_K;   // y = pies
-    S.man={phase:'in',t0:t,last:t,x:S.OUTW+140,y:sy,sx,sy,dir:-1,walk:0,ball,reach:false};
-    S.collapseAt=Infinity; S.dirty=true;
-    return;
-  }
-  const m=S.man, dt=Math.max(0,t-m.last); m.last=t;
-  const sp=MAN_WALK*dt;
-  if(m.phase==='in'){
-    const d=m.sx-m.x; m.x+=Math.sign(d)*Math.min(Math.abs(d),sp); m.walk+=Math.min(Math.abs(d),sp);
-    if(Math.abs(m.sx-m.x)<0.5){ m.x=m.sx; manPhase(m,'talk1',t); }
-  } else if(m.phase==='talk1'){ if(t-m.t0>MAN_TALK[0]) manPhase(m,'talk2',t); }
-  else if(m.phase==='talk2'){
-    if(t-m.t0>MAN_TALK[1]){
-      if(m.ball.held!==null){ manPhase(m,'out',t); }
-      else { manPhase(m,'drag',t); m.ball.held='man'; m.reach=true; m.x0=m.x; S.settled=false; }
-    }
-  } else if(m.phase==='drag'){
-    const r=Math.min(1,(t-m.t0)/MAN_DRAG), e=r<0.5?2*r*r:1-Math.pow(-2*r+2,2)/2;
-    const nx=m.x0+MAN_PULL*e; m.walk+=Math.abs(nx-m.x); m.x=nx;
-    // la mano tira de la bola: el centro va un radio a la izquierda de la mano
-    const [hx,hy]=manHand(m), [tx,ty]=fromOut(hx-S.R*S.rot,hy);
-    m.ball.tx=tx; m.ball.ty=ty; S.settled=false;
-    if(r>=1 && t-m.t0>MAN_DRAG+250){
-      m.ball.held=null; m.reach=false;
-      if(!S.collapsing && !S.balls.some(o=>o.held!==null)) S.collapseAt=t+CFG.afterTouch;
-      manPhase(m,'out',t);
-    }
-  } else if(m.phase==='out'){
-    m.x+=sp*1.15; m.walk+=sp*1.15;
-    if(m.x>S.OUTW+200) manPhase(m,'done',t);
-  }
-}
-function manHand(m){ return [m.x+m.dir*44*MAN_K, m.y-112*MAN_K]; }
-// el mismo gordo de palitos de la portada (con bombín), en blanco sobre el azul
-const mEase=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
-function mIk(h,f,a,b){const dx=f[0]-h[0],dy=f[1]-h[1],d=Math.max(0.01,Math.min(Math.hypot(dx,dy),a+b-0.01));
-  const base=Math.atan2(dy,dx),cc=Math.max(-1,Math.min(1,(a*a+d*d-b*b)/(2*a*d))),ang=base-Math.acos(cc);
-  return [h[0]+a*Math.cos(ang),h[1]+a*Math.sin(ang)];}
-function manGeo(anda,ph){   // unidades locales: pies en (50,160), mirando a la derecha
-  const D=Math.PI/180, hipY=92+(anda?2*Math.abs(Math.sin(ph)):0), hip=[50,hipY];
-  let f1,f2;
-  if(anda){const sn=Math.sin(ph),cs=Math.cos(ph);f1=[50+18*sn,160-7*Math.max(0,cs)];f2=[50-18*sn,160-7*Math.max(0,-cs)];}
-  else{f1=[44,160];f2=[57,160];}
-  const lean=anda?3:0, neck=[50+lean,hipY-52], sh=[neck[0],neck[1]+8], head=[neck[0],neck[1]-16];
-  const brazo=(th,be)=>{const e=[sh[0]+26*Math.sin(th*D),sh[1]+26*Math.cos(th*D)];return [e,[e[0]+24*Math.sin((th+be)*D),e[1]+24*Math.cos((th+be)*D)]];};
-  const sw=anda?24*Math.sin(ph):4;
-  return {hip,neck,head,sh,f1,f2,k1:mIk(hip,f1,34,35),k2:mIk(hip,f2,34,35),a1:brazo(-sw,20),a2:brazo(sw,20)};
-}
-function drawMan(ctx,m,t){
-  const k=MAN_K, dir=m.dir;
-  const moving=m.phase==='in'||m.phase==='out'||(m.phase==='drag'&&t-m.t0<MAN_DRAG);
-  const G=manGeo(moving,m.walk/(36*k)*Math.PI);
-  const P=([lx,ly])=>[m.x+dir*(lx-50)*k, m.y+(ly-160)*k];
-  const pl=pts=>{ctx.beginPath();pts.forEach((q,i)=>{const [x,y]=P(q);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();};
-  ctx.save();
-  ctx.strokeStyle='#ffffff'; ctx.lineWidth=5*k; ctx.lineCap='round'; ctx.lineJoin='round';
-  pl([G.hip,G.k1,G.f1]); pl([G.hip,G.k2,G.f2]);
-  if(!m.reach) pl([G.sh,G.a2[0],G.a2[1]]);
-  // tripa
-  const [cx,cy]=P([(G.hip[0]+G.neck[0])/2+3,(G.hip[1]+G.neck[1])/2+4]);
-  ctx.fillStyle=CFG.bg; ctx.beginPath(); ctx.ellipse(cx,cy,19*k,30*k,0,0,7); ctx.fill(); ctx.stroke();
-  // cabeza, ojo y boca de perfil
-  const [hx,hy]=P(G.head);
-  ctx.beginPath(); ctx.arc(hx,hy,12*k,0,7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(hx+dir*6*k,hy-2*k,2.2*k,0,7); ctx.fill();
-  const talking=m.phase==='talk1'||m.phase==='talk2';
-  const bx=hx+dir*8*Math.cos(.75)*k, by=hy+8*Math.sin(.75)*k;
-  ctx.lineWidth=2.5*k; ctx.beginPath(); ctx.moveTo(bx-2*k,by);
-  if(talking) ctx.quadraticCurveTo(bx,by+(3+2*Math.abs(Math.sin(t/90)))*k,bx+2*k,by); else ctx.lineTo(bx+2*k,by);
-  ctx.stroke();
-  // bombín
-  ctx.save(); ctx.translate(hx,hy-9*k); ctx.scale(k,k);
-  ctx.beginPath(); ctx.moveTo(-10,-1); ctx.bezierCurveTo(-11,-16,11,-16,10,-1); ctx.closePath();
-  ctx.lineWidth=3; ctx.fill(); ctx.stroke();
-  ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(16,0); ctx.stroke();
-  ctx.restore();
-  // brazo delantero (por delante de la tripa); si tira de la bola, la mano va al borde de la bola
-  ctx.lineWidth=5*k;
-  if(m.reach){
-    const [sx,sy]=P(G.sh), bo=toOut(m.ball.x,m.ball.y), hand=[bo[0]-dir*S.R*S.rot*0.9,bo[1]];
-    const e=mIk([sx,sy],hand,26*k,24*k);
-    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(e[0],e[1]); ctx.lineTo(hand[0],hand[1]); ctx.stroke();
-  } else pl([G.sh,G.a1[0],G.a1[1]]);
-  ctx.restore();
-  // bocadillo
-  const line=m.phase==='talk1'?MAN_LINES[0]:m.phase==='talk2'?MAN_LINES[1]:null;
-  if(line) drawBubble(ctx,line,hx,hy-34*k,Math.min(1,(t-m.t0)/160));
-}
-function drawBubble(ctx,text,ax,ay,a){
-  const fs=40, lh=52, pad=28, maxW=Math.min(640,S.OUTW-120);
-  ctx.save(); ctx.globalAlpha=a;
-  ctx.font=fs+'px monospace';
-  const words=text.split(' '), lines=[]; let cur='';
-  for(const w of words){ const tr=cur?cur+' '+w:w; if(ctx.measureText(tr).width>maxW-2*pad&&cur){ lines.push(cur); cur=w; } else cur=tr; }
-  lines.push(cur);
-  const tw=Math.max(...lines.map(l=>ctx.measureText(l).width)), bw=tw+2*pad, bh=lines.length*lh+2*pad-(lh-fs)+4;
-  const bx=Math.max(60,Math.min(S.OUTW-60-bw,ax-bw*0.65)), by=ay-36-bh, r=28;
-  ctx.fillStyle='#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(bx+r,by); ctx.lineTo(bx+bw-r,by); ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+r);
-  ctx.lineTo(bx+bw,by+bh-r); ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-r,by+bh);
-  const tx=Math.max(bx+r+30,Math.min(bx+bw-r-30,ax));
-  ctx.lineTo(tx+22,by+bh); ctx.lineTo(ax,ay); ctx.lineTo(tx-22,by+bh);
-  ctx.lineTo(bx+r,by+bh); ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-r);
-  ctx.lineTo(bx,by+r); ctx.quadraticCurveTo(bx,by,bx+r,by);
-  ctx.fill(); ctx.strokeStyle='#111'; ctx.lineWidth=5; ctx.lineJoin='round'; ctx.stroke();
-  ctx.fillStyle='#000'; ctx.textBaseline='top';
-  lines.forEach((l,i)=>ctx.fillText(l,bx+pad,by+pad+i*lh));
   ctx.restore();
 }
 
