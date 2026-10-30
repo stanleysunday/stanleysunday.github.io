@@ -178,6 +178,11 @@ function geometry(layer, p, W, H) {
     LAG = 0.3 * Math.abs(b);
   const sc = scaleOf(W);
   const lagAt = x => {
+    // gesto: la rotura nace en el punto donde entró el dedo y corre por la línea (más rápido hacia delante)
+    if (layer.x0 != null) {
+      const d = x - layer.x0;
+      return Math.min(LAG, LAG * (d >= 0 ? d / layer.lagRange : -d / layer.lagRange * 1.5));
+    }
     const nx = clamp((x + W / 2) / (2 * W), 0, 1);
     return LAG * (b > 0 ? 1 - nx : nx);
   };
@@ -567,7 +572,7 @@ let topI=0;            // capa intacta que está encima
 const tears=[];       // capas rasgándose
 let lastUser=-1e9,lastAuto=0,seedN=1;
 
-function addTear(cx,cy,angle,bias,dur,now){
+function addTear(cx,cy,angle,bias,dur,now,fromPoint){
   if(tears.length>=6)return;
   const key=COLORS[topI];topI=(topI+1)%COLORS.length;
   const S=Math.hypot(VW,VH)*1.15;
@@ -576,6 +581,7 @@ function addTear(cx,cy,angle,bias,dur,now){
   const layer=makeLayer((seedN++*7919+Math.floor(Math.random()*1e6))>>>0,dyn,S,S,density,false);
   // distancia hasta la esquina más lejana: las mitades salen del todo de la pantalla
   layer.req=Math.max(Math.hypot(cx,cy),Math.hypot(VW-cx,cy),Math.hypot(cx,VH-cy),Math.hypot(VW-cx,VH-cy))+80;
+  if(fromPoint){layer.x0=S/2;layer.lagRange=Math.hypot(VW,VH)*0.45;}
   tears.push({layer,color:DYN[key]&&ORDER.find(o=>o.key===key).color,cx,cy,S,t0:now,dur});
   document.body.style.background=ORDER.find(o=>o.key===COLORS[topI]).color;
 }
@@ -620,7 +626,7 @@ function onMove(e){
   const a=pts[0],b=pts[pts.length-1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
   if(d>Math.max(50,Math.min(VW,VH)*0.12)){
     lastTear=lastUser=now;
-    addTear((a.x+b.x)/2,(a.y+b.y)/2,Math.atan2(dy,dx)*180/Math.PI,-0.8,2.4,now);
+    addTear(a.x,a.y,Math.atan2(dy,dx)*180/Math.PI,-0.85,3.2,now,true);
     pts.length=0;
   }
 }
