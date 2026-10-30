@@ -187,7 +187,7 @@ function geometry(layer, p, W, H) {
     return LAG * (b > 0 ? 1 - nx : nx);
   };
   const pRaw = x => (p - lagAt(x)) / (1 - LAG);
-  const pAt = x => clamp(pRaw(x), 0, 1);
+  const pAt = x => clamp(pRaw(x), 0, layer.cap ? layer.cap(x) : 1); // rotura parcial: solo se abre un trozo
   const gapsAt = x => {
     const [uT, uB] = layer.dyn.gaps(pAt(x));
     return [req * uT, req * uB];
@@ -568,69 +568,109 @@ function resize(){DPR=Math.min(devicePixelRatio||1,2);VW=innerWidth;VH=innerHeig
 addEventListener('resize',resize);resize();
 
 const COLORS=ORDER.map(o=>o.key); // rojo, azul, amarillo, negro, blanco
-let topI=0;            // capa intacta que está encima
-const tears=[];       // capas rasgándose
-let lastUser=-1e9,lastAuto=0,seedN=1;
+const colorOf=k=>ORDER.find(o=>o.key===k).color;
+let ci=0;                       // color de la siguiente lámina intacta
+const sheets=[];                // láminas: [0] = la de arriba del todo
+function newSheet(){const s={color:colorOf(COLORS[ci]),key:COLORS[ci],tears:[],going:false,end:0};ci=(ci+1)%COLORS.length;return s}
+sheets.push(newSheet(),newSheet());
+const off=document.createElement('canvas'),octx=off.getContext('2d'),msk=document.createElement('canvas'),mctx=msk.getContext('2d');
+function resizeOff(){off.width=msk.width=cv.width;off.height=msk.height=cv.height}resizeOff();addEventListener('resize',resizeOff);
 
-function addTear(cx,cy,angle,bias,dur,now,fromPoint){
-  if(tears.length>=6)return;
-  const key=COLORS[topI];topI=(topI+1)%COLORS.length;
+/* añade una rotura a la lámina de arriba que aún no se está yendo.
+   Pase largo: se rompe entera. Pase corto: solo se abre ese trozo y se queda abierto. */
+function addTear(ax,ay,bx,by,now){
+  const sh=sheets.find(s=>!s.going);if(!sh)return;
+  const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy);
+  const full=L>Math.hypot(VW,VH)*0.4;
+  const angle=Math.atan2(dy,dx)*180/Math.PI;
   const S=Math.hypot(VW,VH)*1.15;
-  const dyn={...DYN[key],angle,bias};
+  const dyn={...DYN[sh.key],angle,bias:-0.85};
   const density=(2*S/3200)/scaleOf(S);
-  const layer=makeLayer((seedN++*7919+Math.floor(Math.random()*1e6))>>>0,dyn,S,S,density,false);
-  // distancia hasta la esquina más lejana: las mitades salen del todo de la pantalla
-  layer.req=Math.max(Math.hypot(cx,cy),Math.hypot(VW-cx,cy),Math.hypot(cx,VH-cy),Math.hypot(VW-cx,VH-cy))+80;
-  if(fromPoint){layer.x0=S/2;layer.lagRange=Math.hypot(VW,VH)*0.45;}
-  tears.push({layer,color:DYN[key]&&ORDER.find(o=>o.key===key).color,cx,cy,S,t0:now,dur});
-  document.body.style.background=ORDER.find(o=>o.key===COLORS[topI]).color;
+  const layer=makeLayer((Math.random()*4294967295)>>>0,dyn,S,S,density,false);
+  let cx=ax,cy=ay,dur=3.2;
+  layer.x0=S/2;
+  if(full){
+    layer.req=Math.max(Math.hypot(cx,cy),Math.hypot(VW-cx,cy),Math.hypot(cx,VH-cy),Math.hypot(VW-cx,VH-cy))+80;
+    layer.lagRange=Math.hypot(VW,VH)*0.45;
+    sh.going=true;sh.end=now+dur;
+    if(!sheets.some(s=>!s.going))sheets.push(newSheet());
+  }else{
+    // centrado en el pase; se abre un trozo algo más largo que la raya y se queda
+    cx=(ax+bx)/2;cy=(ay+by)/2;layer.x0=S/2-L/2;
+    const ext=L*1.0+30;
+    layer.req=L*0.4+20;
+    layer.lagRange=ext;
+    layer.cap=x=>{const u=(x-S/2)/ext;return u*u>=1?0:Math.pow(1-u*u,1.5)};
+    dur=1.8;
+  }
+  sh.tears.push({layer,cx,cy,S,t0:now,dur});
 }
 
-function draw(n){
+function draw(c,n){
   if(n==null||n===false)return;
-  if(Array.isArray(n)){n.forEach(draw);return}
+  if(Array.isArray(n)){n.forEach(m=>draw(c,m));return}
   if(typeof n!=='object')return;
   const p=n.props;
-  if(n.tag==='g'){ctx.save();const m=p.transform&&/rotate\(([-\d.e]+) ([-\d.e]+) ([-\d.e]+)\)/.exec(p.transform);
-    if(m){ctx.translate(+m[2],+m[3]);ctx.rotate(m[1]*Math.PI/180);ctx.translate(-m[2],-m[3]);}
-    n.children.forEach(draw);ctx.restore();return}
-  if(n.tag==='path'){ctx.fillStyle=p.fill;ctx.fill(new Path2D(p.d));return}
-  if(n.tag==='circle'){ctx.fillStyle=p.fill;ctx.beginPath();ctx.arc(p.cx,p.cy,Math.max(0,p.r),0,Math.PI*2);ctx.fill();return}
-  if(n.tag==='ellipse'){ctx.fillStyle=p.fill;ctx.beginPath();ctx.ellipse(p.cx,p.cy,Math.max(0,p.rx),Math.max(0,p.ry),0,0,Math.PI*2);ctx.fill();return}
+  if(n.tag==='g'){c.save();const m=p.transform&&/rotate\(([-\d.e]+) ([-\d.e]+) ([-\d.e]+)\)/.exec(p.transform);
+    if(m){c.translate(+m[2],+m[3]);c.rotate(m[1]*Math.PI/180);c.translate(-m[2],-m[3]);}
+    n.children.forEach(m=>draw(c,m));c.restore();return}
+  c.fillStyle=p.fill;
+  if(n.tag==='path'){c.fill(new Path2D(p.d));return}
+  if(n.tag==='circle'){c.beginPath();c.arc(p.cx,p.cy,Math.max(0,p.r),0,Math.PI*2);c.fill();return}
+  if(n.tag==='ellipse'){c.beginPath();c.ellipse(p.cx,p.cy,Math.max(0,p.rx),Math.max(0,p.ry),0,0,Math.PI*2);c.fill();return}
+}
+function drawTear(c,sh,t,now){
+  const p=clamp((now-t.t0)/t.dur,0,1);
+  c.save();c.translate(t.cx-t.S/2,t.cy-t.S/2);
+  draw(c,GumLayer({layer:t.layer,color:sh.color,p,W:t.S,H:t.S,debris:null}));
+  c.restore();
+}
+function drawSheet(sh,now){
+  if(!sh.tears.length){ctx.fillStyle=sh.color;ctx.fillRect(0,0,VW,VH);return}
+  if(sh.tears.length===1){drawTear(ctx,sh,sh.tears[0],now);return}
+  // varias roturas en la misma lámina: lo que queda es la intersección de todas
+  octx.setTransform(DPR,0,0,DPR,0,0);octx.globalCompositeOperation='source-over';octx.clearRect(0,0,VW,VH);
+  drawTear(octx,sh,sh.tears[0],now);
+  for(let i=1;i<sh.tears.length;i++){
+    mctx.setTransform(DPR,0,0,DPR,0,0);mctx.clearRect(0,0,VW,VH);drawTear(mctx,sh,sh.tears[i],now);
+    octx.setTransform(1,0,0,1,0,0);octx.globalCompositeOperation='destination-in';octx.drawImage(msk,0,0);
+    octx.globalCompositeOperation='source-over';octx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,0,0);ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 
 function frame(ts){
   const now=ts/1000;
+  endHoverIfIdle(now);
+  while(sheets.length&&sheets[0].going&&now>sheets[0].end+0.1)sheets.shift();
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.fillStyle=ORDER.find(o=>o.key===COLORS[topI]).color;ctx.fillRect(0,0,VW,VH);
-  for(let i=tears.length-1;i>=0;i--){ // la más reciente debajo, la más antigua encima
-    const t=tears[i],p=(now-t.t0)/t.dur;
-    if(p>=1.02){tears.splice(i,1);continue}
-  }
-  for(let i=tears.length-1;i>=0;i--){
-    const t=tears[i],p=clamp((now-t.t0)/t.dur,0,1);
-    ctx.save();ctx.translate(t.cx-t.S/2,t.cy-t.S/2);
-    draw(GumLayer({layer:t.layer,color:t.color,p,W:t.S,H:t.S,debris:null}));
-    ctx.restore();
-  }
+  // de abajo arriba: la primera lámina intacta del todo hace de fondo
+  let k=sheets.length-1;while(k>0&&sheets[k].tears.length===0&&sheets[k-1].tears.length===0)k--;
+  for(let i=k;i>=0;i--)drawSheet(sheets[i],now);
+  // que siempre haya una lámina por debajo de la de arriba
+  if(sheets.length<2||sheets[sheets.length-1].tears.length)sheets.push(newSheet());
   requestAnimationFrame(frame);
 }
 
-/* gesto: un pase rápido (dedo o cursor) abre la capa de arriba a lo largo de esa línea */
-const pts=[];let lastTear=-1e9;
-function onMove(e){
-  const now=performance.now()/1000;
-  pts.push({x:e.clientX,y:e.clientY,t:now});
-  while(pts.length&&now-pts[0].t>0.18)pts.shift();
-  if(pts.length<2||now-lastTear<0.35)return;
-  const a=pts[0],b=pts[pts.length-1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
-  if(d>Math.max(50,Math.min(VW,VH)*0.12)){
-    lastTear=lastUser=now;
-    addTear(a.x,a.y,Math.atan2(dy,dx)*180/Math.PI,-0.85,3.2,now,true);
-    pts.length=0;
+/* gestos: con el dedo, del toque a soltar; con el ratón, cualquier pase rápido (o arrastre) */
+let g=null;
+const MIN=26;
+function startG(x,y,t,kind){g={ax:x,ay:y,bx:x,by:y,t,last:t,kind}}
+function endG(){if(!g)return;const L=Math.hypot(g.bx-g.ax,g.by-g.ay);if(L>=MIN)addTear(g.ax,g.ay,g.bx,g.by,performance.now()/1000);g=null}
+let px=null,py=null,pt=0;
+function endHoverIfIdle(now){if(g&&g.kind==='hover'&&now-g.last>0.12)endG()}
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);startG(e.clientX,e.clientY,e.timeStamp/1000,'drag')});
+cv.addEventListener('pointermove',e=>{
+  const t=e.timeStamp/1000,x=e.clientX,y=e.clientY;
+  if(g&&g.kind==='drag'){g.bx=x;g.by=y;g.last=t;px=x;py=y;pt=t;return}
+  if(e.pointerType==='mouse'&&px!==null&&t-pt<0.1){
+    const v=Math.hypot(x-px,y-py)/Math.max(t-pt,0.004);
+    if(!g&&v>700)startG(px,py,t,'hover');
+    if(g){if(v>250){g.bx=x;g.by=y;g.last=t}}
   }
-}
-cv.addEventListener('pointermove',e=>{if(e.getCoalescedEvents)e.getCoalescedEvents().forEach(onMove);else onMove(e)});
-cv.addEventListener('pointerdown',e=>{pts.length=0;onMove(e)});
+  px=x;py=y;pt=t;
+});
+const up=()=>{if(g&&g.kind==='drag')endG()};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 requestAnimationFrame(frame);
 </script></body></html>
