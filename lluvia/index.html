@@ -31,7 +31,7 @@
 </head>
 <body>
 <canvas id="canvas"></canvas>
-<div id="hint-bar">Click o toca la pantalla para soltar fotos</div>
+<div id="hint-bar">Toca para que caigan fotos</div>
 <div id="counter">Fotos: <span id="photo-count">0</span></div>
 <button id="clear-btn">Limpiar</button>
 <a id="back" href="/">← stanley sunday</a>
@@ -40,7 +40,7 @@ const EMBEDDED_SRC = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/4gHYSUN
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let W, H, img = null, imgRatio = 1, photos = [];
-const GRAVITY = 0.12, BOUNCE_MIN = 0.3, BOUNCE_MAX = 0.85, FRICTION = 0.999, MIN_VEL = 0.2, MAX_BOUNCES = 10, SPAWN_MIN = 30, SPAWN_MAX = 60;
+const GRAVITY = 0.12, BOUNCE_MIN = 0.3, BOUNCE_MAX = 0.85, FRICTION = 0.999, MIN_VEL = 0.2, MAX_BOUNCES = 10, SPAWN_MIN = 10, SPAWN_MAX = 18;
 
 function resize() { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; }
 window.addEventListener('resize', resize); resize();
@@ -58,7 +58,7 @@ const FUSION_MS = 1700, ECO_N = 6, ECO_PASO = 5;
 const hint = document.getElementById('hint-bar');
 function setFase(f) {
   fase = f;
-  hint.textContent = { lluvia: 'Toca para soltar fotos · desliza arriba para lanzarlas', fusion: '', unica: 'Toca o desliza', rebota: 'Desliza arriba para agrandar · abajo para encoger' }[f];
+  hint.textContent = { lluvia: photos.length ? 'Desliza arriba para lanzarlas' : 'Toca para que caigan fotos', fusion: '', unica: 'Toca o desliza', rebota: 'Desliza arriba para agrandar · abajo para encoger' }[f];
   document.getElementById('photo-count').textContent = (f === 'unica' || f === 'rebota') ? 1 : photos.length;
 }
 
@@ -70,7 +70,7 @@ function spawnBatch(tapX) {
     const y = -h - Math.random() * 400;
     photos.push({ x, y, w, h, vx: (Math.random()-0.5)*3, vy: Math.random()*1.5, rotation: 0, rotationSpeed: 0, opacity: 1, settled: false, bounceCount: 0, shadow: 4+Math.random()*12, bounceDamping: BOUNCE_MIN+Math.random()*(BOUNCE_MAX-BOUNCE_MIN), gravityMult: 0.5+Math.random() });
   }
-  updateCounter();
+  updateCounter(); if (fase === 'lluvia') setFase('lluvia');
 }
 
 function lanzar(fuerza, dx) {   // desliza hacia arriba: todas las fotos salen disparadas
