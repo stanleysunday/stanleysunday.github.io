@@ -615,7 +615,7 @@ const ANG={'#e20613':15,'#1fa3ff':75,'#fed200':0,'#000000':45,'#ffffff':0};
 const TILES={};ORDER.forEach((o,i)=>{TILES[o.color]=makeTile(o.color,11+i*7,ANG[o.color]*Math.PI/180)});
 const PATS=new Map();
 function pat(c,hex){let m=PATS.get(c);if(!m){m={};PATS.set(c,m)}if(!m[hex])m[hex]=c.createPattern(TILES[hex],'repeat');return m[hex]}
-let printRate=12.5;const sheetNo=now=>Math.floor(now*printRate);
+let printRate=12.5,printNo=0;const sheetNo=()=>printNo; // la tirada solo avanza mientras algo se mueve
 function jit(s){return hash(s,s*3+1,7)}
 // relleno texturado: la trama se desplaza con la pieza (shift) y tiembla por impresión
 function fillTex(c,hex,shift,now){
@@ -694,6 +694,8 @@ function drawSheet(sh,now){
 
 function frame(ts){
   const now=ts/1000;NOW=now;
+  const moving=sheets.some(s=>s.going||s.tears.some(t=>now-t.t0<t.dur+0.3));
+  if(moving)printNo=Math.floor(now*printRate);
   endHoverIfIdle(now);
   while(sheets.length&&sheets[0].going&&now>sheets[0].end+0.1)sheets.shift();
   ctx.setTransform(DPR,0,0,DPR,0,0);
