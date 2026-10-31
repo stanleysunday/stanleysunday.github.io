@@ -297,12 +297,7 @@
   }
 
   // ---------- computer ----------
-  function intensity(t) {
-    if (t < 29) return .15;
-    if (t < 44) return .15 + (t - 29) / 15 * .45;
-    if (t < 99.7) return .75;
-    return Math.max(.2, .75 - (t - 99.7) / 10);
-  }
+  function intensity(t) { return 1; }   // el ordenador juega bien desde el principio
   function crossing(b, side) {      // [time, y] where b reaches this paddle's face, with wall bounces
     const fx = side === 0 ? FACE[0] + b.r : FACE[1] - b.r;
     if ((side === 0 && b.vx >= 0) || (side === 1 && b.vx <= 0)) return null;
