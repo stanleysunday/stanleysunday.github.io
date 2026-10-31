@@ -373,7 +373,7 @@
       ctx.drawImage(video, s * TW, STRIP, TW, TH, PADX[s], pad[s] - TH / 2, TW, TH);
     if (!running) return;
     for (const b of extra) disc(b, 'rgb(60,60,60)');
-    if (ball) disc(ball, 'rgb(65,20,55)');
+    if (ball) disc(ball, 'rgb(60,60,60)');
     ctx.fillStyle = 'rgba(230,230,230,.9)'; ctx.font = '84px VT323, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText(score[0], 400, 26); ctx.fillText(score[1], 560, 26);
     ctx.font = '26px VT323, monospace'; ctx.fillStyle = 'rgba(200,200,200,.8)';
