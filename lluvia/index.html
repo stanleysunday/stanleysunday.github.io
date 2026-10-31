@@ -147,7 +147,7 @@ function loop() {
     if (t >= 1) { photos = []; ecos = []; setFase('unica'); }
   } else {
     updateUnica();
-    if (fase === 'rebota') for (let n = ECO_N; n >= 1; n--) { const e = ecos[n * ECO_PASO - 1]; if (e) drawPhoto(e, 0.5 * (1 - n / (ECO_N + 1)), false); }
+    if (fase === 'rebota') for (let n = ECO_N; n >= 1; n--) { const e = ecos[n * ECO_PASO - 1]; if (e) drawPhoto(e, 1, true); }
     drawPhoto(unica);
   }
   ctx.globalAlpha = 1; requestAnimationFrame(loop);
