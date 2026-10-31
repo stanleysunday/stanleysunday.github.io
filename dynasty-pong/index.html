@@ -312,7 +312,7 @@
     curT = t;
     const chaos = t >= CHAOS0 && t < CHAOS1;
     if (chaos && !wasChaos) { extra = []; spawned = 0; if (!ball) { serveDir = Math.random() < .5 ? -1 : 1; launch(); } }
-    if (!chaos && wasChaos) { extra = []; serve(t, Math.random() < .5 ? -1 : 1); serveAt = t + .4; }
+    if (!chaos && wasChaos) { extra = []; if (!ball) { serve(t, Math.random() < .5 ? -1 : 1); serveAt = t + .4; } }
     wasChaos = chaos;
 
     // human paddle
@@ -323,9 +323,11 @@
     padVel[h] = (pad[h] - prev) / Math.max(dt, 1e-3);
 
     // computer paddle: pursue the ball that arrives first
-    const c = 1 - human, k = chaos ? .9 : intensity(t);
+    const c = 1 - human, k = intensity(t);
     let best = null;
-    for (const b of (ball ? [ball, ...extra] : extra)) {
+    // primero la bola de juego; las de la locura solo si la de juego no viene hacia él
+    best = ball ? crossing(ball, c) : null;
+    if (!best) for (const b of extra) {
       const cr = crossing(b, c);
       if (cr && (!best || cr[0] < best[0])) best = cr;
     }
@@ -352,8 +354,8 @@
     if (!chaos && cheatStep(t, dt)) return;
     if (!ball) { if (t >= serveAt) launch(); return; }
     for (let n = 0; n < steps && ball; n++) {
-      stepBall(ball, h2, chaos);
-      if (!chaos) {
+      stepBall(ball, h2, false);   // la bola de juego sigue en juego también durante la locura
+      {
         if (ball.x < -R * 2) { score[1]++; gameOver(0); return; }
         else if (ball.x > W + R * 2) { score[0]++; gameOver(1); return; }
       }
