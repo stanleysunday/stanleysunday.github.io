@@ -36,15 +36,18 @@
     }
   }
   .cell {
-    aspect-ratio: 1;
     cursor: pointer;
     overflow: hidden;
+    min-width: 0;
+    min-height: 0;
   }
   .cell canvas {
     width: 100%;
     height: 100%;
     display: block;
     pointer-events: none;
+    object-fit: cover;
+    object-position: 50% 50%;
   }
 
   /* Back link */
@@ -244,6 +247,48 @@ function createCell(index) {
 
 let unlocked = false;
 
+// Deformación: la celda por la que pasa el dedo encoge hacia donde va el gesto
+// y el resto de columnas/filas reparten su tamaño
+let colObj = [], rowObj = [], colAct = [], rowAct = [], ultimo = null;
+const MIN_PESO = 0.2, ENCOGE = 0.35, RECUPERA = 0.004;
+function resetPesos() {
+  colObj = Array(COLS).fill(1); rowObj = Array(ROWS).fill(1);
+  colAct = colObj.slice(); rowAct = rowObj.slice();
+  grid.style.aspectRatio = COLS + ' / ' + ROWS;
+  aplicaPesos();
+}
+function aplicaPesos() {
+  grid.style.gridTemplateColumns = colAct.map(v => v.toFixed(3) + 'fr').join(' ');
+  grid.style.gridTemplateRows = rowAct.map(v => v.toFixed(3) + 'fr').join(' ');
+}
+function deforma(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const prev = ultimo; ultimo = { x, y, el };
+  if (!prev || !el || !el.classList.contains('cell') || el === prev.el) return;
+  const dx = x - prev.x, dy = y - prev.y, tot = Math.abs(dx) + Math.abs(dy);
+  if (tot < 1) return;
+  const wx = Math.abs(dx) / tot, wy = Math.abs(dy) / tot;
+  const i = cells.findIndex(c => c.div === el); if (i < 0) return;
+  const c = i % COLS, r = Math.floor(i / COLS);
+  colObj[c] = Math.max(MIN_PESO, colObj[c] * (1 - (1 - ENCOGE) * wx));
+  rowObj[r] = Math.max(MIN_PESO, rowObj[r] * (1 - (1 - ENCOGE) * wy));
+  // la imagen se pega al lado hacia el que va el dedo
+  el.querySelector('canvas').style.objectPosition =
+    (50 + Math.sign(dx) * 50 * wx) + '% ' + (50 + Math.sign(dy) * 50 * wy) + '%';
+}
+(function animaPesos() {
+  let cambia = false;
+  const paso = (obj, act) => obj.forEach((v, k) => {
+    obj[k] = v + (1 - v) * RECUPERA;           // vuelve poco a poco a su tamaño
+    const n = act[k] + (obj[k] - act[k]) * 0.12;
+    if (Math.abs(n - act[k]) > 0.0005) cambia = true;
+    act[k] = n;
+  });
+  paso(colObj, colAct); paso(rowObj, rowAct);
+  if (cambia) aplicaPesos();
+  requestAnimationFrame(animaPesos);
+})();
+
 // Construye (o reconstruye) las celdas para las dimensiones actuales.
 // Al reconstruir, libera los vídeos anteriores (cuelgan de <body>) para no
 // dejar decoders huérfanos, algo especialmente sensible en iOS.
@@ -264,6 +309,7 @@ function buildCells() {
     cells.push(cell);
     grid.appendChild(cell.div);
   }
+  resetPesos();
 }
 
 function initGrid() {
@@ -271,6 +317,7 @@ function initGrid() {
 
   // Desktop: hover activa celda
   grid.addEventListener('mousemove', (e) => {
+    deforma(e.clientX, e.clientY);
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (el && el.classList.contains('cell')) {
       el._activate && el._activate();
@@ -300,6 +347,7 @@ function initGrid() {
     unlockAll();
     touching = true;
     const t = e.touches[0];
+    ultimo = null; deforma(t.clientX, t.clientY);
     activateAtPoint(t.clientX, t.clientY);
   }, { passive: true });
 
@@ -307,10 +355,11 @@ function initGrid() {
     e.preventDefault();
     if (!touching) return;
     const t = e.touches[0];
+    deforma(t.clientX, t.clientY);
     activateAtPoint(t.clientX, t.clientY);
   }, { passive: false });
 
-  grid.addEventListener('touchend', () => { touching = false; }, { passive: true });
+  grid.addEventListener('touchend', () => { touching = false; ultimo = null; }, { passive: true });
 
   // Al girar el móvil o redimensionar, reconstruye solo si cambia la rejilla
   let resizeTimer = null;
