@@ -58,7 +58,7 @@ const FUSION_MS = 1700, ECO_N = 6, ECO_PASO = 5;
 const hint = document.getElementById('hint-bar');
 function setFase(f) {
   fase = f;
-  hint.textContent = { lluvia: photos.length ? 'Desliza arriba para lanzarlas' : 'Toca para que caigan fotos', fusion: '', unica: 'Toca o desliza', rebota: 'Desliza arriba para agrandar · abajo para encoger' }[f];
+  hint.textContent = { lluvia: photos.length ? 'Desliza arriba para lanzarlas' : 'Toca para que caigan fotos', fusion: '', unica: '', rebota: '' }[f];
   document.getElementById('photo-count').textContent = (f === 'unica' || f === 'rebota') ? 1 : photos.length;
 }
 
