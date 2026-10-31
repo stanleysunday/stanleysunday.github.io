@@ -413,11 +413,11 @@ function GumLayer({
   }, /*#__PURE__*/React.createElement("path", {
     d: topD,
     fill: color,
-    shift: -g.gapT(cx)
+    shift: layer.cap ? 0 : -g.gapT(cx)
   }), /*#__PURE__*/React.createElement("path", {
     d: botD,
     fill: color,
-    shift: g.gapB(cx)
+    shift: layer.cap ? 0 : g.gapB(cx)
   }), strands, dots), label ? /*#__PURE__*/React.createElement("g", null, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("clipPath", {
     id: label.id,
     clipPathUnits: "userSpaceOnUse",
@@ -573,7 +573,7 @@ const COLORS=ORDER.map(o=>o.key); // rojo, azul, amarillo, negro, blanco
 const colorOf=k=>ORDER.find(o=>o.key===k).color;
 let ci=0;                       // color de la siguiente lámina intacta
 const sheets=[];                // láminas: [0] = la de arriba del todo
-function newSheet(){const s={color:colorOf(COLORS[ci]),key:COLORS[ci],tears:[],going:false,end:0};ci=(ci+1)%COLORS.length;return s}
+function newSheet(){const s={color:colorOf(COLORS[ci]),key:COLORS[ci],tears:[],going:false,end:0,ox:Math.random()*256,oy:Math.random()*256,rx:0,ry:0};ci=(ci+1)%COLORS.length;return s}
 sheets.push(newSheet(),newSheet());
 /* ---------- riso procedural: papel + trama por color, generado al cargar (sin imágenes) ---------- */
 const TILE=256;
@@ -592,7 +592,7 @@ function makeTile(hex,seed,angle){
   const white=hex==='#ffffff';
   for(let j=0;j<TILE;j++)for(let i=0;i<TILE;i++){
     const k=(j*TILE+i)*4;
-    const fine=hash(i,j,seed),mid=vnoise(i,j,seed+9,8),coarse=vnoise(i,j,seed+21,32);
+    const fine=hash(i,j,seed),mid=vnoise(i,j,seed+9,8),coarse=vnoise(i,j,seed+21,64);
     // fibra de papel suave
     let fib=1+(fine-0.5)*0.05+(mid-0.5)*0.07+(coarse-0.5)*0.06;
     let ink=1;
@@ -601,7 +601,7 @@ function makeTile(hex,seed,angle){
       const u=(i*ca+j*sa)/period,v=(-i*sa+j*ca)/period;
       const du=u-Math.round(u),dv=v-Math.round(v);
       const dist=Math.hypot(du,dv)*2; // 0 en el centro de la celda, 1 en el borde
-      const cover=0.62+(coarse-0.5)*0.5+(mid-0.5)*0.25; // cobertura de tinta variable
+      const cover=0.62+(coarse-0.5)*0.2+(mid-0.5)*0.08; // cobertura de tinta variable
       const edge=clamp((cover-dist)/0.18,0,1);  // 1 = tinta, 0 = papel
       ink=0.72+0.28*edge;
       if(fine>0.992)ink*=0.55;   // poros
@@ -618,10 +618,13 @@ function pat(c,hex){let m=PATS.get(c);if(!m){m={};PATS.set(c,m)}if(!m[hex])m[hex
 let printRate=12.5,printNo=0;const sheetNo=()=>printNo; // la tirada solo avanza mientras algo se mueve
 function jit(s){return hash(s,s*3+1,7)}
 // relleno texturado: la trama se desplaza con la pieza (shift) y tiembla por impresión
+let CUR=null; // lámina que se está pintando: su papel va fijo a ella
 function fillTex(c,hex,shift,now){
-  const P=pat(c,hex);const sn=sheetNo(now),plate=ORDER.findIndex(o=>o.color===hex);
-  const ox=Math.floor(jit(sn*19+plate)*TILE),oy=Math.floor(jit(sn*23+plate+41)*TILE);
-  P.setTransform(new DOMMatrix().translate(ox,oy+(shift||0)));
+  const P=pat(c,hex);
+  const ox=CUR?CUR.ox+CUR.rx:0,oy=CUR?CUR.oy+CUR.ry:0;
+  // patrón → espacio local: desplazamiento de la mitad · inversa de la transformación actual · pantalla
+  const m=new DOMMatrix().translate(0,shift||0).multiply(c.getTransform().inverse()).multiply(new DOMMatrix().scale(DPR).translate(ox,oy));
+  P.setTransform(m);
   c.fillStyle=P;
 }
 let NOW=0;
@@ -673,12 +676,14 @@ function draw(c,n){
 }
 function drawTear(c,sh,t,now){
   const p=clamp((now-t.t0)/t.dur,0,1);
-  c.save();const sn=sheetNo(now),plate=ORDER.findIndex(o=>o.color===sh.color);
-  c.translate(t.cx-t.S/2+(jit(sn*31+plate)-0.5)*2.4,t.cy-t.S/2+(jit(sn*37+plate+5)-0.5)*2.4);
+  c.save();
+  c.translate(sh.rx,sh.ry);c.translate(t.cx-t.S/2,t.cy-t.S/2);
   draw(c,GumLayer({layer:t.layer,color:sh.color,p,W:t.S,H:t.S,debris:null}));
   c.restore();
 }
 function drawSheet(sh,now){
+  CUR=sh;const sn=sheetNo(),plate=ORDER.findIndex(o=>o.color===sh.color);
+  sh.rx=(jit(sn*31+plate)-0.5)*2.4;sh.ry=(jit(sn*37+plate+5)-0.5)*2.4;
   if(!sh.tears.length){fillTex(ctx,sh.color,0,now);ctx.fillRect(-4,-4,VW+8,VH+8);return}
   if(sh.tears.length===1){drawTear(ctx,sh,sh.tears[0],now);return}
   // varias roturas en la misma lámina: lo que queda es la intersección de todas
