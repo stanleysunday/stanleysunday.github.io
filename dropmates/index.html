@@ -121,11 +121,11 @@ const PAIRS = [
 const WORDS=[...new Set(PAIRS.flat())];
 const PARTNERS={};
 PAIRS.forEach(([a,b])=>{(PARTNERS[a]=PARTNERS[a]||[]).push(b);(PARTNERS[b]=PARTNERS[b]||[]).push(a);});
-const FALL_SPEED=1.2, FALL_MAX=2.2, GRAVITY=0.03, SPAWN_INTERVAL=2400, PAD_Y=8, FONT_SIZE=13;
+const FALL_SPEED=0.85, FALL_MAX=1.5, GRAVITY=0.018, SPAWN_INTERVAL=6000, PAD_Y=8, FONT_SIZE=13;
 const FONT=`${FONT_SIZE}px monospace`;
 const TILE_W_MAX=90, TILE_H_FIXED=FONT_SIZE+PAD_Y*2;
 
-let tiles=[],particles=[],floatingTexts=[],score=0,combo=1,idCounter=0,lastSpawn=0;
+let tiles=[],particles=[],floatingTexts=[],score=0,combo=1,idCounter=0,lastSpawn=0,ultima=null;
 let dragging=null,bricks=[],gameOver=false,dragOffX=0,dragOffY=0;
 let dragContacts = new Set();
 
@@ -165,7 +165,9 @@ function deBolsa(evita){
 }
 function expuestos(){return bricks.filter(b=>!bricks.some(o=>o!==b&&Math.abs(o.x-b.x)<(o.w+b.w)/2-2&&Math.abs((o.y+o.h/2)-(b.y-b.h/2))<1.5));}
 function spawnTile(now){
-  if(gameOver||now-lastSpawn<SPAWN_INTERVAL) return;
+  if(gameOver) return;
+  // la siguiente sale cuando la última ha pasado la mitad (aunque luego la suban), si ya no está cayendo, o como red de seguridad por tiempo
+  if(ultima && !ultima.pasoMitad && !ultima.matched && tiles.includes(ultima) && now-lastSpawn<SPAWN_INTERVAL) return;
   lastSpawn=now;
   const cayendo=tiles.filter(t=>!t.matched).map(t=>t.word);
   const evita=new Set([...cayendo,...recientes]);
@@ -177,7 +179,7 @@ function spawnTile(now){
   }
   if(!word)word=deBolsa(evita);
   recientes.push(word); if(recientes.length>8)recientes.shift();
-  tiles.push(makeTile(word));
+  ultima=makeTile(word); tiles.push(ultima);
 }
 function spawnParticles(x,y){
   for(let i=0;i<12;i++){
@@ -328,6 +330,7 @@ function landTile(t){
 }
 
 function update(now,f){
+  if(ultima&&!ultima.pasoMitad&&ultima.y>H*0.5)ultima.pasoMitad=true;
   spawnTile(now);
   if(dragging){   // aunque la sujetes, la palabra sigue bajando: no se puede dejar quieta
     dragOffY-=FALL_SPEED*.8*f;
@@ -400,7 +403,7 @@ function triggerGameOver(){
 }
 function restartGame(){
   tiles=[];bricks=[];particles=[];floatingTexts=[];score=0;combo=1;gameOver=false;
-  dragging=null;lastSpawn=0;dragContacts.clear();bolsa=[];recientes=[];
+  dragging=null;lastSpawn=0;ultima=null;dragContacts.clear();bolsa=[];recientes=[];
   const go=document.getElementById('gameover'); go.style.opacity=0; go.style.pointerEvents='none';
 }
 let lastT=0;
